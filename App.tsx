@@ -11,6 +11,7 @@ import { MainNavigator } from './src/navigation/MainNavigator';
 import { AlertProvider, useAlert } from './src/context/AlertContext';
 import { initApiErrorHandler } from './src/service/api/apiErrorHandler';
 import { performLogout } from './src/utils/authUtils';
+import GlobalLoader from './src/components/common/GlobalLoader';
 import './src/i18n';
 
 // Registers showAlert + logout into the Axios error handler once providers are ready
@@ -23,6 +24,11 @@ function AppInitializer() {
 
   return null;
 }
+
+const GlobalLoaderWrapper = () => {
+  const isLoading = useSelector((state: RootState) => state.loader.isLoading);
+  return <GlobalLoader visible={isLoading} />;
+};
 
 // Main App Navigation Logic — mapped to Redux auth state
 function RootNavigator() {
@@ -58,6 +64,7 @@ function App() {
           <AlertProvider>
             <AppInitializer />
             <RootNavigator />
+            <GlobalLoaderWrapper />
           </AlertProvider>
         </SafeAreaProvider>
       </PersistGate>

@@ -22,6 +22,7 @@ import { Button } from '../../components/common/Button';
 import { OtpInput } from '../../components/common/OtpInput';
 import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
+import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
 
@@ -67,6 +68,7 @@ export default function OtpPage({ navigation, route }: Props) {
     if (code.length < OTP_LENGTH) return;
     setIsVerifying(true);
     try {
+      dispatch(showLoader());
       const result = await validateOtp(mobileNumber, code);
       if (result) {
         dispatch(login({ user: result, token: 'session_active' }));
@@ -80,6 +82,7 @@ export default function OtpPage({ navigation, route }: Props) {
       setOtp(Array(OTP_LENGTH).fill(''));
     } finally {
       setIsVerifying(false);
+      dispatch(hideLoader());
     }
   };
 
@@ -87,6 +90,7 @@ export default function OtpPage({ navigation, route }: Props) {
     if (resendCountdown > 0 || isResending) return;
     setIsResending(true);
     try {
+      dispatch(showLoader());
       await generateOtp(mobileNumber);
       setResendCountdown(30);
       setOtp(Array(OTP_LENGTH).fill(''));
@@ -98,6 +102,7 @@ export default function OtpPage({ navigation, route }: Props) {
       });
     } finally {
       setIsResending(false);
+      dispatch(hideLoader());
     }
   };
 

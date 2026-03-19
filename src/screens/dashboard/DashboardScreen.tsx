@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-inline-styles */
 import React from 'react';
 import {
   View,
@@ -11,6 +12,7 @@ import {
   StatusBar,
   Dimensions,
   FlatList,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -118,42 +120,47 @@ export default function DashboardScreen({ navigation }: any) {
   const favorites = useSelector(
     (state: RootState) => state.wishlist?.favorites || [],
   );
+  const cartItems = useSelector((state: any) => state.cart?.items || []);
   const dispatch = useDispatch();
   const isBn = i18n.language === 'bn';
 
   const [activeBanner, setActiveBanner] = React.useState(0);
+  const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const flatListRef = React.useRef<FlatList>(null);
 
-  const CAROUSEL_DATA = [
-    ...DASHBOARD_BANNERS,
-    { ...DASHBOARD_BANNERS[0], id: 'clone' },
-  ];
+  // Build a large repeated array so we can scroll forward forever with no snap-back
+  const REPEAT_COUNT = 100;
+  const CAROUSEL_DATA = React.useMemo(() => {
+    const arr: typeof DASHBOARD_BANNERS = [];
+    for (let i = 0; i < REPEAT_COUNT; i++) {
+      DASHBOARD_BANNERS.forEach((b, j) => arr.push({ ...b, id: `${i}_${j}` }));
+    }
+    return arr;
+  }, []);
+  const START_INDEX = Math.floor(REPEAT_COUNT / 2) * DASHBOARD_BANNERS.length;
 
-  // Auto-scroll banners
+  // Scroll to center of repeated list on mount
+  React.useEffect(() => {
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToOffset({
+        offset: START_INDEX * width,
+        animated: false,
+      });
+    });
+  }, [START_INDEX]);
+
+  // Auto-scroll banners — just keep going forward, never jump back
+  const currentIndexRef = React.useRef(START_INDEX);
   React.useEffect(() => {
     const timer = setInterval(() => {
-      setActiveBanner(prev => {
-        let current = prev;
-        // Failsafe: if we're already at clone, snap back first instantly
-        if (current === DASHBOARD_BANNERS.length) {
-          flatListRef.current?.scrollToIndex({ index: 0, animated: false });
-          current = 0;
-        }
-
-        const next = current + 1;
-        flatListRef.current?.scrollToIndex({ index: next, animated: true });
-
-        // If we just scrolled to the clone, silently snap back after animation finishes
-        if (next === DASHBOARD_BANNERS.length) {
-          setTimeout(() => {
-            flatListRef.current?.scrollToIndex({ index: 0, animated: false });
-            setActiveBanner(0);
-          }, 600); // Wait for the forward animation to finish
-        }
-
-        return next;
+      currentIndexRef.current += 1;
+      const idx = currentIndexRef.current;
+      flatListRef.current?.scrollToOffset({
+        offset: idx * width,
+        animated: true,
       });
-    }, 4500); // 4.5 seconds per slide
+      setActiveBanner(idx % DASHBOARD_BANNERS.length);
+    }, 4500);
     return () => clearInterval(timer);
   }, []);
 
@@ -244,11 +251,22 @@ export default function DashboardScreen({ navigation }: any) {
               >
                 <Text style={styles.iconBtnText}>❤️</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn}>
-                <Text style={styles.iconBtnText}>🔔</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Cart')}
+                style={styles.cartBtn}
+              >
+                <Text style={styles.iconBtnText}>🛒</Text>
+                {cartItems.length > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
               {/* User avatar */}
-              <TouchableOpacity onPress={handleLogout} style={styles.avatar}>
+              <TouchableOpacity
+                onPress={() => setShowProfileMenu(true)}
+                style={styles.avatar}
+              >
                 <Text style={styles.avatarText}>
                   {(user?.user_name ?? 'U').toString().slice(0, 1)}
                 </Text>
@@ -302,6 +320,11 @@ export default function DashboardScreen({ navigation }: any) {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             keyExtractor={item => item.id}
+            getItemLayout={(data, index) => ({
+              length: width,
+              offset: width * index,
+              index,
+            })}
             renderItem={({ item }) => (
               <View style={styles.bannerWrapper}>
                 <View style={[styles.banner, styles.bannerZeroMargin]}>
@@ -312,7 +335,10 @@ export default function DashboardScreen({ navigation }: any) {
                     <Text style={styles.bannerSub}>
                       {isBn ? item.subBn : item.subEn}
                     </Text>
-                    <TouchableOpacity style={styles.bannerBtn}>
+                    <TouchableOpacity
+                      style={styles.bannerBtn}
+                      onPress={() => navigation.navigate('AllPujas')}
+                    >
                       <Text style={styles.bannerBtnText}>
                         {isBn ? item.btnBn : item.btnEn}
                       </Text>
@@ -325,15 +351,9 @@ export default function DashboardScreen({ navigation }: any) {
               </View>
             )}
             onMomentumScrollEnd={e => {
-              let index = Math.round(e.nativeEvent.contentOffset.x / width);
-              if (index === DASHBOARD_BANNERS.length) {
-                flatListRef.current?.scrollToIndex({
-                  index: 0,
-                  animated: false,
-                });
-                index = 0;
-              }
-              setActiveBanner(index);
+              const index = Math.round(e.nativeEvent.contentOffset.x / width);
+              currentIndexRef.current = index;
+              setActiveBanner(index % DASHBOARD_BANNERS.length);
             }}
           />
           {/* Pagination Dots */}
@@ -482,6 +502,73 @@ export default function DashboardScreen({ navigation }: any) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Profile Popover Menu */}
+      {showProfileMenu && (
+        <View
+          style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowProfileMenu(false)}>
+            <View style={styles.popoverOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.popoverBox}>
+                  <View style={styles.popoverHeader}>
+                    <Text style={styles.popoverUserName}>
+                      {user?.user_name || 'User'}
+                    </Text>
+                    <Text style={styles.popoverUserPhone}>
+                      {user?.mobile || '7003372763'}
+                    </Text>
+                  </View>
+                  <View style={styles.popoverDivider} />
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      navigation.navigate('EditProfile');
+                    }}
+                  >
+                    <Text style={styles.popoverItemIconOrange}>👤</Text>
+                    <Text style={styles.popoverItemText}>
+                      {isBn ? 'প্রোফাইল সম্পাদন' : 'Edit Profile'}
+                    </Text>
+                    <View style={styles.redDot} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      navigation.navigate('Address');
+                    }}
+                  >
+                    <Text style={styles.popoverItemIconOrange}>📍</Text>
+                    <Text style={styles.popoverItemText}>
+                      {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.popoverDivider} />
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      handleLogout();
+                    }}
+                  >
+                    <Text style={styles.popoverItemIconRed}>🚪</Text>
+                    <Text style={styles.popoverItemTextRed}>
+                      {isBn ? 'লগআউট' : 'Log out'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      )}
     </View>
   );
 }
@@ -787,6 +874,53 @@ const styles = StyleSheet.create({
   emptyStateEmoji: { fontSize: 40, marginBottom: 12 },
   emptyStateText: { color: BRAND_MUTED, fontSize: 14, textAlign: 'center' },
 
+  // Popover Menu
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.15)', // Very light dim
+  },
+  popoverBox: {
+    position: 'absolute',
+    top: 60, // Place it right below the header
+    right: 16,
+    width: 200,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  popoverHeader: { paddingHorizontal: 16, paddingBottom: 12 },
+  popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
+  popoverUserPhone: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  popoverDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
+
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
+  popoverItemText: {
+    fontSize: 14,
+    color: '#4B5563',
+    flex: 1,
+    fontWeight: '500',
+  },
+  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+
+  popoverItemIconRed: { fontSize: 16, marginRight: 12, opacity: 0.8 },
+  popoverItemTextRed: { fontSize: 14, color: '#EF4444', fontWeight: '500' },
+
   headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
   navRowContent: { paddingHorizontal: 16, paddingBottom: 12 },
   carouselContainer: { paddingTop: 16 },
@@ -805,4 +939,22 @@ const styles = StyleSheet.create({
   heartIconText: { fontSize: 16 },
   ratingCol: { alignItems: 'flex-end' },
   bottomSpacer: { height: 40 },
+
+  cartBtn: {
+    position: 'relative',
+    padding: 4,
+  },
+  cartIconText: { fontSize: 24 },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
 });

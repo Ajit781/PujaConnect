@@ -1,0 +1,940 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
+import { addToCart } from '../../store/slices/cartSlice';
+import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+
+const { width } = Dimensions.get('window');
+const BRAND_PRIMARY = '#F97316';
+const BRAND_TEXT = '#291811';
+const BRAND_MUTED = '#6B5E59';
+
+interface BookingModalProps {
+  visible: boolean;
+  onClose: () => void;
+  puja: any;
+  isBn: boolean;
+}
+
+export default function BookingModal({
+  visible,
+  onClose,
+  puja,
+  isBn,
+}: BookingModalProps) {
+  const dispatch = useDispatch();
+  const navigation = useNavigation<any>();
+  const [step, setStep] = useState<'DATETIME' | 'CONFIRM' | 'SUCCESS'>(
+    'DATETIME',
+  );
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const TIME_SLOTS = [
+    '08:00 AM',
+    '09:30 AM',
+    '11:00 AM',
+    '11:30 AM',
+    '12:00 PM',
+    '12:30 PM',
+    '01:00 PM',
+    '01:30 PM',
+    '03:00 PM',
+    '03:30 PM',
+    '04:00 PM',
+    '04:30 PM',
+    '05:00 PM',
+    '05:30 PM',
+    '06:00 PM',
+    '06:30 PM',
+    '07:00 PM',
+    '07:30 PM',
+    '08:00 PM',
+  ];
+
+  const MONTHS_EN = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  const MONTHS_BN = [
+    'জানুয়ারী',
+    'ফেব্রুয়ারি',
+    'মার্চ',
+    'এপ্রিল',
+    'মে',
+    'জুন',
+    'জুলাই',
+    'আগস্ট',
+    'সেপ্টেম্বর',
+    'অক্টোবর',
+    'নভেম্বর',
+    'ডিসেম্বর',
+  ];
+  const DAYS_EN = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const DAYS_BN = [
+    'রবিবার',
+    'সোমবার',
+    'মঙ্গলবার',
+    'বুধবার',
+    'বৃহস্পতিবার',
+    'শুক্রবার',
+    'শনিবার',
+  ];
+
+  const formatDate = (d: Date | null) => {
+    if (!d) return isBn ? 'একটি তারিখ নির্বাচন করুন' : 'Select a date';
+    const dayName = isBn ? DAYS_BN[d.getDay()] : DAYS_EN[d.getDay()];
+    const monthName = isBn ? MONTHS_BN[d.getMonth()] : MONTHS_EN[d.getMonth()];
+    return `${dayName}, ${d.getDate()} ${monthName} ${d.getFullYear()}`;
+  };
+
+  const formatShortDate = (d: Date | null) => {
+    if (!d) return '';
+    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  };
+
+  const getMonthYearText = (d: Date) => {
+    const m = isBn ? MONTHS_BN[d.getMonth()] : MONTHS_EN[d.getMonth()];
+    return `${m} ${d.getFullYear()}`;
+  };
+
+  const clearState = () => {
+    setStep('DATETIME');
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setShowCalendar(false);
+    setShowTimeDropdown(false);
+    setCurrentMonth(new Date());
+  };
+
+  const handleClose = () => {
+    clearState();
+    onClose();
+  };
+
+  const handleViewCart = () => {
+    clearState();
+    onClose();
+    navigation.navigate('Cart');
+  };
+
+  const handleContinue = () => {
+    if (selectedDate && selectedTime) {
+      setStep('CONFIRM');
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!selectedDate || !selectedTime) return;
+    dispatch(showLoader());
+    // Small delay to show loader so the user sees feedback
+    setTimeout(() => {
+      dispatch(
+        addToCart({
+          cartItemId: `${
+            puja.id
+          }-${selectedDate.toISOString()}-${selectedTime}`,
+          pujaId: puja.id,
+          titleEn: puja.titleEn,
+          titleBn: puja.titleBn,
+          exactPrice: puja.exactPrice,
+          exactPriceBn: puja.exactPriceBn,
+          selectedDate: selectedDate.toISOString(),
+          selectedTime: selectedTime,
+          imagePlaceholder: puja.imagePlaceholder,
+          color: puja.color,
+        }),
+      );
+      dispatch(hideLoader());
+      setStep('SUCCESS');
+    }, 800);
+  };
+
+  const renderCalendarGrid = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(<View key={`empty-${i}`} style={styles.calDayBox} />);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(year, month, i);
+      const isSelected = selectedDate?.toDateString() === d.toDateString();
+      const isPast = d < today;
+
+      days.push(
+        <TouchableOpacity
+          key={i}
+          style={[styles.calDayBox, isSelected && styles.calDayActive]}
+          disabled={isPast}
+          onPress={() => {
+            setSelectedDate(d);
+            setShowCalendar(false);
+          }}
+        >
+          <Text
+            style={[
+              styles.calDayText,
+              isSelected && styles.calDayTextActive,
+              isPast && styles.calDayPast,
+            ]}
+          >
+            {i}
+          </Text>
+        </TouchableOpacity>,
+      );
+    }
+
+    return (
+      <View style={styles.dropdownMenu}>
+        <View style={styles.calHeader}>
+          <TouchableOpacity
+            onPress={() => setCurrentMonth(new Date(year, month - 1, 1))}
+          >
+            <Text style={styles.calArrow}>{'<'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.calMonthText}>
+            {getMonthYearText(currentMonth)}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setCurrentMonth(new Date(year, month + 1, 1))}
+          >
+            <Text style={styles.calArrow}>{'>'}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calWeekRow}>
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(w => (
+            <Text key={w} style={styles.calWeekText}>
+              {w}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.calDaysGrid}>{days}</View>
+      </View>
+    );
+  };
+
+  if (!visible) return null;
+
+  return (
+    <View style={styles.absoluteOverlayFill}>
+      <View style={styles.overlay}>
+        <View style={styles.modalContainer}>
+          {step === 'DATETIME' && (
+            <View style={styles.contentWrap}>
+              <View style={styles.headerBox}>
+                <View style={styles.headerTextCol}>
+                  <Text style={styles.headerTitle}>
+                    {isBn ? 'তারিখ ও সময় নির্বাচন করুন' : 'Select Date & Time'}
+                  </Text>
+                  <Text style={styles.headerSub}>
+                    {isBn
+                      ? 'আপনি কখন এই পূজাটি বুক করতে চান?'
+                      : 'When would you like to book this puja?'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.bodyScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.inputLabel}>
+                  📅 {isBn ? 'তারিখ নির্বাচন করুন' : 'Select Date'}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.inputBox,
+                    showCalendar && styles.inputBoxActive,
+                  ]}
+                  onPress={() => {
+                    setShowCalendar(!showCalendar);
+                    setShowTimeDropdown(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.inputText,
+                      !selectedDate && styles.inputPlaceholder,
+                    ]}
+                  >
+                    {formatDate(selectedDate)}
+                  </Text>
+                  <Text style={styles.dropdownIcon}>
+                    {showCalendar ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showCalendar && renderCalendarGrid()}
+
+                <Text style={styles.inputLabel}>
+                  🕒 {isBn ? 'পছন্দের সময়' : 'Preferred Time'}{' '}
+                  <Text style={styles.lightLabel}>
+                    {isBn
+                      ? '(প্রথমে একটি তারিখ নির্বাচন করুন)'
+                      : '(select a date first)'}
+                  </Text>
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.inputBox,
+                    showTimeDropdown && styles.inputBoxActive,
+                    !selectedDate && styles.inputBoxDisabled,
+                  ]}
+                  disabled={!selectedDate}
+                  onPress={() => {
+                    setShowTimeDropdown(!showTimeDropdown);
+                    setShowCalendar(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.inputText,
+                      !selectedTime && styles.inputPlaceholder,
+                    ]}
+                  >
+                    {selectedTime ||
+                      (isBn
+                        ? 'একটি সময় স্লট চয়ন করুন'
+                        : 'Choose a time slot')}
+                  </Text>
+                  <Text style={styles.dropdownIcon}>
+                    {showTimeDropdown ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showTimeDropdown && (
+                  <View style={styles.dropdownMenuVertical}>
+                    <ScrollView showsVerticalScrollIndicator={true}>
+                      {TIME_SLOTS.map((slot, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.timeSlotBtn}
+                          onPress={() => {
+                            setSelectedTime(slot);
+                            setShowTimeDropdown(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.timeSlotText,
+                              selectedTime === slot &&
+                                styles.timeSlotTextActive,
+                            ]}
+                          >
+                            {slot}
+                          </Text>
+                          {selectedTime === slot && (
+                            <Text style={styles.checkIcon}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {selectedDate && selectedTime && (
+                  <View style={styles.summaryBox}>
+                    <Text style={styles.summaryTitle}>
+                      ✓ {isBn ? 'আপনার নির্বাচন:' : 'Your Selection:'}
+                    </Text>
+                    <Text style={styles.summaryText}>
+                      📅 {formatDate(selectedDate)}
+                    </Text>
+                    <Text style={styles.summaryText}>🕒 {selectedTime}</Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.btnPrimary,
+                    styles.flex1,
+                    (!selectedDate || !selectedTime) && styles.btnDisabled,
+                  ]}
+                  disabled={!selectedDate || !selectedTime}
+                  onPress={handleContinue}
+                >
+                  <Text style={styles.btnPrimaryText}>
+                    {isBn ? 'চালিয়ে যান' : 'Continue'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, styles.flex1]}
+                  onPress={handleClose}
+                >
+                  <Text style={styles.btnSecondaryText}>
+                    {isBn ? 'বাতিল করুন' : 'Cancel'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {step === 'CONFIRM' && (
+            <View style={styles.contentWrap}>
+              <View style={styles.headerBox}>
+                <View style={styles.headerTextCol}>
+                  <Text style={styles.headerTitle}>
+                    {isBn ? 'আপনার বুকিং নিশ্চিত করুন' : 'Confirm Your Booking'}
+                  </Text>
+                  <Text style={styles.headerSub}>
+                    {isBn
+                      ? 'আপনার পূজা প্যাকেজ বিবরণ পর্যালোচনা করুন'
+                      : 'Review your puja package details'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.bodyScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.pujaDetailsCard}>
+                  <Text style={styles.pdTitle}>
+                    {isBn ? puja.titleBn : puja.titleEn}
+                  </Text>
+                  <Text style={styles.pdDesc} numberOfLines={2}>
+                    {isBn ? puja.descBn : puja.descEn}
+                  </Text>
+                </View>
+
+                <Text style={styles.sectionHeading}>
+                  {isBn ? 'প্যাকেজের বিশদ' : 'Package Details'}
+                </Text>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>
+                    🎁 {isBn ? 'প্যাকেজ' : 'Package'}
+                  </Text>
+                  <Text style={styles.tableValue}>
+                    {isBn
+                      ? puja.titleBn + ' প্যাকেজ'
+                      : puja.titleEn + ' Package'}
+                  </Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>
+                    📅 {isBn ? 'তারিখ' : 'Date'}
+                  </Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(selectedDate)}
+                  </Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>
+                    🕒 {isBn ? 'সময়' : 'Time'}
+                  </Text>
+                  <Text style={styles.tableValue}>{selectedTime}</Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>
+                    🧘 {isBn ? 'পুরোহিত' : 'Pandits'}
+                  </Text>
+                  <Text style={styles.tableValue}>1</Text>
+                </View>
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    {isBn ? 'মোট মূল্য' : 'Total Price'}
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {isBn
+                      ? puja.exactPriceBn
+                      : `₹${puja.exactPrice.toLocaleString()}`}
+                  </Text>
+                </View>
+
+                <View style={styles.secureBox}>
+                  <Text style={styles.secureBoxIcon}>🛡️</Text>
+                  <Text style={styles.secureBoxText}>
+                    {isBn
+                      ? 'আপনার বুকিং নিরাপদ। প্রত্যয়িত পুরোহিতরা আপনার প্যাকেজ অনুযায়ী খাঁটি বৈদিক আচার পরিচালনা করবেন।'
+                      : 'Your booking is secure. Certified pandits will conduct authentic Vedic rituals as per your package.'}
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={styles.actionRowRev}>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, styles.flex1]}
+                  onPress={handleAddToCart}
+                >
+                  <Text style={styles.btnPrimaryText}>
+                    🛒 {isBn ? 'কার্টে যোগ করুন' : 'Add to Cart'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, styles.flex1]}
+                  onPress={() => setStep('DATETIME')}
+                >
+                  <Text style={styles.btnSecondaryText}>
+                    {isBn ? 'বাতিল করুন' : 'Cancel'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {step === 'SUCCESS' && (
+            <View style={styles.contentWrap}>
+              <View style={styles.successHeader}>
+                <View style={styles.successIconRow}>
+                  <View style={styles.omIconBox}>
+                    <Text style={styles.omIconText}>ॐ</Text>
+                  </View>
+                  <View style={styles.checkIconBox}>
+                    <Text style={styles.checkIconText}>✓</Text>
+                  </View>
+                </View>
+                <Text style={styles.successTitle}>
+                  {isBn
+                    ? 'আশীর্বাদপ্রাপ্ত এবং যোগ করা হয়েছে!'
+                    : 'Blessed & Added!'}
+                </Text>
+                <Text style={styles.successSub}>
+                  {isBn
+                    ? 'আপনার পবিত্র পূজার অফার কার্টে যোগ করা হয়েছে।'
+                    : 'Your sacred puja offering has been added to the cart.'}
+                </Text>
+              </View>
+
+              <View style={styles.successCard}>
+                <Text style={styles.scHeader}>
+                  🙏 {isBn ? 'পূজা নির্বাচিত' : 'Puja Selected'}
+                </Text>
+                <Text style={styles.scTitle}>
+                  {isBn ? puja.titleBn : puja.titleEn}
+                </Text>
+                <Text style={styles.scDesc}>
+                  {isBn ? puja.titleBn + ' প্যাকেজ' : puja.titleEn + ' Package'}
+                </Text>
+                <Text style={styles.scDesc}>
+                  {formatShortDate(selectedDate)} • {selectedTime}
+                </Text>
+                <View style={styles.scDivider} />
+                <View style={styles.scTotalRow}>
+                  <Text style={styles.scTotalLabel}>
+                    {isBn ? 'পরিমাণ' : 'Amount'}
+                  </Text>
+                  <Text style={styles.scTotalValue}>
+                    {isBn
+                      ? puja.exactPriceBn
+                      : `₹${puja.exactPrice.toLocaleString()}`}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.actionCol}>
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={handleViewCart}
+                >
+                  <Text style={styles.btnPrimaryText}>
+                    🛒 {isBn ? 'কার্ট দেখুন' : 'View Cart'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, styles.btnSecondaryOuter]}
+                  onPress={handleClose}
+                >
+                  <Text style={styles.btnSecondaryText}>
+                    {isBn ? 'কেনাকাটা চালিয়ে যান' : 'Continue Shopping'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  absoluteOverlayFill: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: width - 40,
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    maxHeight: '90%',
+  },
+  contentWrap: { flexShrink: 1 },
+  headerBox: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerTextCol: { flex: 1, paddingRight: 16 },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  headerSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13 },
+  closeBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+
+  bodyScroll: { padding: 24, flexShrink: 1 },
+
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND_TEXT,
+    marginBottom: 8,
+  },
+  lightLabel: { color: BRAND_MUTED, fontWeight: '400', fontSize: 11 },
+  inputBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 20,
+    backgroundColor: '#FFF',
+  },
+  inputBoxActive: { borderColor: BRAND_PRIMARY, borderWidth: 1.5 },
+  inputBoxDisabled: { backgroundColor: '#F9FAFB', opacity: 0.7 },
+  inputText: { fontSize: 14, color: BRAND_TEXT, fontWeight: '600' },
+  inputPlaceholder: { color: '#9CA3AF', fontWeight: '400' },
+  dropdownIcon: { fontSize: 12, color: BRAND_MUTED },
+
+  dropdownMenu: {
+    marginTop: -16,
+    marginBottom: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    elevation: 3,
+  },
+
+  calHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  calArrow: { fontSize: 18, color: BRAND_TEXT, padding: 4, fontWeight: 'bold' },
+  calMonthText: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
+  calWeekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calWeekText: {
+    width: '14%',
+    textAlign: 'center',
+    fontSize: 12,
+    color: BRAND_MUTED,
+    fontWeight: '600',
+  },
+  calDaysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calDayBox: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  calDayActive: { backgroundColor: BRAND_PRIMARY, borderRadius: 20 },
+  calDayText: { fontSize: 13, color: BRAND_TEXT },
+  calDayTextActive: { color: '#FFF', fontWeight: 'bold' },
+  calDayPast: { color: '#D1D5DB' },
+
+  dropdownMenuVertical: {
+    marginTop: -16,
+    marginBottom: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    height: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  timeSlotBtn: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  timeSlotText: { fontSize: 14, color: BRAND_TEXT },
+  timeSlotTextActive: { color: BRAND_PRIMARY, fontWeight: '700' },
+  checkIcon: { color: BRAND_PRIMARY, fontWeight: '800' },
+
+  summaryBox: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  summaryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 8,
+  },
+  summaryText: { fontSize: 13, color: '#15803D', marginBottom: 4 },
+
+  actionRow: {
+    flexDirection: 'row',
+    padding: 24,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  actionRowRev: {
+    flexDirection: 'row-reverse',
+    padding: 24,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  actionCol: { padding: 24 },
+  flex1: { flex: 1 },
+
+  btnPrimary: {
+    backgroundColor: '#FF6D00',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimaryText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  btnSecondary: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FF6D00',
+  },
+  btnSecondaryText: { color: '#FF6D00', fontSize: 14, fontWeight: '800' },
+  btnSecondaryOuter: { marginTop: 12 },
+  btnDisabled: { backgroundColor: '#FDBA74', opacity: 0.8 },
+
+  pujaDetailsCard: {
+    backgroundColor: '#FFFBF2',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  pdTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginBottom: 4,
+  },
+  pdDesc: { fontSize: 12, color: BRAND_MUTED, lineHeight: 18 },
+
+  sectionHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginBottom: 12,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  tableLabel: { fontSize: 13, color: BRAND_MUTED },
+  tableValue: {
+    fontSize: 13,
+    color: BRAND_TEXT,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+    paddingLeft: 16,
+  },
+
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  totalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
+  totalValue: { fontSize: 20, fontWeight: '900', color: '#FF6D00' },
+
+  secureBox: {
+    flexDirection: 'row',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  secureBoxIcon: { fontSize: 18, marginRight: 12 },
+  secureBoxText: { flex: 1, fontSize: 11, color: '#1E40AF', lineHeight: 16 },
+
+  successHeader: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: '#FFFAF0',
+  },
+  successIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  omIconBox: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#4C1D95',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginRight: -10,
+    zIndex: 2,
+    borderWidth: 3,
+    borderColor: '#FFF',
+  },
+  omIconText: { color: '#FFF', fontSize: 24, fontWeight: '800' },
+  checkIconBox: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#FDE047',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 30,
+    borderWidth: 4,
+    borderColor: '#FFF',
+  },
+  checkIconText: { color: '#FF6D00', fontSize: 30, fontWeight: '800' },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FF6D00',
+    marginBottom: 8,
+  },
+  successSub: { fontSize: 13, color: BRAND_MUTED, textAlign: 'center' },
+
+  successCard: {
+    margin: 24,
+    padding: 20,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    elevation: 3,
+  },
+  scHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: BRAND_PRIMARY,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  scTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  scDesc: {
+    fontSize: 12,
+    color: BRAND_MUTED,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  scDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 16 },
+  scTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  scTotalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_MUTED },
+  scTotalValue: { fontSize: 18, fontWeight: '800', color: '#EA580C' },
+});

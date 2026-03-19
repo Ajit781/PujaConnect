@@ -21,6 +21,7 @@ import { Input } from '../../components/common/Input';
 import { OtpInput } from '../../components/common/OtpInput';
 import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
+import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { login } from '../../store/slices/authSlice';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
@@ -92,41 +93,57 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     }
     setMobileError('');
     setIsGettingOtp(true);
+    const isBn = i18n.language === 'bn';
     try {
-      const result = await generateOtp(mobile);
-      if (result) {
+      dispatch(showLoader());
+      const response = await generateOtp(mobile);
+      if (response) {
         setOtpSent(true);
         setResendCountdown(30);
         setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
       }
-    } catch {
+    } catch (error: any) {
+      // Added error type
       showAlert({
-        title: 'Connection Error',
-        message: 'Unable to reach the server. Check your internet.',
-        buttons: [{ text: 'OK' }],
+        title: isBn ? 'সংযোগ ত্রুটি' : 'Connection Error',
+        message:
+          error.message ||
+          (isBn
+            ? 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি। আপনার ইন্টারনেট পরীক্ষা করুন।'
+            : 'Unable to reach the server. Check your internet.'),
+        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
     } finally {
       setIsGettingOtp(false);
+      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
 
   const handleVerify = async (code: string = otpValue) => {
     if (code.length < VALIDATION.OTP_LENGTH) return;
     setIsVerifying(true);
+    const isBn = i18n.language === 'bn';
     try {
+      dispatch(showLoader()); // Dispatch showLoader
       const result = await validateOtp(mobile, code);
       if (result) {
         dispatch(login({ user: result, token: 'session_active' }));
       }
-    } catch {
+    } catch (err: any) {
+      // Added error type
       showAlert({
-        title: 'Verification Failed',
-        message: 'Unable to verify OTP. Please try again.',
-        buttons: [{ text: 'OK' }],
+        title: isBn ? 'যাচাইকরণ ব্যর্থ হয়েছে' : 'Verification Failed',
+        message:
+          err.message ||
+          (isBn
+            ? 'ওটিপি যাচাই করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'
+            : 'Unable to verify OTP. Please try again.'),
+        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
     } finally {
       setIsVerifying(false);
+      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
 
@@ -139,18 +156,26 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const handleResend = async () => {
     if (resendCountdown > 0 || isResending) return;
     setIsResending(true);
+    const isBn = i18n.language === 'bn';
     try {
+      dispatch(showLoader());
       await generateOtp(mobile);
       setResendCountdown(30);
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
-    } catch {
+    } catch (err: any) {
+      // Added error type
       showAlert({
-        title: 'Error',
-        message: 'Could not resend OTP. Please try again.',
-        buttons: [{ text: 'OK' }],
+        title: isBn ? 'ত্রুটি' : 'Error',
+        message:
+          err.message ||
+          (isBn
+            ? 'OTP পাঠানো যায়নি। আবার চেষ্টা করুন।'
+            : 'Failed to send OTP. Please try again.'),
+        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
     } finally {
       setIsResending(false);
+      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
 

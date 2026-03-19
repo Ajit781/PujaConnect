@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { FEATURED_PUJAS } from '../../data/dummyData';
+import BookingModal from '../../components/booking/BookingModal';
 
 export default function PujaDetailsScreen({ route, navigation }: any) {
   const { i18n } = useTranslation();
@@ -19,6 +20,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const puja = FEATURED_PUJAS.find(p => p.id === pujaId);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   if (!puja) {
     return (
@@ -39,7 +41,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const title = isBn ? puja.titleBn : puja.titleEn;
   const desc = isBn ? puja.descBn : puja.descEn;
   const duration = isBn ? puja.durationBn : puja.durationEn;
-  const price = isBn ? puja.priceBn : puja.priceEn;
+  // const price = isBn ? puja.priceBn : puja.priceEn;
 
   const IMAGES = [
     { id: 0, content: puja.imagePlaceholder, color: puja.color },
@@ -251,34 +253,6 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           )}
         </View>
 
-        {/* Final Journey Block */}
-        <View style={styles.sacredJourney}>
-          <Text style={styles.sjTitle}>
-            {isBn
-              ? 'আপনার পবিত্র যাত্রা শুরু করুন'
-              : 'Begin Your Sacred Journey'}
-          </Text>
-          <Text style={styles.sjSub}>
-            {isBn
-              ? 'আমাদের প্রত্যয়িত পুরোহিতদের সাথে সংযোগ করুন'
-              : 'Connect with our certified pandits who follow authentic Vedic traditions.'}
-          </Text>
-          <TouchableOpacity
-            style={styles.confirmBtn}
-            disabled={!puja.isAvailable}
-          >
-            <Text style={styles.confirmBtnText}>
-              {puja.isAvailable
-                ? isBn
-                  ? 'বুকিং নিশ্চিত করুন ✦'
-                  : 'Confirm Booking ✦'
-                : isBn
-                ? 'উপলব্ধ নয়'
-                : 'Not Available'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
@@ -288,7 +262,9 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           <Text style={styles.footerLabel}>
             {isBn ? 'প্যাকেজ মূল্য' : 'PACKAGE PRICE'}
           </Text>
-          <Text style={styles.footerPrice}>{price}</Text>
+          <Text style={styles.footerPrice}>
+            {isBn ? puja.exactPriceBn : `₹${puja.exactPrice?.toLocaleString()}`}
+          </Text>
         </View>
         <TouchableOpacity
           style={[
@@ -296,12 +272,20 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
             !puja.isAvailable && styles.footerBtnDisabled,
           ]}
           disabled={!puja.isAvailable}
+          onPress={() => setShowBookingModal(true)}
         >
           <Text style={styles.footerBtnText}>
             🛒 {isBn ? 'পূজা বুক করুন' : 'Book Puja'}
           </Text>
         </TouchableOpacity>
       </View>
+
+      <BookingModal
+        visible={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        puja={puja}
+        isBn={isBn}
+      />
     </View>
   );
 }
@@ -484,36 +468,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontWeight: '500',
   },
-
-  sacredJourney: {
-    marginHorizontal: 16,
-    marginTop: 24,
-    backgroundColor: '#FFF3E5',
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-  },
-  sjTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  sjSub: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  confirmBtn: {
-    backgroundColor: BRAND_PRIMARY,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 30,
-  },
-  confirmBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
 
   stickyFooter: {
     position: 'absolute',

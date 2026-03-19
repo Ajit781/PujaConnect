@@ -1,6 +1,6 @@
+/* eslint-disable react-native/no-inline-styles */
 import React from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
@@ -29,13 +29,11 @@ export function CustomAlert({
   buttons,
   onDismiss,
 }: CustomAlertProps) {
+  if (!visible) return null;
+
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onDismiss}
+    <View
+      style={[StyleSheet.absoluteFill, { zIndex: 999999, elevation: 999999 }]}
     >
       {/* Dimmed overlay — blocks interaction with the screen behind */}
       <TouchableWithoutFeedback onPress={undefined}>
@@ -89,7 +87,7 @@ export function CustomAlert({
           </View>
         </View>
       </TouchableWithoutFeedback>
-    </Modal>
+    </View>
   );
 }
 
