@@ -11,16 +11,18 @@ import {
 } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authReducer from './slices/authSlice';
+import wishlistReducer from './slices/wishlistSlice';
 
 // Persist config defining what to store and the storage engine
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth'], // Only persist the auth slice
+  whitelist: ['auth', 'wishlist'], // Persist auth and wishlist
 };
 
 const rootReducer = combineReducers({
   auth: authReducer,
+  wishlist: wishlistReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

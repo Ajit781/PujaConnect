@@ -1,7 +1,24 @@
 {
   "translation": {
-    "welcome": "Welcome",
-    "login": "Login",
-    "logout": "Logout"
+    "auth": {
+      "accessDissha": "ACCESS DISSHA",
+      "welcomeBack": "Welcome Back",
+      "enterMobile": "Enter your mobile number to access our webapp",
+      "mobileNumberLabel": "MOBILE NUMBER",
+      "otpWillBeSent": "OTP will be sent to this number for verification",
+      "getOtp": "Get OTP",
+      "encryptedSecure": "Encrypted & Secure User Authentication",
+      "verifyOtpTitle": "Verify OTP",
+      "enter6Digit": "Enter the 6-digit code sent to",
+      "verifyAccess": "Verify & Access dissha",
+      "resendOtp": "Resend OTP",
+      "backToHome": "Back to Home",
+      "yourSpiritualGateway": "Your Spiritual Gateway",
+      "enterOtpLabel": "ENTER OTP",
+      "changeMobile": "Change Number",
+      "mobileRequired": "Mobile number is required",
+      "mobileTooShort": "Enter a valid 10-digit mobile number",
+      "mobileInvalid": "Mobile number must start with 6, 7, 8 or 9"
+    }
   }
 }

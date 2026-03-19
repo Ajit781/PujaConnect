@@ -1,30 +1,54 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/apiConfig';
+import { getSystemToken, clearSystemToken } from './tokenService';
+import { handleApiBusinessError, handleApiHttpError } from './apiErrorHandler';
 
 const api = axios.create({
-  // Replace with API base URL once provided
-  baseURL: 'https://api.example.com',
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// ── Request Interceptor ───────────────────────────────────────────────────────
 api.interceptors.request.use(
-  config => {
-    // Modify requests before they are sent (e.g., attaching auth tokens)
+  async config => {
+    try {
+      const token = await getSystemToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.warn('[API] Could not attach system token:', e);
+    }
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  },
+  error => Promise.reject(error),
 );
 
+// ── Response Interceptor ──────────────────────────────────────────────────────
 api.interceptors.response.use(
   response => {
+    // HTTP 200 — still validate the business-level status field
+    const body = response.data;
+
+    if (body && typeof body.status === 'number') {
+      handleApiBusinessError(body);
+    }
+
     return response;
   },
-  error => {
-    // Modify responses or do global error handling here
+  async error => {
+    const status = error?.response?.status;
+    const url = error?.config?.url;
+
+    if (status === 401) {
+      await clearSystemToken();
+    }
+
+    handleApiHttpError(status, url);
+
     return Promise.reject(error);
   },
 );

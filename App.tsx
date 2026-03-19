@@ -1,61 +1,65 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Provider } from 'react-redux';
+import { Provider, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { useTranslation } from 'react-i18next';
-import { store, persistor } from './src/store';
-
-// Initialize i18n
+import { NavigationContainer } from '@react-navigation/native';
+import { store, persistor, RootState } from './src/store';
+import { AuthNavigator } from './src/navigation/AuthNavigator';
+import SplashScreen from './src/screens/SplashScreen';
+import { MainNavigator } from './src/navigation/MainNavigator';
+import { AlertProvider, useAlert } from './src/context/AlertContext';
+import { initApiErrorHandler } from './src/service/api/apiErrorHandler';
+import { performLogout } from './src/utils/authUtils';
 import './src/i18n';
 
-function AppContent() {
-  const { t, i18n } = useTranslation();
+// Registers showAlert + logout into the Axios error handler once providers are ready
+function AppInitializer() {
+  const { showAlert } = useAlert();
 
-  const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'en' ? 'bn' : 'en');
-  };
+  React.useEffect(() => {
+    initApiErrorHandler(showAlert, performLogout);
+  }, [showAlert]);
+
+  return null;
+}
+
+// Main App Navigation Logic — mapped to Redux auth state
+function RootNavigator() {
+  const [isSplashVisible, setIsSplashVisible] = React.useState(true);
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.isAuthenticated,
+  );
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsSplashVisible(false), 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isSplashVisible) return <SplashScreen />;
 
   return (
-    <SafeAreaProvider>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="transparent"
-        translucent
-      />
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 24, marginBottom: 16 }}>{t('welcome')}!</Text>
-        <Text style={{ fontSize: 16, marginBottom: 32 }}>
-          {t('login')} / {t('logout')}
-        </Text>
-        <TouchableOpacity
-          onPress={toggleLanguage}
-          style={{ padding: 12, backgroundColor: '#007AFF', borderRadius: 8 }}
-        >
-          <Text style={{ color: 'white' }}>
-            Switch to {i18n.language === 'en' ? 'Bengali' : 'English'}
-          </Text>
-        </TouchableOpacity>
-        <Text style={{ marginTop: 24, color: 'gray' }}>
-          Redux, Redux Persist, and i18n are configured.
-        </Text>
-      </View>
-    </SafeAreaProvider>
+    <NavigationContainer>
+      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+    </NavigationContainer>
   );
 }
 
 function App() {
   return (
     <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
-        <AppContent />
+      <PersistGate loading={<SplashScreen />} persistor={persistor}>
+        <SafeAreaProvider>
+          <StatusBar
+            barStyle="light-content"
+            backgroundColor="transparent"
+            translucent
+          />
+          <AlertProvider>
+            <AppInitializer />
+            <RootNavigator />
+          </AlertProvider>
+        </SafeAreaProvider>
       </PersistGate>
     </Provider>
   );

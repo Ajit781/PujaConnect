@@ -1,7 +1,24 @@
 {
   "translation": {
-    "welcome": "স্বাগতম",
-    "login": "লগইন",
-    "logout": "লগআউট"
+    "auth": {
+      "accessDissha": "দিশায় প্রবেশ করুন",
+      "welcomeBack": "পুনরায় স্বাগতম",
+      "enterMobile": "আমাদের ওয়েবঅ্যাপ অ্যাক্সেস করতে আপনার মোবাইল নম্বর লিখুন",
+      "mobileNumberLabel": "মোবাইল নম্বর",
+      "otpWillBeSent": "যাচাইকরণের জন্য এই নম্বরে OTP পাঠানো হবে",
+      "getOtp": "OTP পান",
+      "encryptedSecure": "এনক্রিপ্ট করা এবং নিরাপদ ব্যবহারকারী যাচাইকরণ",
+      "verifyOtpTitle": "OTP যাচাই করুন",
+      "enter6Digit": "এতে পাঠানো ৬-সংখ্যার কোডটি লিখুন",
+      "verifyAccess": "যাচাই করুন এবং দিশায় প্রবেশ করুন",
+      "resendOtp": "পুনরায় OTP পাঠান",
+      "backToHome": "হোমে ফিরে যান",
+      "yourSpiritualGateway": "আপনার আধ্যাত্মিক প্রবেশদ্বার",
+      "enterOtpLabel": "OTP লিখুন",
+      "changeMobile": "নম্বর পরিবর্তন করুন",
+      "mobileRequired": "মোবাইল নম্বর প্রয়োজন",
+      "mobileTooShort": "একটি বৈধ ১০-সংখ্যার মোবাইল নম্বর লিখুন",
+      "mobileInvalid": "মোবাইল নম্বর ৬, ৭, ৮ বা ৯ দিয়ে শুরু হতে হবে"
+    }
   }
 }
