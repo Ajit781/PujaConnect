@@ -10,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Dimensions,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -21,8 +22,9 @@ import { Input } from '../../components/common/Input';
 import { OtpInput } from '../../components/common/OtpInput';
 import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
-import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { showLoader } from '../../store/slices/loaderSlice';
 import { login } from '../../store/slices/authSlice';
+import SmsRetriever from 'react-native-sms-retriever';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
 
@@ -69,6 +71,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const isOtpComplete = otpValue.length === VALIDATION.OTP_LENGTH;
   useEffect(() => {
     if (isOtpComplete && !isVerifying) {
+      Keyboard.dismiss();
       handleVerify(otpValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,6 +88,25 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     return '';
   };
 
+  // Native Phone Hint Picker on Mount
+  React.useEffect(() => {
+    const getPhoneNumberHint = async () => {
+      try {
+        const phone = await SmsRetriever.requestPhoneNumber();
+        if (phone) {
+          // Response shape: "+919876543210" or "9876543210"
+          const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+          setMobile(cleanPhone);
+        }
+      } catch (error) {
+        console.log('Phone hint error:', error);
+      }
+    };
+    if (!otpSent) {
+      getPhoneNumberHint();
+    }
+  }, [otpSent]);
+
   const handleGetOtp = async () => {
     const err = validateMobile(mobile);
     if (err) {
@@ -95,11 +117,31 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     setIsGettingOtp(true);
     const isBn = i18n.language === 'bn';
     try {
-      dispatch(showLoader());
       const response = await generateOtp(mobile);
       if (response) {
         setOtpSent(true);
         setResendCountdown(30);
+        // Start SMS Retriever for automatic OTP reading
+        try {
+          const registered = await SmsRetriever.startSmsRetriever();
+          if (registered) {
+            SmsRetriever.addSmsListener(event => {
+              if (event && event.message) {
+                // Regex to find 6 consecutive digits
+                const otpMatch = event.message.match(/\d{6}/);
+                if (otpMatch) {
+                  const extractedOtp = otpMatch[0];
+                  setOtp(extractedOtp.split(''));
+                  // Close listener and verify
+                  SmsRetriever.removeSmsListener();
+                  handleVerify(extractedOtp);
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.log('SmsRetriever start error:', e);
+        }
         setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
       }
     } catch (error: any) {
@@ -115,7 +157,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       });
     } finally {
       setIsGettingOtp(false);
-      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
 
@@ -124,10 +165,14 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     setIsVerifying(true);
     const isBn = i18n.language === 'bn';
     try {
-      dispatch(showLoader()); // Dispatch showLoader
       const result = await validateOtp(mobile, code);
       if (result) {
-        dispatch(login({ user: result, token: 'session_active' }));
+        // Use a tiny timeout to ensure the state update is processed
+        // before the stack navigator unmounts this screen
+        setTimeout(() => {
+          dispatch(showLoader());
+          dispatch(login({ user: result, token: 'session_active' }));
+        }, 10);
       }
     } catch (err: any) {
       // Added error type
@@ -143,9 +188,19 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
     } finally {
       setIsVerifying(false);
-      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
+
+  React.useEffect(() => {
+    return () => {
+      // Cleanup SMS listener on unmount
+      try {
+        SmsRetriever.removeSmsListener();
+      } catch {
+        // Ignored
+      }
+    };
+  }, []);
 
   const handleChangeMobile = () => {
     setOtpSent(false);
@@ -158,7 +213,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     setIsResending(true);
     const isBn = i18n.language === 'bn';
     try {
-      dispatch(showLoader());
       await generateOtp(mobile);
       setResendCountdown(30);
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
@@ -175,7 +229,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       });
     } finally {
       setIsResending(false);
-      dispatch(hideLoader()); // Dispatch hideLoader
     }
   };
 
@@ -242,6 +295,9 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       placeholder="98765 43210"
                       keyboardType="number-pad"
                       maxLength={VALIDATION.MOBILE_LENGTH}
+                      textContentType="username"
+                      autoComplete="tel"
+                      importantForAutofill="yes"
                       value={mobile}
                       onChangeText={text => {
                         const digits = text.replace(/[^0-9]/g, '');

@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Dimensions,
   FlatList,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -22,7 +23,15 @@ import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useAlert } from '../../context/AlertContext';
 import { toggleFavorite } from '../../store/slices/wishlistSlice';
-import { FEATURED_PUJAS } from '../../data/dummyData';
+import { hideLoader } from '../../store/slices/loaderSlice';
+import {
+  getSummaryCount,
+  getAllPujaTags,
+  getPujaByTag,
+  PujaType,
+  SummaryCount,
+  PujaTag,
+} from '../../service/api/dashboardService';
 import appLogo from '../../assets/images/Logo.png';
 
 const { width } = Dimensions.get('window');
@@ -92,27 +101,6 @@ const NAV_ITEMS = [
   },
 ];
 
-const QUICK_STATS = [
-  {
-    labelEn: 'Happy Families',
-    labelBn: 'সুখী পরিবার',
-    value: '26+',
-    icon: '👨‍👩‍👧‍👦',
-  },
-  {
-    labelEn: 'Verified Priests',
-    labelBn: 'যাচাইকৃত পুরোহিত',
-    value: '19+',
-    icon: '🧘',
-  },
-  {
-    labelEn: 'Partner Temples',
-    labelBn: 'পার্টনার মন্দির',
-    value: '10+',
-    icon: '🛕',
-  },
-];
-
 export default function DashboardScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const { showAlert } = useAlert();
@@ -126,6 +114,12 @@ export default function DashboardScreen({ navigation }: any) {
 
   const [activeBanner, setActiveBanner] = React.useState(0);
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
+  const [pujas, setPujas] = useState<PujaType[]>([]);
+  const [pujaTags, setPujaTags] = useState<PujaTag[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState<number>(1); // Default to 'All'
+  const [summaryData, setSummaryData] = useState<SummaryCount | null>(null);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
   const flatListRef = React.useRef<FlatList>(null);
 
   // Build a large repeated array so we can scroll forward forever with no snap-back
@@ -139,15 +133,49 @@ export default function DashboardScreen({ navigation }: any) {
   }, []);
   const START_INDEX = Math.floor(REPEAT_COUNT / 2) * DASHBOARD_BANNERS.length;
 
-  // Scroll to center of repeated list on mount
+  // Fetch initial data (summary and tags)
   React.useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!user?.user_id) return;
+      try {
+        const [summaryRes, tagsData] = await Promise.all([
+          getSummaryCount(),
+          getAllPujaTags(),
+        ]);
+        setSummaryData(summaryRes);
+        setPujaTags(tagsData);
+      } catch (error) {
+        console.error('Error fetching dashboard summary/tags:', error);
+      } finally {
+        dispatch(hideLoader());
+      }
+    };
+    fetchInitialData();
+
     requestAnimationFrame(() => {
       flatListRef.current?.scrollToOffset({
-        offset: START_INDEX * width,
+        offset: START_INDEX * (width - 32),
         animated: false,
       });
     });
-  }, [START_INDEX]);
+  }, [START_INDEX, dispatch, user?.user_id]);
+
+  // Fetch pujas when tag changes
+  React.useEffect(() => {
+    const fetchPujas = async () => {
+      if (!user?.user_id) return;
+      setIsLoadingPujas(true);
+      try {
+        const data = await getPujaByTag(user.user_id, selectedTagId, 1, 10);
+        setPujas(data);
+      } catch (error) {
+        console.error('Error fetching pujas by tag:', error);
+      } finally {
+        setIsLoadingPujas(false);
+      }
+    };
+    fetchPujas();
+  }, [user?.user_id, selectedTagId]);
 
   // Auto-scroll banners — just keep going forward, never jump back
   const currentIndexRef = React.useRef(START_INDEX);
@@ -156,7 +184,7 @@ export default function DashboardScreen({ navigation }: any) {
       currentIndexRef.current += 1;
       const idx = currentIndexRef.current;
       flatListRef.current?.scrollToOffset({
-        offset: idx * width,
+        offset: idx * (width - 32),
         animated: true,
       });
       setActiveBanner(idx % DASHBOARD_BANNERS.length);
@@ -213,6 +241,24 @@ export default function DashboardScreen({ navigation }: any) {
         : `${featureNameEn} is currently under development. Stay tuned for updates!`,
       buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
     });
+  };
+
+  // Filtering logic - since the API now does the heavy lifting, we just show what we got
+  // However, we still need to handle 'Favourite' locally if the API doesn't filter it correctly
+  // but the server should handle it based on puja_tag_id: 3.
+  const filteredPujas = pujas;
+
+  const getTagName = (tagId: number) => {
+    const tag = pujaTags.find((t: PujaTag) => t.tag_id === tagId);
+    if (!tag) return isBn ? 'বৈশিষ্ট্যযুক্ত' : 'Featured';
+
+    if (isBn) {
+      if (tag.tag_value === 'All') return 'সব';
+      if (tag.tag_value === 'Featured') return 'বৈশিষ্ট্যযুক্ত';
+      if (tag.tag_value === 'Favourite') return 'প্রিয়';
+      if (tag.tag_value === 'Popular') return 'জনপ্রিয়';
+    }
+    return tag.tag_value;
   };
 
   const handleNavClick = (item: any) => {
@@ -278,7 +324,7 @@ export default function DashboardScreen({ navigation }: any) {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.navRow}
+            style={[styles.navRow, styles.horizontalScroll]}
             contentContainerStyle={styles.navRowContent}
           >
             {NAV_ITEMS.map((item, idx) => (
@@ -318,11 +364,11 @@ export default function DashboardScreen({ navigation }: any) {
             data={CAROUSEL_DATA}
             horizontal
             pagingEnabled
-            showsHorizontalScrollIndicator={false}
+            style={styles.horizontalScroll}
             keyExtractor={item => item.id}
             getItemLayout={(data, index) => ({
-              length: width,
-              offset: width * index,
+              length: width - 32,
+              offset: (width - 32) * index,
               index,
             })}
             renderItem={({ item }) => (
@@ -351,7 +397,9 @@ export default function DashboardScreen({ navigation }: any) {
               </View>
             )}
             onMomentumScrollEnd={e => {
-              const index = Math.round(e.nativeEvent.contentOffset.x / width);
+              const index = Math.round(
+                e.nativeEvent.contentOffset.x / (width - 32),
+              );
               currentIndexRef.current = index;
               setActiveBanner(index % DASHBOARD_BANNERS.length);
             }}
@@ -374,131 +422,223 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
 
         {/* Stats row */}
-        <View style={styles.statsRow}>
-          {QUICK_STATS.map(stat => (
-            <View key={stat.labelEn} style={styles.statCard}>
-              <Text style={styles.statIcon}>{stat.icon}</Text>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>
-                {isBn ? stat.labelBn : stat.labelEn}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.horizontalScroll}
+          contentContainerStyle={styles.statsScrollContent}
+        >
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>👨‍👩‍👧‍👦</Text>
+            <Text style={styles.statValue}>
+              {summaryData?.total_user_qty || 0}
+            </Text>
+            <Text style={styles.statLabel}>
+              {isBn ? 'সুখী পরিবার' : 'Happy Families'}
+            </Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>🧘</Text>
+            <Text style={styles.statValue}>
+              {summaryData?.total_registered_priest_qty || 0}
+            </Text>
+            <Text style={styles.statLabel}>
+              {isBn ? 'যাচাইকৃত পুরোহিত' : 'Verified Priests'}
+            </Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>🛕</Text>
+            <Text style={styles.statValue}>
+              {summaryData?.total_temple_qty || 0}
+            </Text>
+            <Text style={styles.statLabel}>
+              {isBn ? 'পার্টনার মন্দির' : 'Partner Temples'}
+            </Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>⭐</Text>
+            <Text style={styles.statValue}>
+              {summaryData?.total_astrologer_qty || 0}
+            </Text>
+            <Text style={styles.statLabel}>
+              {isBn ? 'জ্যোতিষী' : 'Astrologers'}
+            </Text>
+          </View>
+        </ScrollView>
 
         {/* Featured Pujas Header */}
         <View style={[styles.sectionHeader, styles.sectionHeaderRow]}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.sectionTitle}>
-              {isBn ? 'বৈশিষ্ট্যযুক্ত পূজা' : 'Featured Pujas'}
+              {getTagName(selectedTagId)} {isBn ? 'পূজা' : 'Pujas'}
             </Text>
             <Text style={styles.sectionSub}>
               {isBn
-                ? 'আমাদের সবচেয়ে জনপ্রিয় এবং প্রস্তাবিত পূজা'
-                : 'Discover our most popular and recommended pujas'}
+                ? 'আপনার পছন্দের পূজাগুলো এখান থেকে বেছে নিন'
+                : 'Select your preferred pujas from here'}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('AllPujas')}>
-            <Text style={styles.showMoreText}>
-              {isBn ? 'আরও দেখুন →' : 'Show More →'}
+
+          <TouchableOpacity
+            style={styles.filterDropdown}
+            onPress={() => setShowTagMenu(true)}
+          >
+            <Text style={styles.filterDropdownText}>
+              {getTagName(selectedTagId)}
             </Text>
+            <Text style={styles.dropdownArrow}>▼</Text>
           </TouchableOpacity>
         </View>
 
         {/* Horizontal Puja List */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.featuredListContent}
-        >
-          {FEATURED_PUJAS.map(puja => (
-            <View key={puja.id} style={[styles.gridCard, styles.featuredCard]}>
-              <View
-                style={[styles.cardImgBox, { backgroundColor: puja.color }]}
+        {isLoadingPujas ? (
+          <View style={styles.centeredSectionLoader}>
+            <ActivityIndicator size="small" color={BRAND_PRIMARY} />
+            <Text style={styles.loaderText}>
+              {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
+            </Text>
+          </View>
+        ) : filteredPujas.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.horizontalScroll}
+            contentContainerStyle={styles.featuredListContent}
+          >
+            {filteredPujas.slice(0, 5).map(puja => {
+              const pId = puja.puja_id || puja.puja_type_id;
+              const pName = puja.puja_name || puja.puja_type_name;
+              const pMinPrice =
+                puja.minimum_price || puja.puja_with_samagri_amount;
+              const pMaxPrice =
+                puja.maximum_price || puja.puja_without_samagri_amount;
+              const pPrice =
+                pMinPrice === pMaxPrice
+                  ? `₹${pMinPrice.toLocaleString('en-IN')}`
+                  : `₹${pMinPrice.toLocaleString(
+                      'en-IN',
+                    )} - ₹${pMaxPrice.toLocaleString('en-IN')}`;
+              const pDuration =
+                puja.duration ||
+                (puja.puja_duration ? puja.puja_duration.toString() : '');
+              const pRating = puja.puja_rating || 5;
+
+              return (
+                <View
+                  key={pId || Math.random()}
+                  style={[styles.gridCard, styles.featuredCard]}
+                >
+                  <View style={styles.cardImgBox}>
+                    {puja.icon ? (
+                      <Image
+                        source={{ uri: puja.icon }}
+                        style={styles.pujaIconImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text style={styles.featuredImgText}>🛕</Text>
+                    )}
+                    <TouchableOpacity
+                      style={styles.heartBtn}
+                      onPress={() => dispatch(toggleFavorite(pId.toString()))}
+                    >
+                      <Text style={styles.heartIconText}>
+                        {favorites.includes(pId.toString()) ? '❤️' : '🤍'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>
+                      {pName}
+                    </Text>
+                    <Text style={styles.cardDesc} numberOfLines={2}>
+                      {puja.description ||
+                        puja.puja_description ||
+                        (isBn
+                          ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
+                          : 'Holy ceremony near you')}
+                    </Text>
+
+                    <View style={styles.priceRow}>
+                      <View style={styles.durationRow}>
+                        <Text style={styles.durationIcon}>⏱️</Text>
+                        <Text style={styles.durationText}>
+                          {pDuration} {isBn ? 'ঘন্টা' : 'Hrs'}
+                        </Text>
+                        <Text style={styles.ratingText}> ⭐{pRating}</Text>
+                      </View>
+                      <Text style={styles.priceValue}>{pPrice}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bookBtn,
+                        puja.puja_active_status === 0 && styles.bookBtnDisabled,
+                      ]}
+                      disabled={puja.puja_active_status === 0}
+                      onPress={() =>
+                        navigation.navigate('PujaDetails', {
+                          pujaId: pId.toString(),
+                          pujaData: puja,
+                        })
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.bookBtnText,
+                          puja.puja_active_status === 0 &&
+                            styles.bookBtnTextDisabled,
+                        ]}
+                      >
+                        {puja.puja_active_status === 0
+                          ? isBn
+                            ? 'উপলব্ধ নেই'
+                            : 'Not Available'
+                          : isBn
+                          ? 'বুক করুন →'
+                          : 'Book Now →'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* View All Card */}
+            {filteredPujas.length > 5 && (
+              <TouchableOpacity
+                style={styles.showMoreCard}
+                onPress={() =>
+                  navigation.navigate('AllPujas', {
+                    initialTagId: selectedTagId,
+                  })
+                }
               >
-                <Text style={styles.featuredImgText}>
-                  {puja.imagePlaceholder}
-                </Text>
-                <TouchableOpacity
-                  style={styles.heartBtn}
-                  onPress={() => dispatch(toggleFavorite(puja.id))}
-                >
-                  <Text style={styles.heartIconText}>
-                    {favorites.includes(puja.id) ? '❤️' : '🤍'}
-                  </Text>
-                </TouchableOpacity>
-                {puja.isPopular && (
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularBadgeText}>
-                      ✨ {isBn ? 'জনপ্রিয়' : 'Popular'}
-                    </Text>
+                <View style={styles.showMoreCardInner}>
+                  <View style={styles.showMoreIconCircle}>
+                    <Text style={styles.showMoreIcon}>→</Text>
                   </View>
-                )}
-              </View>
-
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>
-                  {isBn ? puja.titleBn : puja.titleEn}
-                </Text>
-                <Text style={styles.cardDesc} numberOfLines={2}>
-                  {isBn ? puja.descBn : puja.descEn}
-                </Text>
-
-                <View style={styles.durationRow}>
-                  <Text style={styles.durationIcon}>⏱️</Text>
-                  <Text style={styles.durationText}>
-                    {isBn ? puja.durationBn : puja.durationEn}
+                  <Text style={styles.showMoreCardTitle}>
+                    {isBn ? 'সব দেখুন' : 'View All'}
+                  </Text>
+                  <Text style={styles.showMoreCardSub}>
+                    {filteredPujas.length - 5} {isBn ? 'আরো আছে' : 'more'}
                   </Text>
                 </View>
-
-                <View style={styles.priceRow}>
-                  <View>
-                    <Text style={styles.priceLabel}>
-                      {isBn ? 'মূল্য পরিসীমা' : 'PRICE RANGE'}
-                    </Text>
-                    <Text style={styles.priceValue}>
-                      {isBn ? puja.priceBn : puja.priceEn}
-                    </Text>
-                  </View>
-                  <View style={styles.ratingCol}>
-                    <Text style={styles.priceLabel}>
-                      {isBn ? 'রেটিং' : 'RATING'}
-                    </Text>
-                    <Text style={styles.ratingValue}>
-                      {isBn ? puja.ratingBn : puja.ratingEn}
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.bookBtn,
-                    !puja.isAvailable && styles.bookBtnDisabled,
-                  ]}
-                  disabled={!puja.isAvailable}
-                  onPress={() =>
-                    navigation.navigate('PujaDetails', { pujaId: puja.id })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.bookBtnText,
-                      !puja.isAvailable && styles.bookBtnTextDisabled,
-                    ]}
-                  >
-                    {puja.isAvailable
-                      ? isBn
-                        ? 'বুক করুন →'
-                        : 'Book Now →'
-                      : isBn
-                      ? 'এখন উপলব্ধ নয়'
-                      : 'Not Available Now'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        ) : (
+          <View style={{ padding: 20 }}>
+            <Text style={{ color: BRAND_MUTED }}>
+              {isBn ? 'কোনো পূজা পাওয়া যায়নি' : 'No pujas found'}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -582,6 +722,72 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableWithoutFeedback>
         </View>
       )}
+
+      {/* Tag Filter Popover Menu */}
+      {showTagMenu && (
+        <View
+          style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowTagMenu(false)}>
+            <View style={styles.popoverOverlay}>
+              <TouchableWithoutFeedback>
+                <View
+                  style={[
+                    styles.popoverBox,
+                    { top: '50%', alignSelf: 'center', width: '80%' },
+                  ]}
+                >
+                  <View style={styles.popoverHeader}>
+                    <Text style={styles.popoverUserName}>
+                      {isBn ? 'ফিল্টার নির্বাচন করুন' : 'Select Filter'}
+                    </Text>
+                  </View>
+                  <View style={styles.popoverDivider} />
+
+                  {pujaTags.map(tag => (
+                    <TouchableOpacity
+                      key={tag.tag_id}
+                      style={styles.popoverItem}
+                      onPress={() => {
+                        setSelectedTagId(tag.tag_id);
+                        setShowTagMenu(false);
+                      }}
+                    >
+                      <Text style={styles.popoverItemIconOrange}>🏷️</Text>
+                      <Text
+                        style={[
+                          styles.popoverItemText,
+                          selectedTagId === tag.tag_id && {
+                            color: BRAND_PRIMARY,
+                            fontWeight: '800',
+                          },
+                        ]}
+                      >
+                        {isBn && tag.tag_value === 'All'
+                          ? 'সব'
+                          : isBn && tag.tag_value === 'Featured'
+                          ? 'বৈশিষ্ট্যযুক্ত'
+                          : isBn && tag.tag_value === 'Favourite'
+                          ? 'প্রিয়'
+                          : isBn && tag.tag_value === 'Popular'
+                          ? 'জনপ্রিয়'
+                          : tag.tag_value}
+                      </Text>
+                      {selectedTagId === tag.tag_id && (
+                        <Text
+                          style={{ color: BRAND_PRIMARY, fontWeight: 'bold' }}
+                        >
+                          ✓
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      )}
     </View>
   );
 }
@@ -640,7 +846,7 @@ const styles = StyleSheet.create({
   avatarText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 
   // Navigation chips
-  navRow: { marginTop: 4, backgroundColor: '#FFFFFF' },
+  navRow: { marginTop: 16, backgroundColor: '#FFFFFF' },
   navChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -718,22 +924,27 @@ const styles = StyleSheet.create({
   dotInactive: { width: 6, backgroundColor: '#E5DFD7' },
 
   // Stats
-  statsRow: {
+  horizontalScroll: {
+    marginHorizontal: 16,
+  },
+  statsScrollContent: {
+    paddingHorizontal: 8, // Room for shadows so they don't clip at the wall
+    paddingVertical: 12,
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 20,
   },
   statCard: {
-    flex: 1,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 20,
     alignItems: 'center',
+    marginRight: 12,
+    width: 150, // Fixed width for horizontal items
+    elevation: 3,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   statIcon: { fontSize: 22, marginBottom: 4 },
   statValue: { fontSize: 18, fontWeight: '900', color: BRAND_PRIMARY },
@@ -935,10 +1146,10 @@ const styles = StyleSheet.create({
   popoverItemTextRed: { fontSize: 14, color: '#EF4444', fontWeight: '500' },
 
   headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
-  navRowContent: { paddingHorizontal: 16, paddingBottom: 12 },
+  navRowContent: { paddingHorizontal: 8, paddingBottom: 12 },
   carouselContainer: { paddingTop: 16 },
-  bannerWrapper: { width: width, paddingHorizontal: 16 },
-  bannerZeroMargin: { margin: 0 },
+  bannerWrapper: { width: width - 32 },
+  bannerZeroMargin: { margin: 0, marginHorizontal: 8 },
   bannerIcon: { fontSize: 60 },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -946,12 +1157,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   showMoreText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '700' },
-  featuredListContent: { paddingHorizontal: 16 },
+  featuredListContent: { paddingHorizontal: 8, paddingVertical: 4 },
   featuredCard: { width: 240, marginRight: 16, marginBottom: 4 },
   featuredImgText: { fontSize: 44 },
+  ratingText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '700',
+    marginLeft: 6,
+  },
   heartIconText: { fontSize: 16 },
   ratingCol: { alignItems: 'flex-end' },
   bottomSpacer: { height: 40 },
+  pujaIconImage: {
+    width: '80%',
+    height: '80%',
+  },
 
   cartBtn: {
     position: 'relative',
@@ -970,4 +1191,90 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+
+  sectionLoaderBox: {
+    padding: 30,
+    width: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  centeredSectionLoader: {
+    width: '100%',
+    height: 285,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  loaderText: {
+    fontSize: 13,
+    color: BRAND_MUTED,
+    fontWeight: '500',
+  },
+  showMoreCard: {
+    width: 140,
+    height: 285,
+    marginRight: 16,
+    marginBottom: 4,
+    justifyContent: 'center',
+  },
+  showMoreCardInner: {
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: '#FEE2E2',
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  showMoreIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  showMoreIcon: {
+    fontSize: 20,
+    color: BRAND_PRIMARY,
+    fontWeight: 'bold',
+  },
+  showMoreCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    textAlign: 'center',
+  },
+  showMoreCardSub: {
+    fontSize: 11,
+    color: BRAND_MUTED,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  filterDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE1D3',
+    gap: 8,
+  },
+  filterDropdownText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND_TEXT,
+  },
+  dropdownArrow: {
+    fontSize: 10,
+    color: BRAND_PRIMARY,
+  },
 });

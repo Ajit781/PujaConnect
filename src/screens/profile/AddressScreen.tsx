@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +27,7 @@ import {
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 
 const ERROR_COLOR = '#EF4444';
-const ADDRESS_TYPES = ['Home', 'Work', 'Temple', 'Other'];
+const BRAND_PRIMARY = '#F97316'; // Define BRAND_PRIMARY based on existing colors
 
 const Field = ({
   lab,
@@ -76,6 +77,10 @@ export default function AddressScreen({ navigation }: any) {
   const { showAlert } = useAlert();
   const addresses = useSelector((state: RootState) => state.address.addresses);
 
+  const [addressTypes, setAddressTypes] = useState<
+    { id: number; type: string }[]
+  >([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState('Home');
@@ -92,6 +97,28 @@ export default function AddressScreen({ navigation }: any) {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch Address Types on mount
+  React.useEffect(() => {
+    const fetchTypes = async () => {
+      setIsLoadingTypes(true);
+      try {
+        const { getAllAddressTypes } = await import(
+          '../../service/api/addressService'
+        );
+        const data = await getAllAddressTypes();
+        setAddressTypes(
+          data.map(d => ({ id: d.address_type_id, type: d.address_type })),
+        );
+        if (data.length > 0) setType(data[0].address_type);
+      } catch (e) {
+        console.error('Fetch Address Types failed:', e);
+      } finally {
+        setIsLoadingTypes(false);
+      }
+    };
+    fetchTypes();
+  }, []);
 
   const clearForm = () => {
     setType('Home');
@@ -464,23 +491,32 @@ export default function AddressScreen({ navigation }: any) {
                   {isBn ? '📋 ঠিকানার ধরন' : '📋 ADDRESS TYPE'}
                 </Text>
                 <View style={styles.typeRow}>
-                  {ADDRESS_TYPES.map(t => (
-                    <TouchableOpacity
-                      key={t}
-                      style={[styles.typeChip, type === t && styles.typeChipOn]}
-                      onPress={() => setType(t)}
-                    >
-                      <Text style={{ fontSize: 14 }}>{typeIcon(t)}</Text>
-                      <Text
+                  {isLoadingTypes ? (
+                    <View style={{ padding: 20, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color={BRAND_PRIMARY} />
+                    </View>
+                  ) : (
+                    addressTypes.map(t => (
+                      <TouchableOpacity
+                        key={t.id}
                         style={[
-                          styles.typeChipTxt,
-                          type === t && styles.typeChipTxtOn,
+                          styles.typeChip,
+                          type === t.type && styles.typeChipOn,
                         ]}
+                        onPress={() => setType(t.type)}
                       >
-                        {t}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text style={{ fontSize: 14 }}>{typeIcon(t.type)}</Text>
+                        <Text
+                          style={[
+                            styles.typeChipTxt,
+                            type === t.type && styles.typeChipTxtOn,
+                          ]}
+                        >
+                          {t.type}
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
                 </View>
 
                 <Field

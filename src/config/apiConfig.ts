@@ -7,6 +7,11 @@ export const ENDPOINTS = {
   generateToken: '/auth/generateToken',
   sendOtp: '/auth/citizen_generate_otp',
   verifyOtp: '/auth/citizen_validate_otp',
+  getPujaTypes: '/master/get_all_puja_type',
+  getAddressTypes: '/master/get_all_address_type',
+  getPujaTags: '/master/get_puja_tag_info',
+  getSummaryCount: '/home/get_summary_count',
+  getTagPujas: '/citizen/get_tag_pujas',
 };
 
 // Validation constants

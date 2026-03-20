@@ -69,9 +69,9 @@ export default function OrdersScreen({ navigation }: any) {
       if (fromDate.length === 10) {
         const [fm, fd, fy] = fromDate.split('/');
         const fromD = new Date(
-          parseInt(fy),
-          parseInt(fm) - 1,
-          parseInt(fd),
+          parseInt(fy, 10),
+          parseInt(fm, 10) - 1,
+          parseInt(fd, 10),
         ).getTime();
         if (orderD < fromD) return false;
       }
@@ -80,9 +80,9 @@ export default function OrdersScreen({ navigation }: any) {
         const [tm, td, ty] = toDate.split('/');
         // End of the target day
         const toD = new Date(
-          parseInt(ty),
-          parseInt(tm) - 1,
-          parseInt(td),
+          parseInt(ty, 10),
+          parseInt(tm, 10) - 1,
+          parseInt(td, 10),
           23,
           59,
           59,
@@ -297,7 +297,7 @@ export default function OrdersScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.filterInputText,
-                  !fromDate && { color: '#9CA3AF' },
+                  !fromDate && styles.placeholderText,
                 ]}
               >
                 {fromDate || 'MM/DD/YYYY'}
@@ -315,7 +315,7 @@ export default function OrdersScreen({ navigation }: any) {
               <Text
                 style={[
                   styles.filterInputText,
-                  !toDate && { color: '#9CA3AF' },
+                  !toDate && styles.placeholderText,
                 ]}
               >
                 {toDate || 'MM/DD/YYYY'}
@@ -464,6 +464,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
     justifyContent: 'center',
+  },
+  placeholderText: {
+    color: '#9CA3AF',
   },
   filterInputText: { fontSize: 14, color: BRAND_TEXT },
   searchInput: { padding: 0, fontSize: 14, color: BRAND_TEXT },

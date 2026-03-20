@@ -22,7 +22,23 @@ export function OtpInput({
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
   const handleChange = (text: string, index: number) => {
-    const digit = text.replace(/[^0-9]/g, '').slice(-1);
+    const cleaned = text.replace(/[^0-9]/g, '');
+
+    // Handle paste or autofill (multiple characters)
+    if (cleaned.length > 1) {
+      const newOtp = [...value];
+      for (let i = 0; i < cleaned.length && index + i < length; i++) {
+        newOtp[index + i] = cleaned[i];
+      }
+      onChange(newOtp, index);
+      // Focus the next empty box or the last box
+      const nextFocusIndex = Math.min(index + cleaned.length, length - 1);
+      inputRefs.current[nextFocusIndex]?.focus();
+      return;
+    }
+
+    // Handle single digit typing
+    const digit = cleaned.slice(-1);
     const newOtp = [...value];
     newOtp[index] = digit;
     onChange(newOtp, index);
@@ -60,7 +76,9 @@ export function OtpInput({
               }}
               style={styles.input}
               keyboardType="number-pad"
-              maxLength={1}
+              maxLength={index === 0 ? length : 1} // allow initial paste of full length
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
               value={digit}
               onChangeText={text => handleChange(text, index)}
               onKeyPress={e => handleKeyPress(e, index)}

@@ -141,6 +141,17 @@ export default function BookingModal({
     onClose();
   };
 
+  // Helper to extract data from either the real API object or the dummy object
+  const pId = puja.puja_type_id?.toString() || puja.id;
+  const pTitleEn = puja.puja_type_name || puja.titleEn;
+  const pTitleBn = puja.puja_type_name || puja.titleBn;
+  const pPrice = puja.puja_with_samagri_amount || puja.exactPrice;
+  const pPriceBn = puja.puja_with_samagri_amount
+    ? `₹${puja.puja_with_samagri_amount.toLocaleString('en-IN')}`
+    : puja.exactPriceBn;
+  const pImage = puja.puja_type_id ? '🛕' : puja.imagePlaceholder;
+  const pColor = puja.puja_type_id ? '#FEE2E2' : puja.color;
+
   const handleViewCart = () => {
     clearState();
     onClose();
@@ -160,18 +171,16 @@ export default function BookingModal({
     setTimeout(() => {
       dispatch(
         addToCart({
-          cartItemId: `${
-            puja.id
-          }-${selectedDate.toISOString()}-${selectedTime}`,
-          pujaId: puja.id,
-          titleEn: puja.titleEn,
-          titleBn: puja.titleBn,
-          exactPrice: puja.exactPrice,
-          exactPriceBn: puja.exactPriceBn,
+          cartItemId: `${pId}-${selectedDate.toISOString()}-${selectedTime}`,
+          pujaId: pId,
+          titleEn: pTitleEn,
+          titleBn: pTitleBn,
+          exactPrice: pPrice,
+          exactPriceBn: pPriceBn,
           selectedDate: selectedDate.toISOString(),
-          selectedTime: selectedTime,
-          imagePlaceholder: puja.imagePlaceholder,
-          color: puja.color,
+          selectedTime: selectedTime || '',
+          imagePlaceholder: pImage,
+          color: pColor,
         }),
       );
       dispatch(hideLoader());
@@ -435,10 +444,12 @@ export default function BookingModal({
               >
                 <View style={styles.pujaDetailsCard}>
                   <Text style={styles.pdTitle}>
-                    {isBn ? puja.titleBn : puja.titleEn}
+                    {isBn ? pTitleBn : pTitleEn}
                   </Text>
                   <Text style={styles.pdDesc} numberOfLines={2}>
-                    {isBn ? puja.descBn : puja.descEn}
+                    {isBn
+                      ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
+                      : 'Holy ceremony near you'}
                   </Text>
                 </View>
 
@@ -450,9 +461,7 @@ export default function BookingModal({
                     🎁 {isBn ? 'প্যাকেজ' : 'Package'}
                   </Text>
                   <Text style={styles.tableValue}>
-                    {isBn
-                      ? puja.titleBn + ' প্যাকেজ'
-                      : puja.titleEn + ' Package'}
+                    {isBn ? pTitleBn + ' প্যাকেজ' : pTitleEn + ' Package'}
                   </Text>
                 </View>
                 <View style={styles.tableRow}>
@@ -481,9 +490,7 @@ export default function BookingModal({
                     {isBn ? 'মোট মূল্য' : 'Total Price'}
                   </Text>
                   <Text style={styles.totalValue}>
-                    {isBn
-                      ? puja.exactPriceBn
-                      : `₹${puja.exactPrice.toLocaleString()}`}
+                    {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
                   </Text>
                 </View>
 
@@ -545,11 +552,9 @@ export default function BookingModal({
                 <Text style={styles.scHeader}>
                   🙏 {isBn ? 'পূজা নির্বাচিত' : 'Puja Selected'}
                 </Text>
-                <Text style={styles.scTitle}>
-                  {isBn ? puja.titleBn : puja.titleEn}
-                </Text>
+                <Text style={styles.scTitle}>{isBn ? pTitleBn : pTitleEn}</Text>
                 <Text style={styles.scDesc}>
-                  {isBn ? puja.titleBn + ' প্যাকেজ' : puja.titleEn + ' Package'}
+                  {isBn ? pTitleBn + ' প্যাকেজ' : pTitleEn + ' Package'}
                 </Text>
                 <Text style={styles.scDesc}>
                   {formatShortDate(selectedDate)} • {selectedTime}
@@ -560,9 +565,7 @@ export default function BookingModal({
                     {isBn ? 'পরিমাণ' : 'Amount'}
                   </Text>
                   <Text style={styles.scTotalValue}>
-                    {isBn
-                      ? puja.exactPriceBn
-                      : `₹${puja.exactPrice.toLocaleString()}`}
+                    {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
                   </Text>
                 </View>
               </View>

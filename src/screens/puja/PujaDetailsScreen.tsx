@@ -15,9 +15,10 @@ import BookingModal from '../../components/booking/BookingModal';
 export default function PujaDetailsScreen({ route, navigation }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
-  const { pujaId } = route.params;
+  const { pujaId, pujaData } = route.params;
 
-  const puja = FEATURED_PUJAS.find(p => p.id === pujaId);
+  // Use passed pujaData (Real API) or fallback to FEATURED_PUJAS (Dummy)
+  const puja = pujaData || FEATURED_PUJAS.find(p => p.id === pujaId);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -38,13 +39,31 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
     );
   }
 
-  const title = isBn ? puja.titleBn : puja.titleEn;
-  const desc = isBn ? puja.descBn : puja.descEn;
-  const duration = isBn ? puja.durationBn : puja.durationEn;
-  // const price = isBn ? puja.priceBn : puja.priceEn;
+  const title = pujaData
+    ? pujaData.puja_type_name
+    : isBn
+    ? puja.titleBn
+    : puja.titleEn;
+  const desc = pujaData
+    ? isBn
+      ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
+      : 'Holy ceremony near you'
+    : isBn
+    ? puja.descBn
+    : puja.descEn;
+  const duration = pujaData
+    ? `${pujaData.puja_duration} ${isBn ? 'ঘন্টা' : 'Hours'}`
+    : isBn
+    ? puja.durationBn
+    : puja.durationEn;
+  const rating = pujaData ? '4.8' : isBn ? puja.ratingBn : puja.ratingEn;
 
   const IMAGES = [
-    { id: 0, content: puja.imagePlaceholder, color: puja.color },
+    {
+      id: 0,
+      content: pujaData ? '🛕' : puja.imagePlaceholder,
+      color: pujaData ? '#FEE2E2' : puja.color,
+    },
     { id: 1, content: '🕉️', color: '#FDE68A' },
     { id: 2, content: '🛕', color: '#FECACA' },
   ];
@@ -62,9 +81,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{title}</Text>
           <View style={styles.ratingBox}>
-            <Text style={styles.ratingText}>
-              {isBn ? puja.ratingBn : puja.ratingEn}
-            </Text>
+            <Text style={styles.ratingText}>{rating}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -260,18 +277,24 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
       <View style={styles.stickyFooter}>
         <View>
           <Text style={styles.footerLabel}>
-            {isBn ? 'প্যাকেজ মূল্য' : 'PACKAGE PRICE'}
+            {isBn
+              ? 'প্যাকেজ মূল্য (সামগ্রী সহ)'
+              : 'PACKAGE PRICE (WITH SAMAGRI)'}
           </Text>
           <Text style={styles.footerPrice}>
-            {isBn ? puja.exactPriceBn : `₹${puja.exactPrice?.toLocaleString()}`}
+            {pujaData
+              ? `₹${pujaData.puja_with_samagri_amount.toLocaleString('en-IN')}`
+              : isBn
+              ? puja.exactPriceBn
+              : `₹${puja.exactPrice?.toLocaleString()}`}
           </Text>
         </View>
         <TouchableOpacity
           style={[
             styles.footerBtn,
-            !puja.isAvailable && styles.footerBtnDisabled,
+            pujaData ? {} : !puja.isAvailable && styles.footerBtnDisabled,
           ]}
-          disabled={!puja.isAvailable}
+          disabled={pujaData ? false : !puja.isAvailable}
           onPress={() => setShowBookingModal(true)}
         >
           <Text style={styles.footerBtnText}>
