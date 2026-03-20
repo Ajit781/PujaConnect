@@ -549,6 +549,19 @@ export default function DashboardScreen({ navigation }: any) {
                     </Text>
                   </TouchableOpacity>
 
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      navigation.navigate('Orders');
+                    }}
+                  >
+                    <Text style={styles.popoverItemIconOrange}>🕔</Text>
+                    <Text style={styles.popoverItemText}>
+                      {isBn ? 'অর্ডার সমূহ' : 'Orders'}
+                    </Text>
+                  </TouchableOpacity>
+
                   <View style={styles.popoverDivider} />
 
                   <TouchableOpacity

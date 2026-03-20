@@ -15,12 +15,13 @@ import wishlistReducer from './slices/wishlistSlice';
 import cartReducer from './slices/cartSlice';
 import loaderReducer from './slices/loaderSlice';
 import addressReducer from './slices/addressSlice';
+import orderReducer from './slices/orderSlice';
 
 // Persist config defining what to store and the storage engine
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'wishlist', 'cart', 'address'], // Persist auth, wishlist, cart, and addresses
+  whitelist: ['auth', 'wishlist', 'cart', 'address', 'order'], // Persist auth, wishlist, cart, addresses, and orders
 };
 
 const rootReducer = combineReducers({
@@ -29,6 +30,7 @@ const rootReducer = combineReducers({
   cart: cartReducer,
   loader: loaderReducer,
   address: addressReducer,
+  order: orderReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

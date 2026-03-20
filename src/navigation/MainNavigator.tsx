@@ -7,6 +7,7 @@ import CartScreen from '../screens/cart/CartScreen';
 import PujaDetailsScreen from '../screens/puja/PujaDetailsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
+import OrdersScreen from '../screens/profile/OrdersScreen';
 
 export type MainStackParamList = {
   Dashboard: undefined;
@@ -16,6 +17,7 @@ export type MainStackParamList = {
   Cart: undefined;
   EditProfile: undefined;
   Address: undefined;
+  Orders: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -30,6 +32,7 @@ export function MainNavigator() {
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Address" component={AddressScreen} />
+      <Stack.Screen name="Orders" component={OrdersScreen} />
     </Stack.Navigator>
   );
 }

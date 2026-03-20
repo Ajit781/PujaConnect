@@ -14,6 +14,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import { removeFromCart, clearCart } from '../../store/slices/cartSlice';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { placeOrder, Order } from '../../store/slices/orderSlice';
 
 const BRAND_PRIMARY = '#F97316'; // Orange
 const BRAND_TEXT = '#291811'; // Dark brown
@@ -32,7 +33,7 @@ export default function CartScreen({ navigation }: any) {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null,
   );
-  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderSuccessRef, setOrderSuccessRef] = useState<string | null>(null);
 
   const calculateSubtotal = () => {
     return cartItems.reduce((sum, item) => sum + (item.exactPrice || 0), 0);
@@ -73,14 +74,44 @@ export default function CartScreen({ navigation }: any) {
     if (!selectedAddressId && addresses.length > 0) return;
     dispatch(showLoader());
     setTimeout(() => {
+      const now = new Date();
+      const dateString = `${now.getFullYear()}${(now.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
+      const randomId = Math.floor(10000000 + Math.random() * 90000000);
+      const bookingRef = `PB-${dateString}-${randomId}`;
+
+      const newOrder: Order = {
+        id: Math.random().toString(36).substring(7),
+        bookingRef,
+        items: cartItems.map(item => ({
+          id: Math.random().toString(36).substring(7),
+          titleEn: item.titleEn,
+          titleBn: item.titleBn,
+          price: item.exactPrice || 0,
+          pandits: 1, // Defaulting to 1 as it's not in CartItem
+          duration: '1-2 hours', // Defaulting as it's not in CartItem
+          imagePlaceholder: item.imagePlaceholder || '',
+          color: item.color || '#DDD',
+          scheduledDate: item.selectedDate || '',
+          scheduledTime: item.selectedTime || '',
+          status: 'Upcoming',
+        })),
+        totalAmount: grandTotal,
+        datePlaced: now.toISOString(),
+        status: 'Booking Initiated',
+        paymentStatus: 'PAID',
+      };
+
+      dispatch(placeOrder(newOrder));
       dispatch(clearCart());
       dispatch(hideLoader());
       setShowAddressModal(false);
-      setOrderSuccess(true);
+      setOrderSuccessRef(bookingRef);
     }, 1200);
   };
 
-  if (orderSuccess) {
+  if (orderSuccessRef) {
     return (
       <View
         style={[
@@ -89,25 +120,130 @@ export default function CartScreen({ navigation }: any) {
         ]}
       >
         <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
-        <View style={styles.emptyState}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>✨</Text>
-          <Text style={styles.emptyTitle}>
-            {isBn ? 'অর্ডার সফল!' : 'Order Successful!'}
+        <View
+          style={{
+            backgroundColor: '#fff',
+            padding: 32,
+            borderRadius: 16,
+            width: '85%',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 10,
+            elevation: 5,
+          }}
+        >
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#6EE7B7',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 24,
+            }}
+          >
+            <Text style={{ fontSize: 40 }}>✅</Text>
+          </View>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: 'bold',
+              color: BRAND_TEXT,
+              marginBottom: 8,
+              textAlign: 'center',
+            }}
+          >
+            {isBn ? 'বুকিং নিশ্চিত!' : 'Booking Confirmed!'}
           </Text>
-          <Text style={styles.emptySub}>
+          <Text
+            style={{
+              fontSize: 14,
+              color: BRAND_MUTED,
+              textAlign: 'center',
+              marginBottom: 24,
+            }}
+          >
             {isBn
-              ? 'আপনার বুকিং নিশ্চিত করা হয়েছে। পন্ডিতজি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।'
-              : 'Your booking is confirmed. Panditji will contact you shortly.'}
+              ? 'আপনার পবিত্র পূজা অফার সফলভাবে বুক করা হয়েছে।'
+              : 'Your sacred puja offering has been successfully booked.'}
           </Text>
+
+          <View
+            style={{
+              backgroundColor: '#FFF7ED',
+              padding: 16,
+              borderRadius: 8,
+              width: '100%',
+              alignItems: 'center',
+              marginBottom: 24,
+              borderWidth: 1,
+              borderColor: '#FED7AA',
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: 'bold',
+                color: BRAND_PRIMARY,
+                marginBottom: 8,
+                textTransform: 'uppercase',
+              }}
+            >
+              {isBn ? 'বুকিং রেফারেন্স আইডি' : 'BOOKING REFERENCE ID'}
+            </Text>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: BRAND_TEXT,
+                letterSpacing: 1,
+              }}
+            >
+              📄 {orderSuccessRef}
+            </Text>
+          </View>
+
           <TouchableOpacity
-            style={styles.exploreBtn}
+            style={{
+              backgroundColor: BRAND_PRIMARY,
+              paddingVertical: 14,
+              borderRadius: 8,
+              width: '100%',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
             onPress={() => {
-              setOrderSuccess(false);
+              setOrderSuccessRef(null);
+              navigation.navigate('Orders');
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+              {isBn ? 'আমার অর্ডার দেখুন' : 'View My Orders'} →
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: 'transparent',
+              paddingVertical: 14,
+              borderRadius: 8,
+              width: '100%',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: '#FED7AA',
+            }}
+            onPress={() => {
+              setOrderSuccessRef(null);
               navigation.navigate('Dashboard');
             }}
           >
-            <Text style={styles.exploreBtnText}>
-              {isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
+            <Text
+              style={{ color: BRAND_PRIMARY, fontSize: 16, fontWeight: 'bold' }}
+            >
+              {isBn ? 'হোমে ফিরে যান' : '🏡 Back to Home'}
             </Text>
           </TouchableOpacity>
         </View>
