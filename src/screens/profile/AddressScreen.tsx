@@ -24,6 +24,7 @@ import {
   deleteAddress,
   setDefaultAddress,
 } from '../../store/slices/addressSlice';
+import NoDataFound from '../../components/common/NoDataFound';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 
 const ERROR_COLOR = '#EF4444';
@@ -296,24 +297,16 @@ export default function AddressScreen({ navigation }: any) {
         {/* Card */}
         <View style={styles.card}>
           {addresses.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <View style={styles.emptyCircle}>
-                <Text style={{ fontSize: 32 }}>📍</Text>
-              </View>
-              <Text style={styles.emptyTitle}>
-                {isBn ? 'এখনও কোনো ঠিকানা নেই' : 'No addresses saved yet'}
-              </Text>
-              <Text style={styles.emptySub}>
-                {isBn
-                  ? 'সহজ বুকিংয়ের জন্য আপনার ঠিকানা যোগ করুন।'
-                  : 'Add your home, work, or temple address for easy bookings.'}
-              </Text>
+            <NoDataFound
+              message={isBn ? 'এখনও কোনো ঠিকানা নেই' : 'No addresses saved yet'}
+              containerHeight={350}
+            >
               <TouchableOpacity style={styles.addFirstBtn} onPress={openAdd}>
                 <Text style={styles.addFirstBtnTxt}>
                   + {isBn ? 'প্রথম ঠিকানা যোগ করুন' : 'Add First Address'}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </NoDataFound>
           ) : (
             <>
               <View style={styles.listHead}>

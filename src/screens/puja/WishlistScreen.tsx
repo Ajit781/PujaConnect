@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
 import { toggleFavorite } from '../../store/slices/wishlistSlice';
 import { FEATURED_PUJAS } from '../../data/dummyData';
+import NoDataFound from '../../components/common/NoDataFound';
 
 export default function WishlistScreen({ navigation }: any) {
   const { i18n } = useTranslation();
@@ -141,19 +142,14 @@ export default function WishlistScreen({ navigation }: any) {
             </View>
           ))}
           {favoritePujas.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateEmoji}>🤍</Text>
-              <Text style={styles.emptyStateText}>
-                {isBn
+            <NoDataFound
+              message={
+                isBn
                   ? 'আপনার পছন্দের তালিকায় কোনও পূজা নেই।'
-                  : 'No pujas in your wishlist yet.'}
-              </Text>
-              <Text style={styles.subtextEmpty}>
-                {isBn
-                  ? 'দয়া করে কিছু যোগ করতে হৃদয় আইকনে ক্লিক করুন।'
-                  : 'Add some by clicking the heart icon on any puja!'}
-              </Text>
-            </View>
+                  : 'No pujas in your wishlist yet.'
+              }
+              containerHeight={300}
+            />
           )}
         </View>
 

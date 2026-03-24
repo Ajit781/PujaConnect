@@ -8,9 +8,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '../../store/slices/cartSlice';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { useAddPujaToCartMutation } from '../../store/api/pujaApi';
+import { RootState } from '../../store';
+
+import CustomTimePickerModal from '../common/CustomTimePickerModal';
 
 const { width } = Dimensions.get('window');
 const BRAND_PRIMARY = '#F97316';
@@ -21,6 +25,7 @@ interface BookingModalProps {
   visible: boolean;
   onClose: () => void;
   puja: any;
+  selectedPackage?: any;
   isBn: boolean;
 }
 
@@ -28,40 +33,21 @@ export default function BookingModal({
   visible,
   onClose,
   puja,
+  selectedPackage,
   isBn,
 }: BookingModalProps) {
   const dispatch = useDispatch();
   const navigation = useNavigation<any>();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const [addPujaToCart] = useAddPujaToCartMutation();
   const [step, setStep] = useState<'DATETIME' | 'CONFIRM' | 'SUCCESS'>(
     'DATETIME',
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-
-  const TIME_SLOTS = [
-    '08:00 AM',
-    '09:30 AM',
-    '11:00 AM',
-    '11:30 AM',
-    '12:00 PM',
-    '12:30 PM',
-    '01:00 PM',
-    '01:30 PM',
-    '03:00 PM',
-    '03:30 PM',
-    '04:00 PM',
-    '04:30 PM',
-    '05:00 PM',
-    '05:30 PM',
-    '06:00 PM',
-    '06:30 PM',
-    '07:00 PM',
-    '07:30 PM',
-    '08:00 PM',
-  ];
 
   const MONTHS_EN = [
     'January',
@@ -132,7 +118,7 @@ export default function BookingModal({
     setSelectedDate(null);
     setSelectedTime(null);
     setShowCalendar(false);
-    setShowTimeDropdown(false);
+    setShowTimePicker(false);
     setCurrentMonth(new Date());
   };
 
@@ -142,15 +128,39 @@ export default function BookingModal({
   };
 
   // Helper to extract data from either the real API object or the dummy object
-  const pId = puja.puja_type_id?.toString() || puja.id;
-  const pTitleEn = puja.puja_type_name || puja.titleEn;
-  const pTitleBn = puja.puja_type_name || puja.titleBn;
-  const pPrice = puja.puja_with_samagri_amount || puja.exactPrice;
-  const pPriceBn = puja.puja_with_samagri_amount
+  const pId =
+    puja.puja_type_id?.toString() || puja.puja_id?.toString() || puja.id;
+
+  // Package name vs Puja name logic per user request:
+  // "package name will be name of the puja"
+  const pTitleEn =
+    puja.puja_type_name || puja.puja_name || puja.name || puja.titleEn;
+  const pTitleBn =
+    puja.puja_type_name ||
+    puja.puja_name ||
+    (isBn ? puja.nameBn : puja.name) ||
+    (isBn ? puja.titleBn : puja.titleEn);
+
+  // Store actual package type separately to show as sub-detail
+  const pPackageNameEn = selectedPackage
+    ? selectedPackage.puja_package_name
+    : pTitleEn;
+
+  const pPrice = selectedPackage
+    ? selectedPackage.puja_package_price
+    : puja.puja_with_samagri_amount || puja.minimum_price || puja.exactPrice;
+
+  const pPriceBn = selectedPackage
+    ? `₹${selectedPackage.puja_package_price.toLocaleString('en-IN')}`
+    : puja.puja_with_samagri_amount
     ? `₹${puja.puja_with_samagri_amount.toLocaleString('en-IN')}`
+    : puja.minimum_price
+    ? `₹${puja.minimum_price.toLocaleString('en-IN')}`
     : puja.exactPriceBn;
-  const pImage = puja.puja_type_id ? '🛕' : puja.imagePlaceholder;
-  const pColor = puja.puja_type_id ? '#FEE2E2' : puja.color;
+
+  const pImage =
+    puja.puja_type_id || puja.puja_id ? '🛕' : puja.imagePlaceholder;
+  const pColor = puja.puja_type_id || puja.puja_id ? '#FEE2E2' : puja.color;
 
   const handleViewCart = () => {
     clearState();
@@ -164,28 +174,77 @@ export default function BookingModal({
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedDate || !selectedTime) return;
     dispatch(showLoader());
-    // Small delay to show loader so the user sees feedback
-    setTimeout(() => {
-      dispatch(
-        addToCart({
-          cartItemId: `${pId}-${selectedDate.toISOString()}-${selectedTime}`,
-          pujaId: pId,
-          titleEn: pTitleEn,
-          titleBn: pTitleBn,
-          exactPrice: pPrice,
-          exactPriceBn: pPriceBn,
-          selectedDate: selectedDate.toISOString(),
-          selectedTime: selectedTime || '',
-          imagePlaceholder: pImage,
-          color: pColor,
-        }),
+
+    try {
+      const dateForApi = `${selectedDate.getFullYear()}-${String(
+        selectedDate.getMonth() + 1,
+      ).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+
+      // Parse 12-hour time like "10:30 AM" to 24-hour format "10:30" or "22:30"
+      let formattedTime = selectedTime;
+      if (selectedTime && selectedTime.includes(' ')) {
+        const [timePart, period] = selectedTime.split(' ');
+        if (timePart && period) {
+          let [hStr, mStr] = timePart.split(':');
+          let h = parseInt(hStr, 10);
+          if (period.toUpperCase() === 'PM' && h < 12) {
+            h += 12;
+          } else if (period.toUpperCase() === 'AM' && h === 12) {
+            h = 0;
+          }
+          formattedTime = `${String(h).padStart(2, '0')}:${mStr}`;
+        }
+      }
+
+      const payload = {
+        ctzn_id: user?.user_id || 0,
+        puja_id: Number(puja.puja_type_id || puja.puja_id || puja.id || 0),
+        package_id: selectedPackage
+          ? Number(selectedPackage.puja_package_id)
+          : 0,
+        p_preferred_date: dateForApi,
+        p_preferred_time: formattedTime,
+        quantity: 1, // Defaulting to 1 for bookings
+      };
+
+      console.log(
+        '--- ADD TO CART PAYLOAD ---',
+        JSON.stringify(payload, null, 2),
       );
+
+      const result = await addPujaToCart(payload).unwrap();
+
+      console.log('--- ADD TO CART RESPONSE ---', result);
+
+      if (result && result.status === 0) {
+        dispatch(
+          addToCart({
+            cartItemId: `${pId}-${selectedDate.toISOString()}-${selectedTime}`,
+            pujaId: pId,
+            titleEn: pTitleEn,
+            titleBn: pTitleBn,
+            exactPrice: pPrice,
+            exactPriceBn: pPriceBn,
+            selectedDate: selectedDate.toISOString(),
+            selectedTime: selectedTime || '',
+            imagePlaceholder: pImage,
+            color: pColor,
+            cart_id: result.data?.cart_id,
+            cart_item_id: result.data?.cart_item_id,
+          }),
+        );
+        setStep('SUCCESS');
+      }
+      // Note: non-zero status errors are now handled by the global API interceptor in pujaApi.ts
+    } catch (error: any) {
+      console.error('Failed to add puja to cart:', error);
+      // HTTP errors (like 400, 500) are handled globally by handleApiHttpError
+    } finally {
       dispatch(hideLoader());
-      setStep('SUCCESS');
-    }, 800);
+    }
   };
 
   const renderCalendarGrid = () => {
@@ -297,7 +356,7 @@ export default function BookingModal({
                   ]}
                   onPress={() => {
                     setShowCalendar(!showCalendar);
-                    setShowTimeDropdown(false);
+                    setShowTimePicker(false);
                   }}
                 >
                   <Text
@@ -326,12 +385,12 @@ export default function BookingModal({
                 <TouchableOpacity
                   style={[
                     styles.inputBox,
-                    showTimeDropdown && styles.inputBoxActive,
+                    showTimePicker && styles.inputBoxActive,
                     !selectedDate && styles.inputBoxDisabled,
                   ]}
                   disabled={!selectedDate}
                   onPress={() => {
-                    setShowTimeDropdown(!showTimeDropdown);
+                    setShowTimePicker(true);
                     setShowCalendar(false);
                   }}
                 >
@@ -347,39 +406,16 @@ export default function BookingModal({
                         : 'Choose a time slot')}
                   </Text>
                   <Text style={styles.dropdownIcon}>
-                    {showTimeDropdown ? '▲' : '▼'}
+                    {showTimePicker ? '▲' : '▼'}
                   </Text>
                 </TouchableOpacity>
 
-                {showTimeDropdown && (
-                  <View style={styles.dropdownMenuVertical}>
-                    <ScrollView showsVerticalScrollIndicator={true}>
-                      {TIME_SLOTS.map((slot, i) => (
-                        <TouchableOpacity
-                          key={i}
-                          style={styles.timeSlotBtn}
-                          onPress={() => {
-                            setSelectedTime(slot);
-                            setShowTimeDropdown(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.timeSlotText,
-                              selectedTime === slot &&
-                                styles.timeSlotTextActive,
-                            ]}
-                          >
-                            {slot}
-                          </Text>
-                          {selectedTime === slot && (
-                            <Text style={styles.checkIcon}>✓</Text>
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
+                <CustomTimePickerModal
+                  visible={showTimePicker}
+                  onClose={() => setShowTimePicker(false)}
+                  onSelect={t => setSelectedTime(t)}
+                  initialTime={selectedTime || '12:00 PM'}
+                />
 
                 {selectedDate && selectedTime && (
                   <View style={styles.summaryBox}>
@@ -460,9 +496,7 @@ export default function BookingModal({
                   <Text style={styles.tableLabel}>
                     🎁 {isBn ? 'প্যাকেজ' : 'Package'}
                   </Text>
-                  <Text style={styles.tableValue}>
-                    {isBn ? pTitleBn + ' প্যাকেজ' : pTitleEn + ' Package'}
-                  </Text>
+                  <Text style={styles.tableValue}>{pPackageNameEn}</Text>
                 </View>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>
@@ -482,8 +516,20 @@ export default function BookingModal({
                   <Text style={styles.tableLabel}>
                     🧘 {isBn ? 'পুরোহিত' : 'Pandits'}
                   </Text>
-                  <Text style={styles.tableValue}>1</Text>
+                  <Text style={styles.tableValue}>
+                    {selectedPackage ? selectedPackage.pandit_count : '1'}
+                  </Text>
                 </View>
+                {selectedPackage && (
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>
+                      ⏱️ {isBn ? 'সময়কাল' : 'Duration'}
+                    </Text>
+                    <Text style={styles.tableValue}>
+                      {selectedPackage.puja_duration} {isBn ? 'ঘন্টা' : 'Hrs'}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>
@@ -554,7 +600,7 @@ export default function BookingModal({
                 </Text>
                 <Text style={styles.scTitle}>{isBn ? pTitleBn : pTitleEn}</Text>
                 <Text style={styles.scDesc}>
-                  {isBn ? pTitleBn + ' প্যাকেজ' : pTitleEn + ' Package'}
+                  {pPackageNameEn} {isBn ? 'প্যাকেজ' : 'Package'}
                 </Text>
                 <Text style={styles.scDesc}>
                   {formatShortDate(selectedDate)} • {selectedTime}

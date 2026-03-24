@@ -12,6 +12,13 @@ export const ENDPOINTS = {
   getPujaTags: '/master/get_puja_tag_info',
   getSummaryCount: '/home/get_summary_count',
   getTagPujas: '/citizen/get_tag_pujas',
+  getPujaImages: '/citizen/get_puja_image_details_by_puja_id',
+  getPujaPackages: '/citizen/get_puja_package_details_by_puja_id',
+  getPackageMaterials: '/citizen/get_puja_materials_details_by_package_id',
+  getPujaFullDetails: '/citizen/get_puja_details_by_puja_id',
+  addPujaToCart: '/citizen/add_puja_cart',
+  getPujaCartInfo: '/citizen/get_puja_cart_info',
+  managePujaCart: '/citizen/manage_puja_cart',
 };
 
 // Validation constants

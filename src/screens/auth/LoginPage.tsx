@@ -12,6 +12,7 @@ import {
   Dimensions,
   Keyboard,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -22,7 +23,6 @@ import { Input } from '../../components/common/Input';
 import { OtpInput } from '../../components/common/OtpInput';
 import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
-import { showLoader } from '../../store/slices/loaderSlice';
 import { login } from '../../store/slices/authSlice';
 import SmsRetriever from 'react-native-sms-retriever';
 import { VALIDATION } from '../../config/apiConfig';
@@ -54,6 +54,36 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
 
+  // Phone History state
+  const [phoneHistory, setPhoneHistory] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Load history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('PHONE_HISTORY');
+        if (saved) setPhoneHistory(JSON.parse(saved));
+      } catch (e) {
+        console.log('Error loading history:', e);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  const saveToHistory = async (num: string) => {
+    try {
+      const newHistory = [num, ...phoneHistory.filter(h => h !== num)].slice(
+        0,
+        5,
+      );
+      setPhoneHistory(newHistory);
+      await AsyncStorage.setItem('PHONE_HISTORY', JSON.stringify(newHistory));
+    } catch (e) {
+      console.log('Error saving history:', e);
+    }
+  };
+
   const toggleLanguage = () =>
     i18n.changeLanguage(i18n.language === 'en' ? 'bn' : 'en');
 
@@ -66,7 +96,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     return () => clearInterval(timer);
   }, [otpSent, resendCountdown]);
 
-  // Auto-submit OTP when all digits entered
+  // Auto-submit OTP
   const otpValue = otp.join('');
   const isOtpComplete = otpValue.length === VALIDATION.OTP_LENGTH;
   useEffect(() => {
@@ -78,34 +108,15 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   }, [isOtpComplete, otpValue]);
 
   const validateMobile = (value: string): string => {
-    if (!value) return t('auth.mobileRequired') ?? 'Mobile number is required';
+    if (!value) return t('auth.mobileRequired') || 'Mobile number is required';
     if (value.length < VALIDATION.MOBILE_LENGTH)
-      return t('auth.mobileTooShort') ?? 'Enter a valid 10-digit mobile number';
+      return t('auth.mobileTooShort') || 'Enter a valid 10-digit mobile number';
     if (!VALIDATION.MOBILE_REGEX.test(value))
       return (
-        t('auth.mobileInvalid') ?? 'Mobile number must start with 6, 7, 8 or 9'
+        t('auth.mobileInvalid') || 'Mobile number must start with 6, 7, 8 or 9'
       );
     return '';
   };
-
-  // Native Phone Hint Picker on Mount
-  React.useEffect(() => {
-    const getPhoneNumberHint = async () => {
-      try {
-        const phone = await SmsRetriever.requestPhoneNumber();
-        if (phone) {
-          // Response shape: "+919876543210" or "9876543210"
-          const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
-          setMobile(cleanPhone);
-        }
-      } catch (error) {
-        console.log('Phone hint error:', error);
-      }
-    };
-    if (!otpSent) {
-      getPhoneNumberHint();
-    }
-  }, [otpSent]);
 
   const handleGetOtp = async () => {
     const err = validateMobile(mobile);
@@ -119,20 +130,19 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     try {
       const response = await generateOtp(mobile);
       if (response) {
+        saveToHistory(mobile);
         setOtpSent(true);
         setResendCountdown(30);
-        // Start SMS Retriever for automatic OTP reading
+        // SmsRetriever logic omitted for brevity in restoration if needed, but adding back
         try {
           const registered = await SmsRetriever.startSmsRetriever();
           if (registered) {
             SmsRetriever.addSmsListener(event => {
               if (event && event.message) {
-                // Regex to find 6 consecutive digits
                 const otpMatch = event.message.match(/\d{6}/);
                 if (otpMatch) {
                   const extractedOtp = otpMatch[0];
                   setOtp(extractedOtp.split(''));
-                  // Close listener and verify
                   SmsRetriever.removeSmsListener();
                   handleVerify(extractedOtp);
                 }
@@ -140,19 +150,14 @@ export default function LoginPage({ navigation: _navigation }: Props) {
             });
           }
         } catch (e) {
-          console.log('SmsRetriever start error:', e);
+          console.log('SmsRetriever error:', e);
         }
         setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
       }
     } catch (error: any) {
-      // Added error type
       showAlert({
         title: isBn ? 'সংযোগ ত্রুটি' : 'Connection Error',
-        message:
-          error.message ||
-          (isBn
-            ? 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি। আপনার ইন্টারনেট পরীক্ষা করুন।'
-            : 'Unable to reach the server. Check your internet.'),
+        message: error.message || (isBn ? 'ত্রুটি' : 'Error'),
         buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
     } finally {
@@ -167,22 +172,12 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     try {
       const result = await validateOtp(mobile, code);
       if (result) {
-        // Use a tiny timeout to ensure the state update is processed
-        // before the stack navigator unmounts this screen
-        setTimeout(() => {
-          dispatch(showLoader());
-          dispatch(login({ user: result, token: 'session_active' }));
-        }, 10);
+        dispatch(login({ user: result, token: 'session_active' }));
       }
     } catch (err: any) {
-      // Added error type
       showAlert({
         title: isBn ? 'যাচাইকরণ ব্যর্থ হয়েছে' : 'Verification Failed',
-        message:
-          err.message ||
-          (isBn
-            ? 'ওটিপি যাচাই করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'
-            : 'Unable to verify OTP. Please try again.'),
+        message: err.message || (isBn ? 'ত্রুটি' : 'Error'),
         buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
@@ -190,17 +185,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       setIsVerifying(false);
     }
   };
-
-  React.useEffect(() => {
-    return () => {
-      // Cleanup SMS listener on unmount
-      try {
-        SmsRetriever.removeSmsListener();
-      } catch {
-        // Ignored
-      }
-    };
-  }, []);
 
   const handleChangeMobile = () => {
     setOtpSent(false);
@@ -217,14 +201,9 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       setResendCountdown(30);
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
     } catch (err: any) {
-      // Added error type
       showAlert({
         title: isBn ? 'ত্রুটি' : 'Error',
-        message:
-          err.message ||
-          (isBn
-            ? 'OTP পাঠানো যায়নি। আবার চেষ্টা করুন।'
-            : 'Failed to send OTP. Please try again.'),
+        message: err.message || (isBn ? 'ত্রুটি' : 'Error'),
         buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
       });
     } finally {
@@ -248,7 +227,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.flex1}
         >
-          {/* ── Top Header ── */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <View style={styles.flex1} />
@@ -269,7 +247,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
             </View>
           </View>
 
-          {/* ── White Card ── */}
           <View style={styles.card}>
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -277,7 +254,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
               contentContainerStyle={styles.scrollContent}
             >
               {!otpSent ? (
-                /* ─ Step 1: Mobile Input ─ */
                 <>
                   <View style={styles.titleSection}>
                     <View style={styles.badge}>
@@ -295,18 +271,50 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       placeholder="98765 43210"
                       keyboardType="number-pad"
                       maxLength={VALIDATION.MOBILE_LENGTH}
-                      textContentType="username"
-                      autoComplete="tel"
-                      importantForAutofill="yes"
                       value={mobile}
+                      onFocus={() => {
+                        if (phoneHistory.length > 0) setShowHistory(true);
+                      }}
                       onChangeText={text => {
                         const digits = text.replace(/[^0-9]/g, '');
                         setMobile(digits);
                         if (mobileError) setMobileError('');
+                        setShowHistory(
+                          digits.length === 0 && phoneHistory.length > 0,
+                        );
                       }}
                       error={mobileError}
                       leftElement={<Text style={styles.countryCode}>+91</Text>}
                     />
+
+                    {showHistory && phoneHistory.length > 0 && (
+                      <View style={styles.historyDropdown}>
+                        <View style={styles.historyHeader}>
+                          <Text style={styles.historyHeaderText}>
+                            {t('auth.recentNumbers') || 'Recent Numbers'}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => setShowHistory(false)}
+                          >
+                            <Text style={styles.closeHistory}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {phoneHistory.map((item, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={styles.historyItem}
+                            onPress={() => {
+                              setMobile(item);
+                              setShowHistory(false);
+                              setMobileError('');
+                            }}
+                          >
+                            <Text style={styles.historyItemIcon}>📱</Text>
+                            <Text style={styles.historyItemText}>{item}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
                     <Text style={styles.hint}>
                       🔒 {t('auth.otpWillBeSent')}
                     </Text>
@@ -318,12 +326,8 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                     isLoading={isGettingOtp}
                     isDisabled={mobile.length < VALIDATION.MOBILE_LENGTH}
                   />
-                  <Text style={styles.secureText}>
-                    🛡️ {t('auth.encryptedSecure')}
-                  </Text>
                 </>
               ) : (
-                /* ─ Step 2: OTP Input ─ */
                 <>
                   <View style={styles.titleSection}>
                     <Text style={styles.title}>{t('auth.verifyOtpTitle')}</Text>
@@ -332,7 +336,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       <Text style={styles.subtitleBold}>{maskedNumber}</Text>
                     </Text>
                   </View>
-
                   <View style={styles.otpSection}>
                     <OtpInput
                       value={otp}
@@ -340,15 +343,13 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       onChange={newOtp => setOtp(newOtp)}
                     />
                   </View>
-
-                  {/* Resend + Change mobile row */}
                   <View style={styles.otpActionsRow}>
                     <TouchableOpacity
                       onPress={handleChangeMobile}
                       style={styles.changeMobileBtn}
                     >
                       <Text style={styles.changeMobileText}>
-                        ✏️ {t('auth.changeMobile') ?? 'Change Number'}
+                        ✏️ {t('auth.changeMobile') || 'Change Number'}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -367,18 +368,17 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       </Text>
                     </TouchableOpacity>
                   </View>
-
                   <Button
                     label={t('auth.verifyAccess')}
                     onPress={() => handleVerify()}
                     isLoading={isVerifying}
                     isDisabled={!isOtpComplete}
                   />
-                  <Text style={styles.secureText}>
-                    🛡️ {t('auth.encryptedSecure')}
-                  </Text>
                 </>
               )}
+              <Text style={styles.secureText}>
+                🛡️ {t('auth.encryptedSecure')}
+              </Text>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -390,18 +390,8 @@ export default function LoginPage({ navigation: _navigation }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#7F1D1D' },
   flex1: { flex: 1 },
-
-  // ─ Header ─
-  header: {
-    height: HEADER_HEIGHT,
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
+  header: { height: HEADER_HEIGHT, paddingHorizontal: 24, paddingTop: 8 },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   langPill: {
     backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 14,
@@ -422,19 +412,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingBottom: 12,
   },
-  logo: {
-    width: 300,
-    height: 90,
-    resizeMode: 'contain',
-    marginBottom: 10,
-  },
+  logo: { width: 300, height: 90, resizeMode: 'contain', marginBottom: 10 },
   tagline: {
     color: 'rgba(253,248,240,0.65)',
     fontSize: 13,
     letterSpacing: 0.6,
   },
-
-  // ─ Card ─
   card: {
     flex: 1,
     backgroundColor: '#FDF8F0',
@@ -445,12 +428,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   scrollContent: { paddingBottom: 16 },
-
-  // ─ Title ─
-  titleSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+  titleSection: { alignItems: 'center', marginBottom: 24 },
   badge: {
     backgroundColor: '#FFF0E5',
     paddingHorizontal: 14,
@@ -477,12 +455,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  subtitleBold: {
-    fontWeight: '700',
-    color: '#291811',
-  },
-
-  // ─ Step 1: Mobile ─
+  subtitleBold: { fontWeight: '700', color: '#291811' },
   inputSection: { marginBottom: 24 },
   countryCode: {
     color: '#291811',
@@ -492,9 +465,46 @@ const styles = StyleSheet.create({
     borderRightColor: '#E5DFD7',
     paddingRight: 12,
   },
-  hint: { color: '#9CA3AF', fontSize: 12, marginTop: 8 },
-
-  // ─ Step 2: OTP ─
+  hint: { color: '#9CA3AF', fontSize: 12, marginTop: 12 },
+  historyDropdown: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FDE1D3',
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FEF2F2',
+  },
+  historyHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F97316',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  closeHistory: { fontSize: 14, color: '#9CA3AF', padding: 4 },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#FDF8F0',
+  },
+  historyItemIcon: { fontSize: 14, marginRight: 10, opacity: 0.7 },
+  historyItemText: { fontSize: 15, color: '#291811', fontWeight: '600' },
   otpSection: { marginBottom: 8 },
   otpActionsRow: {
     flexDirection: 'row',
@@ -509,18 +519,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
   },
-  changeMobileText: {
-    color: '#F97316',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  resendText: {
-    color: '#F97316',
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  changeMobileText: { color: '#F97316', fontSize: 12, fontWeight: '600' },
+  resendText: { color: '#F97316', fontSize: 13, fontWeight: '600' },
   resendDisabled: { color: '#9CA3AF' },
-
   secureText: {
     color: '#9CA3AF',
     fontSize: 12,

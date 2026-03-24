@@ -11,14 +11,18 @@ export interface CartItem {
   selectedTime: string;
   imagePlaceholder: string;
   color: string;
+  cart_id?: number;
+  cart_item_id?: number;
 }
 
 interface CartState {
   items: CartItem[];
+  hasUnseenItems: boolean;
 }
 
 const initialState: CartState = {
   items: [],
+  hasUnseenItems: false,
 };
 
 export const cartSlice = createSlice({
@@ -35,6 +39,7 @@ export const cartSlice = createSlice({
       );
       if (!exists) {
         state.items.push(action.payload);
+        state.hasUnseenItems = true;
       }
     },
     removeFromCart: (state, action: PayloadAction<string>) => {
@@ -44,9 +49,14 @@ export const cartSlice = createSlice({
     },
     clearCart: state => {
       state.items = [];
+      state.hasUnseenItems = false;
+    },
+    markCartAsSeen: state => {
+      state.hasUnseenItems = false;
     },
   },
 });
 
-export const { addToCart, removeFromCart, clearCart } = cartSlice.actions;
+export const { addToCart, removeFromCart, clearCart, markCartAsSeen } =
+  cartSlice.actions;
 export default cartSlice.reducer;

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   BackHandler,
-  Alert,
   Image,
   StatusBar,
   Dimensions,
@@ -23,7 +22,7 @@ import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useAlert } from '../../context/AlertContext';
 import { toggleFavorite } from '../../store/slices/wishlistSlice';
-import { hideLoader } from '../../store/slices/loaderSlice';
+import { hideLoader, showLoader } from '../../store/slices/loaderSlice';
 import {
   getSummaryCount,
   getAllPujaTags,
@@ -33,6 +32,7 @@ import {
   PujaTag,
 } from '../../service/api/dashboardService';
 import appLogo from '../../assets/images/Logo.png';
+import NoDataFound from '../../components/common/NoDataFound';
 
 const { width } = Dimensions.get('window');
 
@@ -108,11 +108,14 @@ export default function DashboardScreen({ navigation }: any) {
   const favorites = useSelector(
     (state: RootState) => state.wishlist?.favorites || [],
   );
-  const cartItems = useSelector((state: any) => state.cart?.items || []);
+  const { items: cartItems, hasUnseenItems } = useSelector(
+    (state: RootState) => state.cart,
+  );
   const dispatch = useDispatch();
   const isBn = i18n.language === 'bn';
 
   const [activeBanner, setActiveBanner] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const [pujas, setPujas] = useState<PujaType[]>([]);
   const [pujaTags, setPujaTags] = useState<PujaTag[]>([]);
@@ -137,6 +140,7 @@ export default function DashboardScreen({ navigation }: any) {
   React.useEffect(() => {
     const fetchInitialData = async () => {
       if (!user?.user_id) return;
+      dispatch(showLoader());
       try {
         const [summaryRes, tagsData] = await Promise.all([
           getSummaryCount(),
@@ -177,20 +181,33 @@ export default function DashboardScreen({ navigation }: any) {
     fetchPujas();
   }, [user?.user_id, selectedTagId]);
 
-  // Auto-scroll banners — just keep going forward, never jump back
+  // Auto-scroll banners — just keep going forward, reset when near end
   const currentIndexRef = React.useRef(START_INDEX);
   React.useEffect(() => {
+    if (isPaused) return;
     const timer = setInterval(() => {
-      currentIndexRef.current += 1;
-      const idx = currentIndexRef.current;
-      flatListRef.current?.scrollToOffset({
-        offset: idx * (width - 32),
-        animated: true,
-      });
+      let idx = currentIndexRef.current + 1;
+
+      // Perpetual loop logic: if we approach the end of CAROUSEL_DATA,
+      // snap back to the equivalent in the middle without animation.
+      if (idx >= CAROUSEL_DATA.length - 1) {
+        idx = START_INDEX + (idx % DASHBOARD_BANNERS.length);
+        flatListRef.current?.scrollToOffset({
+          offset: idx * (width - 32),
+          animated: false,
+        });
+      } else {
+        flatListRef.current?.scrollToOffset({
+          offset: idx * (width - 32),
+          animated: true,
+        });
+      }
+
+      currentIndexRef.current = idx;
       setActiveBanner(idx % DASHBOARD_BANNERS.length);
     }, 4500);
     return () => clearInterval(timer);
-  }, []);
+  }, [isPaused, CAROUSEL_DATA.length, START_INDEX]);
 
   const toggleLanguage = () => i18n.changeLanguage(isBn ? 'en' : 'bn');
 
@@ -198,19 +215,23 @@ export default function DashboardScreen({ navigation }: any) {
   useFocusEffect(
     React.useCallback(() => {
       const onBack = () => {
-        Alert.alert('Exit App', 'Do you want to exit the app?', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Exit',
-            style: 'destructive',
-            onPress: () => BackHandler.exitApp(),
-          },
-        ]);
+        showAlert({
+          title: 'Exit App',
+          message: 'Do you want to exit the app?',
+          buttons: [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Exit',
+              style: 'destructive',
+              onPress: () => BackHandler.exitApp(),
+            },
+          ],
+        });
         return true; // prevent default (going back)
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
       return () => sub.remove();
-    }, []),
+    }, [showAlert]),
   );
 
   const handleLogout = () => {
@@ -302,7 +323,7 @@ export default function DashboardScreen({ navigation }: any) {
                 style={styles.cartBtn}
               >
                 <Text style={styles.iconBtnText}>🛒</Text>
-                {cartItems.length > 0 && (
+                {hasUnseenItems && cartItems.length > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
                   </View>
@@ -396,12 +417,15 @@ export default function DashboardScreen({ navigation }: any) {
                 </View>
               </View>
             )}
+            onScrollBeginDrag={() => setIsPaused(true)}
+            onScrollEndDrag={() => setIsPaused(false)}
             onMomentumScrollEnd={e => {
               const index = Math.round(
                 e.nativeEvent.contentOffset.x / (width - 32),
               );
               currentIndexRef.current = index;
               setActiveBanner(index % DASHBOARD_BANNERS.length);
+              setIsPaused(false);
             }}
           />
           {/* Pagination Dots */}
@@ -536,7 +560,7 @@ export default function DashboardScreen({ navigation }: any) {
                       <Image
                         source={{ uri: puja.icon }}
                         style={styles.pujaIconImage}
-                        resizeMode="contain"
+                        resizeMode="cover"
                       />
                     ) : (
                       <Text style={styles.featuredImgText}>🛕</Text>
@@ -633,11 +657,10 @@ export default function DashboardScreen({ navigation }: any) {
             )}
           </ScrollView>
         ) : (
-          <View style={{ padding: 20 }}>
-            <Text style={{ color: BRAND_MUTED }}>
-              {isBn ? 'কোনো পূজা পাওয়া যায়নি' : 'No pujas found'}
-            </Text>
-          </View>
+          <NoDataFound
+            message={isBn ? 'কোনো পূজা পাওয়া যায়নি' : 'No pujas found'}
+            containerHeight={250}
+          />
         )}
 
         <View style={styles.bottomSpacer} />
@@ -1170,8 +1193,8 @@ const styles = StyleSheet.create({
   ratingCol: { alignItems: 'flex-end' },
   bottomSpacer: { height: 40 },
   pujaIconImage: {
-    width: '80%',
-    height: '80%',
+    width: '100%',
+    height: '100%',
   },
 
   cartBtn: {

@@ -17,6 +17,7 @@ import { Order } from '../../store/slices/orderSlice';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
+import NoDataFound from '../../components/common/NoDataFound';
 
 const BRAND_PRIMARY = '#F97316';
 const BRAND_BG = '#FDF8F0';
@@ -361,11 +362,10 @@ export default function OrdersScreen({ navigation }: any) {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>
-                {isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
-              </Text>
-            </View>
+            <NoDataFound
+              message={isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
+              containerHeight={300}
+            />
           }
         />
       </SafeAreaView>

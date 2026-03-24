@@ -26,8 +26,7 @@ function AppInitializer() {
 }
 
 const GlobalLoaderWrapper = () => {
-  const isLoading = useSelector((state: RootState) => state.loader.isLoading);
-  return <GlobalLoader visible={isLoading} />;
+  return <GlobalLoader />;
 };
 
 // Main App Navigation Logic — mapped to Redux auth state

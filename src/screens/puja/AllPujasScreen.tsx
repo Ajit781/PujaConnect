@@ -21,6 +21,7 @@ import {
   useGetPujaTagsQuery,
   useGetTagPujasQuery,
 } from '../../store/api/pujaApi';
+import NoDataFound from '../../components/common/NoDataFound';
 
 export default function AllPujasScreen({ navigation, route }: any) {
   const { i18n } = useTranslation();
@@ -189,128 +190,141 @@ export default function AllPujasScreen({ navigation, route }: any) {
             </View>
           ) : (
             <>
-              {filteredPujas.map(puja => {
-                const pId = puja.puja_id || puja.puja_type_id;
-                const pName = puja.puja_name || puja.puja_type_name;
-                const pMinPrice =
-                  puja.minimum_price || puja.puja_with_samagri_amount || 0;
-                const pMaxPrice =
-                  puja.maximum_price || puja.puja_without_samagri_amount || 0;
-                const pPrice =
-                  pMinPrice === pMaxPrice
-                    ? `₹${pMinPrice.toLocaleString('en-IN')}`
-                    : `₹${pMinPrice.toLocaleString(
-                        'en-IN',
-                      )}-₹${pMaxPrice.toLocaleString('en-IN')}`;
-                const pDuration =
-                  puja.duration ||
-                  (puja.puja_duration ? puja.puja_duration.toString() : '');
-                const pRating = puja.puja_rating || 5;
+              {filteredPujas.length > 0 ? (
+                filteredPujas.map(puja => {
+                  const pId = puja.puja_id || puja.puja_type_id;
+                  const pName = puja.puja_name || puja.puja_type_name;
+                  const pMinPrice =
+                    puja.minimum_price || puja.puja_with_samagri_amount || 0;
+                  const pMaxPrice =
+                    puja.maximum_price || puja.puja_without_samagri_amount || 0;
+                  const pPrice =
+                    pMinPrice === pMaxPrice
+                      ? `₹${pMinPrice.toLocaleString('en-IN')}`
+                      : `₹${pMinPrice.toLocaleString(
+                          'en-IN',
+                        )}-₹${pMaxPrice.toLocaleString('en-IN')}`;
+                  const pDuration =
+                    puja.duration ||
+                    (puja.puja_duration ? puja.puja_duration.toString() : '');
+                  const pRating = puja.puja_rating || 5;
 
-                return (
-                  <View
-                    key={pId?.toString() || Math.random().toString()}
-                    style={styles.gridCard}
-                  >
-                    <View style={styles.cardImgBox}>
-                      {puja.icon ? (
-                        <Image
-                          source={{ uri: puja.icon }}
-                          style={styles.pujaIconImage}
-                          resizeMode="contain"
-                        />
-                      ) : (
-                        <Text style={styles.pujaImgText}>🛕</Text>
-                      )}
-                      <TouchableOpacity
-                        style={styles.heartBtn}
-                        onPress={() =>
-                          pId && dispatch(toggleFavorite(pId.toString()))
-                        }
-                      >
-                        <Text style={styles.heartIconText}>
-                          {pId && favorites.includes(pId.toString())
-                            ? '❤️'
-                            : '🤍'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.cardBody}>
-                      <View style={styles.flex1}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>
-                          {pName}
-                        </Text>
-                        <Text style={styles.cardDesc} numberOfLines={2}>
-                          {puja.description ||
-                            puja.puja_description ||
-                            (isBn
-                              ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
-                              : 'Holy ceremony near you')}
-                        </Text>
-
-                        <View style={styles.durationRow}>
-                          <Text style={styles.durationIcon}>⏱️</Text>
-                          <Text style={styles.durationText}>
-                            {pDuration} {isBn ? 'ঘন্টা' : 'Hours'}
-                          </Text>
-                        </View>
-
-                        <View style={styles.priceRow}>
-                          <View style={styles.flex1}>
-                            <Text style={styles.priceLabel}>
-                              {isBn ? 'মূল্য সীমা' : 'PRICE RANGE'}
-                            </Text>
-                            <Text style={styles.priceValue} numberOfLines={1}>
-                              {pPrice}
-                            </Text>
-                          </View>
-                          <View style={styles.ratingCol}>
-                            <Text style={styles.priceLabel}>
-                              {isBn ? 'রেটিং' : 'RATING'}
-                            </Text>
-                            <View style={styles.ratingRow}>
-                              <Text style={styles.ratingValue}>{pRating}</Text>
-                              <Text style={styles.starIcon}>⭐</Text>
-                            </View>
-                          </View>
-                        </View>
-
+                  return (
+                    <View
+                      key={pId?.toString() || Math.random().toString()}
+                      style={styles.gridCard}
+                    >
+                      <View style={styles.cardImgBox}>
+                        {puja.icon ? (
+                          <Image
+                            source={{ uri: puja.icon }}
+                            style={styles.pujaIconImage}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <Text style={styles.pujaImgText}>🛕</Text>
+                        )}
                         <TouchableOpacity
-                          style={[
-                            styles.bookBtn,
-                            puja.puja_active_status === 0 &&
-                              styles.bookBtnDisabled,
-                          ]}
-                          disabled={puja.puja_active_status === 0}
+                          style={styles.heartBtn}
                           onPress={() =>
-                            navigation.navigate('PujaDetails', {
-                              pujaId: pId.toString(),
-                              pujaData: puja,
-                            })
+                            pId && dispatch(toggleFavorite(pId.toString()))
                           }
                         >
-                          <Text
-                            style={[
-                              styles.bookBtnText,
-                              puja.puja_active_status === 0 &&
-                                styles.bookBtnTextDisabled,
-                            ]}
-                          >
-                            {puja.puja_active_status === 0
-                              ? isBn
-                                ? 'উপলব্ধ নেই'
-                                : 'Not Available'
-                              : isBn
-                              ? 'বুক করুন →'
-                              : 'Book Now →'}
+                          <Text style={styles.heartIconText}>
+                            {pId && favorites.includes(pId.toString())
+                              ? '❤️'
+                              : '🤍'}
                           </Text>
                         </TouchableOpacity>
                       </View>
+
+                      <View style={styles.cardBody}>
+                        <View style={styles.flex1}>
+                          <Text style={styles.cardTitle} numberOfLines={1}>
+                            {pName}
+                          </Text>
+                          <Text style={styles.cardDesc} numberOfLines={2}>
+                            {puja.description ||
+                              puja.puja_description ||
+                              (isBn
+                                ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
+                                : 'Holy ceremony near you')}
+                          </Text>
+
+                          <View style={styles.durationRow}>
+                            <Text style={styles.durationIcon}>⏱️</Text>
+                            <Text style={styles.durationText}>
+                              {pDuration} {isBn ? 'ঘন্টা' : 'Hours'}
+                            </Text>
+                          </View>
+
+                          <View style={styles.priceRow}>
+                            <View style={styles.flex1}>
+                              <Text style={styles.priceLabel}>
+                                {isBn ? 'মূল্য সীমা' : 'PRICE RANGE'}
+                              </Text>
+                              <Text style={styles.priceValue} numberOfLines={1}>
+                                {pPrice}
+                              </Text>
+                            </View>
+                            <View style={styles.ratingCol}>
+                              <Text style={styles.priceLabel}>
+                                {isBn ? 'রেটিং' : 'RATING'}
+                              </Text>
+                              <View style={styles.ratingRow}>
+                                <Text style={styles.ratingValue}>
+                                  {pRating}
+                                </Text>
+                                <Text style={styles.starIcon}>⭐</Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.bookBtn,
+                              puja.puja_active_status === 0 &&
+                                styles.bookBtnDisabled,
+                            ]}
+                            disabled={puja.puja_active_status === 0}
+                            onPress={() =>
+                              navigation.navigate('PujaDetails', {
+                                pujaId: pId.toString(),
+                                pujaData: puja,
+                              })
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.bookBtnText,
+                                puja.puja_active_status === 0 &&
+                                  styles.bookBtnTextDisabled,
+                              ]}
+                            >
+                              {puja.puja_active_status === 0
+                                ? isBn
+                                  ? 'উপলব্ধ নেই'
+                                  : 'Not Available'
+                                : isBn
+                                ? 'বুক করুন →'
+                                : 'Book Now →'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <NoDataFound
+                  message={
+                    isBn
+                      ? 'আপনার সার্চের সাথে মেলে এমন কোনো পূজা পাওয়া যায়নি'
+                      : 'No pujas found matching your search'
+                  }
+                  containerHeight={300}
+                />
+              )}
               {(pageNo > 1 || hasMore) && filteredPujas.length > 0 && (
                 <View style={styles.paginationRow}>
                   <TouchableOpacity

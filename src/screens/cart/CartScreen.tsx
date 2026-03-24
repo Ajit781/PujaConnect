@@ -7,14 +7,24 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
-import { removeFromCart, clearCart } from '../../store/slices/cartSlice';
+import {
+  removeFromCart,
+  clearCart,
+  markCartAsSeen,
+} from '../../store/slices/cartSlice';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { placeOrder, Order } from '../../store/slices/orderSlice';
+import {
+  useGetPujaCartInfoQuery,
+  useManagePujaCartMutation,
+} from '../../store/api/pujaApi';
+import NoDataFound from '../../components/common/NoDataFound';
 
 const BRAND_PRIMARY = '#F97316'; // Orange
 const BRAND_TEXT = '#291811'; // Dark brown
@@ -24,9 +34,56 @@ export default function CartScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
+  const [manageCart] = useManagePujaCartMutation();
 
-  const cartItems = useSelector((state: RootState) => state.cart.items);
+  React.useEffect(() => {
+    dispatch(markCartAsSeen());
+  }, [dispatch]);
+
+  const user = useSelector((state: RootState) => state.auth.user);
   const addresses = useSelector((state: RootState) => state.address.addresses);
+
+  const [pageNo, setPageNo] = useState(1);
+  const limit = 10;
+
+  const { data: apiCartItems = [], isLoading: isFetchingCart } =
+    useGetPujaCartInfoQuery(
+      {
+        userId: user?.user_id || 0,
+        pageNo,
+        limit,
+      },
+      { skip: !user?.user_id },
+    );
+
+  // We'll maintain a local state for the accumulated cart items to support pagination
+  const [allCartItems, setAllCartItems] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (apiCartItems.length > 0) {
+      console.log('--- CART SCREEN: API DATA ---', apiCartItems);
+    }
+    if (pageNo === 1) {
+      setAllCartItems(apiCartItems);
+    } else {
+      setAllCartItems(prev => [...prev, ...apiCartItems]);
+    }
+  }, [apiCartItems, pageNo]);
+
+  const cartItemsMapped = allCartItems.map(item => ({
+    cartItemId: item.cart_item_id.toString(),
+    pujaId: item.puja_id.toString(),
+    titleEn: item.puja_name,
+    titleBn: item.puja_name, // Assuming same for now or handle accordingly
+    exactPrice: item.pkg_price,
+    selectedDate: item.preferred_puja_date,
+    selectedTime: item.preferred_puja_time,
+    imagePlaceholder: item.icon,
+    color: '#FFF', // Default
+    pkg_name: item.pkg_name,
+    pkg_quantity: item.pkg_quantity,
+    duration: item.duration,
+  }));
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -36,7 +93,10 @@ export default function CartScreen({ navigation }: any) {
   const [orderSuccessRef, setOrderSuccessRef] = useState<string | null>(null);
 
   const calculateSubtotal = () => {
-    return cartItems.reduce((sum, item) => sum + (item.exactPrice || 0), 0);
+    return cartItemsMapped.reduce(
+      (sum, item) => sum + (item.exactPrice || 0),
+      0,
+    );
   };
 
   const subtotal = calculateSubtotal();
@@ -65,9 +125,59 @@ export default function CartScreen({ navigation }: any) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
+  const formatTime12Hr = (time24: string) => {
+    if (!time24) return '';
+    try {
+      const parts = time24.split(':');
+      if (parts.length < 2) return time24;
+      let hours = parseInt(parts[0], 10);
+      const minutes = parts[1];
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours}:${minutes} ${ampm}`;
+    } catch {
+      return time24;
+    }
+  };
+
   const handleAddAddressNav = () => {
     setShowAddressModal(false);
     navigation.navigate('Address');
+  };
+
+  const handleRemoveSingleItem = async (cartItemId: string) => {
+    if (!user?.user_id) return;
+    try {
+      const res = await manageCart({
+        ctzn_id: user.user_id,
+        cart_item_id: parseInt(cartItemId, 10),
+        action: 1,
+      }).unwrap();
+      console.log('--- API: managePujaCart (Remove Item) RESPONSE ---', res);
+      if (res.status === 0) {
+        dispatch(removeFromCart(cartItemId));
+      }
+    } catch (err) {
+      console.error('Failed to remove item:', err);
+    }
+  };
+
+  const handleClearAllCart = async () => {
+    if (!user?.user_id) return;
+    try {
+      const res = await manageCart({
+        ctzn_id: user.user_id,
+        cart_item_id: 0,
+        action: 2,
+      }).unwrap();
+      console.log('--- API: managePujaCart (Clear Cart) RESPONSE ---', res);
+      if (res.status === 0) {
+        dispatch(clearCart());
+      }
+    } catch (err) {
+      console.error('Failed to clear cart:', err);
+    }
   };
 
   const handleConfirmOrder = () => {
@@ -84,13 +194,13 @@ export default function CartScreen({ navigation }: any) {
       const newOrder: Order = {
         id: Math.random().toString(36).substring(7),
         bookingRef,
-        items: cartItems.map(item => ({
+        items: cartItemsMapped.map(item => ({
           id: Math.random().toString(36).substring(7),
           titleEn: item.titleEn,
           titleBn: item.titleBn,
           price: item.exactPrice || 0,
           pandits: 1, // Defaulting to 1 as it's not in CartItem
-          duration: '1-2 hours', // Defaulting as it's not in CartItem
+          duration: item.duration || '1-2 hours',
           imagePlaceholder: item.imagePlaceholder || '',
           color: item.color || '#DDD',
           scheduledDate: item.selectedDate || '',
@@ -251,7 +361,7 @@ export default function CartScreen({ navigation }: any) {
     );
   }
 
-  if (cartItems.length === 0) {
+  if (cartItemsMapped.length === 0 && !isFetchingCart) {
     return (
       <View style={styles.container}>
         <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
@@ -273,16 +383,10 @@ export default function CartScreen({ navigation }: any) {
             </View>
           </View>
         </SafeAreaView>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateEmoji}>🛒</Text>
-          <Text style={styles.emptyTitle}>
-            {isBn ? 'আপনার কার্ট খালি' : 'Your cart is empty'}
-          </Text>
-          <Text style={styles.emptySub}>
-            {isBn
-              ? 'এখনও কোন পূজা যোগ করা হয়নি।'
-              : 'No pujas have been added yet.'}
-          </Text>
+        <NoDataFound
+          message={isBn ? 'আপনার কার্ট খালি' : 'Your cart is empty'}
+          containerHeight={400}
+        >
           <TouchableOpacity
             style={styles.exploreBtn}
             onPress={() => navigation.navigate('AllPujas')}
@@ -291,7 +395,7 @@ export default function CartScreen({ navigation }: any) {
               {isBn ? 'পূজা অন্বেষণ করুন' : 'Explore Pujas'}
             </Text>
           </TouchableOpacity>
-        </View>
+        </NoDataFound>
       </View>
     );
   }
@@ -314,8 +418,8 @@ export default function CartScreen({ navigation }: any) {
       <View style={styles.osRow}>
         <Text style={styles.osLabel}>
           {isBn
-            ? `সাবটোটাল (${cartItems.length} পূজা)`
-            : `Subtotal (${cartItems.length} pujas)`}
+            ? `সাবটোটাল (${cartItemsMapped.length} পূজা)`
+            : `Subtotal (${cartItemsMapped.length} pujas)`}
         </Text>
         <Text style={styles.osValueBox}>
           ₹{subtotal.toLocaleString('en-IN')}
@@ -386,7 +490,7 @@ export default function CartScreen({ navigation }: any) {
               🛒 {isBn ? 'পবিত্র কার্ট' : 'Sacred Cart'}
             </Text>
             <Text style={styles.headerTitleSub}>
-              {cartItems.length}{' '}
+              {cartItemsMapped.length}{' '}
               {isBn ? 'আশীর্বাদ নির্বাচিত' : 'blessings selected'}
             </Text>
           </View>
@@ -397,7 +501,7 @@ export default function CartScreen({ navigation }: any) {
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         {/* Cart Items List */}
         <View style={styles.listSection}>
-          {cartItems.map(item => (
+          {cartItemsMapped.map(item => (
             <View key={item.cartItemId} style={styles.cartCard}>
               <View style={styles.cardHeaderRow}>
                 <View
@@ -406,18 +510,32 @@ export default function CartScreen({ navigation }: any) {
                     { backgroundColor: item.color || '#F3F4F6' },
                   ]}
                 >
-                  <Text style={styles.cardImgEmoji}>
-                    {item.imagePlaceholder}
-                  </Text>
+                  {item.imagePlaceholder &&
+                  item.imagePlaceholder.startsWith('http') ? (
+                    <Image
+                      source={{ uri: item.imagePlaceholder }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 12,
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.cardImgEmoji}>
+                      {item.imagePlaceholder || '🛕'}
+                    </Text>
+                  )}
                 </View>
                 <View style={styles.cardHeaderInfo}>
                   <Text style={styles.cardTitle}>
                     {isBn ? item.titleBn : item.titleEn}
                   </Text>
                   <Text style={styles.cardPackageText}>
-                    {isBn
-                      ? item.titleBn + ' প্যাকেজ'
-                      : item.titleEn + ' Package'}
+                    {item.pkg_name ||
+                      (isBn
+                        ? item.titleBn + ' প্যাকেজ'
+                        : item.titleEn + ' Package')}
                   </Text>
                   <Text style={styles.cardDescText} numberOfLines={1}>
                     {isBn
@@ -426,7 +544,7 @@ export default function CartScreen({ navigation }: any) {
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => dispatch(removeFromCart(item.cartItemId))}
+                  onPress={() => handleRemoveSingleItem(item.cartItemId)}
                   style={styles.deleteBtn}
                 >
                   <Text style={styles.deleteIcon}>🗑️</Text>
@@ -449,7 +567,9 @@ export default function CartScreen({ navigation }: any) {
                   </Text>
                 </View>
                 <View style={styles.tagBoxBlue}>
-                  <Text style={styles.tagTextBlue}>🕒 {item.selectedTime}</Text>
+                  <Text style={styles.tagTextBlue}>
+                    🕒 {formatTime12Hr(item.selectedTime)}
+                  </Text>
                 </View>
               </View>
 
@@ -472,6 +592,21 @@ export default function CartScreen({ navigation }: any) {
               + {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
             </Text>
           </TouchableOpacity>
+
+          {apiCartItems.length === limit && (
+            <TouchableOpacity
+              style={[
+                styles.addMoreBtn,
+                { marginTop: 12, borderColor: BRAND_PRIMARY },
+              ]}
+              onPress={() => setPageNo(prev => prev + 1)}
+              disabled={isFetchingCart}
+            >
+              <Text style={[styles.addMoreBtnText, { color: BRAND_PRIMARY }]}>
+                {isFetchingCart ? '...' : isBn ? 'আরও লোড করুন' : 'Load More'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Order Summary Form */}
@@ -513,7 +648,7 @@ export default function CartScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.clearCartBtn}
-            onPress={() => dispatch(clearCart())}
+            onPress={handleClearAllCart}
           >
             <Text style={styles.clearCartBtnText}>
               {isBn ? 'কার্ট মুছুন' : 'Clear Cart'}

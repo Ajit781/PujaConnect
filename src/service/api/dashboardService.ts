@@ -26,11 +26,85 @@ export interface PujaTag {
   tag_value: string;
 }
 
+export interface PujaImage {
+  puja_id: number;
+  puja_icon: string;
+  puja_name: string;
+  puja_image: string;
+}
+
+export interface PujaPackage {
+  puja_id: number;
+  puja_name: string;
+  description: string;
+  pandit_count: number;
+  puja_duration: number;
+  puja_package_id: number;
+  puja_package_name: string;
+  puja_package_price: number;
+  puja_include_samagri: number;
+  puja_package_description: string;
+}
+
+export interface PujaMaterial {
+  quantity: number;
+  stock_qty: number;
+  package_id: number;
+  unit_price: number;
+  category_id: number;
+  material_id: number;
+  total_price: number;
+  min_order_qty: number;
+  category_name: string;
+  material_name: string;
+  material_rate: number;
+  material_unit: string;
+  material_img_url: string;
+  material_hsn_code: string;
+  material_remarks: string;
+  material_description: string;
+}
+
+export interface PujaFullDetails {
+  icon: string;
+  puja_id: number;
+  duration: string;
+  puja_name: string;
+  puja_rating: number;
+  description: string;
+  puja_benifit: string;
+  puja_sub_name: string;
+  redirect_url: string;
+  maximum_price: number;
+  puja_key_insight: string;
+  puja_our_promise: string;
+  puja_significance: string;
+  puja_history_details: string;
+}
 export interface SummaryCount {
   total_user_qty: number;
   total_temple_qty: number;
   total_astrologer_qty: number;
   total_registered_priest_qty: number;
+}
+
+export interface PujaCartItem {
+  icon: string;
+  pkg_id: number;
+  cart_id: number;
+  puja_id: number;
+  pkg_name: string;
+  duration: number;
+  pkg_price: number;
+  puja_name: string;
+  cart_item_id: number;
+  puja_rating: number;
+  pkg_quantity: number;
+  pkg_pandit_qty: number;
+  pkg_description: string;
+  puja_key_insight: string;
+  preferred_puja_date: string;
+  preferred_puja_time: string;
 }
 
 /**

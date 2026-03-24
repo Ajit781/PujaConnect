@@ -67,8 +67,8 @@ export default function OtpPage({ navigation, route }: Props) {
   const handleVerify = async (code: string = otpValue) => {
     if (code.length < OTP_LENGTH) return;
     setIsVerifying(true);
+    dispatch(showLoader());
     try {
-      dispatch(showLoader());
       const result = await validateOtp(mobileNumber, code);
       if (result) {
         dispatch(login({ user: result, token: 'session_active' }));
@@ -90,7 +90,6 @@ export default function OtpPage({ navigation, route }: Props) {
     if (resendCountdown > 0 || isResending) return;
     setIsResending(true);
     try {
-      dispatch(showLoader());
       await generateOtp(mobileNumber);
       setResendCountdown(30);
       setOtp(Array(OTP_LENGTH).fill(''));
@@ -102,7 +101,6 @@ export default function OtpPage({ navigation, route }: Props) {
       });
     } finally {
       setIsResending(false);
-      dispatch(hideLoader());
     }
   };
 
