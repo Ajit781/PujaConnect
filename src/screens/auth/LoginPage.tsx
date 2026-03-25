@@ -44,6 +44,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const [mobile, setMobile] = useState('');
   const [mobileError, setMobileError] = useState('');
   const [isGettingOtp, setIsGettingOtp] = useState(false);
+  const [canShowKeyboard, setCanShowKeyboard] = useState(false);
 
   // Step 2 state
   const [otpSent, setOtpSent] = useState(false);
@@ -58,6 +59,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const [phoneHistory, setPhoneHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const hintShown = useRef(false);
+  const mobileInputRef = useRef<any>(null);
 
   // Load history on mount
   useEffect(() => {
@@ -74,8 +76,18 @@ export default function LoginPage({ navigation: _navigation }: Props) {
 
   // Phone Hint Retriever on Mount
   useEffect(() => {
+    // Immediate dismiss and blur to fight any auto-focus
+    Keyboard.dismiss();
+    if (mobileInputRef.current) {
+      mobileInputRef.current.blur();
+    }
+
     const showPhoneHint = async () => {
       try {
+        Keyboard.dismiss();
+        if (mobileInputRef.current) {
+          mobileInputRef.current.blur();
+        }
         const phoneNumber = await SmsRetriever.requestPhoneNumber();
         if (phoneNumber) {
           // Clean non-digits
@@ -87,13 +99,15 @@ export default function LoginPage({ navigation: _navigation }: Props) {
         }
       } catch (err) {
         console.log('--- SMS Hint Cancelled or Failed ---', err);
+      } finally {
+        setCanShowKeyboard(true);
       }
     };
 
     if (!otpSent && !hintShown.current) {
       hintShown.current = true;
       // Delay slightly to ensure screen is rendered and avoids racing with keyboard
-      const timer = setTimeout(showPhoneHint, 800);
+      const timer = setTimeout(showPhoneHint, 1500);
       return () => clearTimeout(timer);
     }
   }, [otpSent]);
@@ -294,6 +308,8 @@ export default function LoginPage({ navigation: _navigation }: Props) {
 
                   <View style={styles.inputSection}>
                     <Input
+                      ref={mobileInputRef}
+                      showSoftInputOnFocus={canShowKeyboard}
                       label={t('auth.mobileNumberLabel')}
                       placeholder="98765 43210"
                       keyboardType="number-pad"
