@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -57,6 +57,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   // Phone History state
   const [phoneHistory, setPhoneHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const hintShown = useRef(false);
 
   // Load history on mount
   useEffect(() => {
@@ -70,6 +71,32 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     };
     loadHistory();
   }, []);
+
+  // Phone Hint Retriever on Mount
+  useEffect(() => {
+    const showPhoneHint = async () => {
+      try {
+        const phoneNumber = await SmsRetriever.requestPhoneNumber();
+        if (phoneNumber) {
+          // Clean non-digits
+          const cleaned = phoneNumber.replace(/[^0-9]/g, '');
+          // Usually hints are like +919876543210, so take the last 10 digits
+          const tenDigits = cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
+          setMobile(tenDigits);
+          setMobileError('');
+        }
+      } catch (err) {
+        console.log('--- SMS Hint Cancelled or Failed ---', err);
+      }
+    };
+
+    if (!otpSent && !hintShown.current) {
+      hintShown.current = true;
+      // Delay slightly to ensure screen is rendered and avoids racing with keyboard
+      const timer = setTimeout(showPhoneHint, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [otpSent]);
 
   const saveToHistory = async (num: string) => {
     try {
