@@ -313,6 +313,8 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       label={t('auth.mobileNumberLabel')}
                       placeholder="98765 43210"
                       keyboardType="number-pad"
+                      autoComplete="tel"
+                      textContentType="telephoneNumber"
                       maxLength={VALIDATION.MOBILE_LENGTH}
                       value={mobile}
                       onFocus={() => {
