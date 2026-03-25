@@ -8,6 +8,7 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -638,15 +639,6 @@ export default function CartScreen({ navigation }: any) {
           </View>
 
           <TouchableOpacity
-            style={styles.checkoutBtn}
-            onPress={() => setShowConfirmModal(true)}
-          >
-            <Text style={styles.checkoutBtnText}>
-              ✨ {isBn ? 'চেকআউটে এগিয়ে যান' : 'Proceed to Checkout'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={styles.clearCartBtn}
             onPress={handleClearAllCart}
           >
@@ -658,6 +650,30 @@ export default function CartScreen({ navigation }: any) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Fixed Checkout Footer */}
+      {cartItemsMapped.length > 0 && (
+        <View style={styles.fixedFooter}>
+          <View style={styles.fixedFooterInner}>
+            <View style={styles.fixedFooterPriceBox}>
+              <Text style={styles.fixedFooterPriceLabel}>
+                {isBn ? 'সর্বমোট প্রদেয়' : 'Total Amount'}
+              </Text>
+              <Text style={styles.fixedFooterPriceValue}>
+                ₹{grandTotal.toLocaleString('en-IN')}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.fixedFooterBtn}
+              onPress={() => setShowConfirmModal(true)}
+            >
+              <Text style={styles.fixedFooterBtnText}>
+                {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Confirm Order Modal */}
       {showConfirmModal && (
@@ -1109,6 +1125,57 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   checkoutBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  fixedFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  fixedFooterInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fixedFooterPriceBox: { flex: 1 },
+  fixedFooterPriceLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fixedFooterPriceValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#EA580C',
+  },
+  fixedFooterBtn: {
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 14,
+    elevation: 4,
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  fixedFooterBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
   clearCartBtn: {
     borderWidth: 1,
     borderColor: '#FECACA',
