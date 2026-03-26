@@ -54,9 +54,17 @@ export const cartSlice = createSlice({
     markCartAsSeen: state => {
       state.hasUnseenItems = false;
     },
+    setCartItems: (state, action: PayloadAction<CartItem[]>) => {
+      state.items = action.payload;
+    },
   },
 });
 
-export const { addToCart, removeFromCart, clearCart, markCartAsSeen } =
-  cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  clearCart,
+  markCartAsSeen,
+  setCartItems,
+} = cartSlice.actions;
 export default cartSlice.reducer;

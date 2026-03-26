@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { Colors } from '../constants/Colors';
 import appLogo from '../assets/images/Logo.png';
 
 const { width, height } = Dimensions.get('window');
@@ -168,7 +169,7 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <StatusBar
-        backgroundColor="#7F1D1D"
+        backgroundColor={Colors.splashBg}
         barStyle="light-content"
         translucent
       />
@@ -252,7 +253,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#7F1D1D',
+    backgroundColor: Colors.splashBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -262,7 +263,7 @@ const styles = StyleSheet.create({
     width: width * 1.8,
     height: width * 1.8,
     borderRadius: width * 0.9,
-    backgroundColor: '#991B1B',
+    backgroundColor: Colors.splashMid,
     top: height * 0.5 - width * 0.9,
     left: width * 0.5 - width * 0.9,
   },
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     width: width * 1.2,
     height: width * 1.2,
     borderRadius: width * 0.6,
-    backgroundColor: '#B91C1C',
+    backgroundColor: Colors.splashInner,
     top: height * 0.5 - width * 0.6,
     left: width * 0.5 - width * 0.6,
   },
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     width: width * 0.7,
     height: width * 0.7,
     borderRadius: width * 0.35,
-    backgroundColor: '#C72020',
+    backgroundColor: Colors.splashCenter,
     top: height * 0.5 - width * 0.35,
     left: width * 0.5 - width * 0.35,
   },
@@ -288,7 +289,7 @@ const styles = StyleSheet.create({
   ring: {
     position: 'absolute',
     borderRadius: 9999,
-    borderColor: '#FDF8F0',
+    borderColor: Colors.background,
     borderWidth: 1,
   },
   ringOuter: {
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
   },
   omDecor: {
     fontSize: 64,
-    color: '#FDF8F0',
+    color: Colors.background,
   },
   // Main content
   content: {
@@ -343,12 +344,12 @@ const styles = StyleSheet.create({
   },
   logoOm: {
     fontSize: 56,
-    color: '#FDF8F0',
+    color: Colors.background,
   },
   appName: {
     fontSize: 52,
     fontWeight: '900',
-    color: '#FDF8F0',
+    color: Colors.background,
     letterSpacing: -1,
     marginBottom: 16,
   },
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(253, 248, 240, 0.3)',
   },
   dividerDot: {
-    color: '#F97316',
+    color: Colors.primary,
     fontSize: 14,
     marginHorizontal: 8,
   },
@@ -394,7 +395,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     marginHorizontal: 4,
   },
   bottomText: {

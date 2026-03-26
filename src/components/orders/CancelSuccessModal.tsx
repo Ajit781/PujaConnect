@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 interface Props {
   visible: boolean;
@@ -50,7 +51,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
   iconBg: {
     width: 64,
     height: 64,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.tagRed,
     borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
@@ -68,21 +69,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#DC2626',
+    color: Colors.dangerRed,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: Colors.gray,
     textAlign: 'center',
     marginBottom: 24,
   },
   doneBtn: {
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.dangerRed,
     width: '100%',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  doneBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
 });

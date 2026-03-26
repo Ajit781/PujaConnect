@@ -11,12 +11,13 @@ import {
   Platform,
   Modal,
   KeyboardAvoidingView,
-  ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
 import { useAlert } from '../../context/AlertContext';
+import Dropdown from '../../components/common/Dropdown';
 import {
   Address,
   addAddress,
@@ -26,9 +27,20 @@ import {
 } from '../../store/slices/addressSlice';
 import NoDataFound from '../../components/common/NoDataFound';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { Colors } from '../../constants/Colors';
 
-const ERROR_COLOR = '#EF4444';
-const BRAND_PRIMARY = '#F97316'; // Define BRAND_PRIMARY based on existing colors
+const ERROR_COLOR = Colors.red;
+
+const SOCIAL_RELATIONS = [
+  { id: 1, name: 'Father' },
+  { id: 2, name: 'Mother' },
+  { id: 3, name: 'Brother' },
+  { id: 4, name: 'Sister' },
+  { id: 5, name: 'Son' },
+  { id: 6, name: 'Daughter' },
+  { id: 9, name: 'Grandfather' },
+  { id: 11, name: 'Cousin' },
+];
 
 const Field = ({
   lab,
@@ -38,6 +50,7 @@ const Field = ({
   place,
   err,
   kbd,
+  maxLength,
   setErrors,
 }: {
   lab: string;
@@ -47,6 +60,7 @@ const Field = ({
   place: string;
   err?: string;
   kbd?: string;
+  maxLength?: number;
   setErrors?: (
     fn: (prev: Record<string, string>) => Record<string, string>,
   ) => void;
@@ -59,8 +73,9 @@ const Field = ({
     <TextInput
       style={[styles.input, err ? styles.inputErr : null]}
       placeholder={place}
-      placeholderTextColor="#9CA3AF"
+      placeholderTextColor={Colors.placeholder}
       value={val}
+      maxLength={maxLength}
       onChangeText={t => {
         setVal(t);
         if (setErrors) setErrors(prev => ({ ...prev, [lab]: '' }));
@@ -81,7 +96,7 @@ export default function AddressScreen({ navigation }: any) {
   const [addressTypes, setAddressTypes] = useState<
     { id: number; type: string }[]
   >([]);
-  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  const [, setIsLoadingTypes] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState('Home');
@@ -97,7 +112,67 @@ export default function AddressScreen({ navigation }: any) {
   const [pincode, setPincode] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+  const [isDefault, setIsDefaultState] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearForm = () => {
+    setType('Home');
+    setLabel('');
+    setContactName('');
+    setContactNumber('');
+    setRelationType('');
+    setAddressLine1('');
+    setStreetArea('');
+    setLandmark('');
+    setCity('');
+    setStateName('');
+    setPincode('');
+    setLatitude('');
+    setLongitude('');
+    setIsDefaultState(false);
+    setErrors({});
+    setEditingId(null);
+  };
+
+  const openAdd = () => {
+    clearForm();
+    setShowModal(true);
+  };
+
+  const handleUseMyLocation = () => {
+    // Attempt to use navigator.geolocation which is polyfilled in many RN environments
+    // or provide instructions if it fails.
+    const nav = navigator as any;
+    if (!nav?.geolocation) {
+      showAlert({
+        title: isBn ? 'সতর্কতা' : 'Warning',
+        message: isBn
+          ? 'আপনার ডিভাইসে জিপিএস উপলব্ধ নেই'
+          : 'Geolocation is not supported on this device',
+      });
+      return;
+    }
+
+    dispatch(showLoader());
+    nav.geolocation.getCurrentPosition(
+      (position: any) => {
+        setLatitude(position.coords.latitude.toString());
+        setLongitude(position.coords.longitude.toString());
+        dispatch(hideLoader());
+      },
+      (error: any) => {
+        dispatch(hideLoader());
+        console.error('Location Error:', error);
+        showAlert({
+          title: isBn ? 'ত্রুটি' : 'Error',
+          message: isBn
+            ? 'আপনার অবস্থান পাওয়া যায়নি'
+            : 'Could not fetch your location. Please ensure GPS is on.',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+    );
+  };
 
   // Fetch Address Types on mount
   React.useEffect(() => {
@@ -120,29 +195,6 @@ export default function AddressScreen({ navigation }: any) {
     };
     fetchTypes();
   }, []);
-
-  const clearForm = () => {
-    setType('Home');
-    setLabel('');
-    setContactName('');
-    setContactNumber('');
-    setRelationType('');
-    setAddressLine1('');
-    setStreetArea('');
-    setLandmark('');
-    setCity('');
-    setStateName('');
-    setPincode('');
-    setLatitude('');
-    setLongitude('');
-    setErrors({});
-    setEditingId(null);
-  };
-
-  const openAdd = () => {
-    clearForm();
-    setShowModal(true);
-  };
 
   const openEdit = (addr: Address) => {
     setType(addr.type);
@@ -203,14 +255,16 @@ export default function AddressScreen({ navigation }: any) {
         pincode,
         latitude,
         longitude,
-        isDefault: false,
+        isDefault: isDefault,
       };
       if (editingId) {
+        // Honor the switch, but if it was already default, keep it default
         const old = addresses.find(a => a.id === editingId);
-        addrData.isDefault = old ? old.isDefault : false;
+        if (old?.isDefault) addrData.isDefault = true;
         dispatch(updateAddress(addrData));
       } else {
-        addrData.isDefault = addresses.length === 0;
+        // First address is always default, or if the switch was toggled
+        if (addresses.length === 0) addrData.isDefault = true;
         dispatch(addAddress(addrData));
       }
       dispatch(hideLoader());
@@ -242,7 +296,7 @@ export default function AddressScreen({ navigation }: any) {
   return (
     <View style={styles.root}>
       <StatusBar
-        backgroundColor="#FDF8F0"
+        backgroundColor={Colors.background}
         barStyle="dark-content"
         translucent={false}
       />
@@ -257,11 +311,11 @@ export default function AddressScreen({ navigation }: any) {
           <Text style={styles.navBtnTxt}>{isBn ? 'ফিরে যান' : 'Back'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.navBtn, { borderColor: '#FDBA74' }]}
+          style={[styles.navBtn, { borderColor: Colors.border }]}
           onPress={() => navigation.navigate('Dashboard')}
         >
           <Text style={styles.navBtnIcon}>🏠</Text>
-          <Text style={[styles.navBtnTxt, { color: '#F97316' }]}>
+          <Text style={[styles.navBtnTxt, { color: Colors.primary }]}>
             {isBn ? 'ড্যাশবোর্ড' : 'Dashboard'}
           </Text>
         </TouchableOpacity>
@@ -340,7 +394,9 @@ export default function AddressScreen({ navigation }: any) {
                     <View
                       style={[
                         styles.addrTypeBox,
-                        addr.isDefault && { backgroundColor: '#FFEDD5' },
+                        addr.isDefault && {
+                          backgroundColor: Colors.lightOrange,
+                        },
                       ]}
                     >
                       <Text style={{ fontSize: 18 }}>
@@ -355,7 +411,14 @@ export default function AddressScreen({ navigation }: any) {
                           </Text>
                         </View>
                       ) : null}
-                      <Text style={styles.addrName}>{addr.contactName}</Text>
+                      <Text style={styles.addrName}>
+                        {addr.contactName}{' '}
+                        {addr.relationType ? (
+                          <Text style={styles.relTag}>
+                            ({addr.relationType})
+                          </Text>
+                        ) : null}
+                      </Text>
                       <Text style={styles.addrPhone}>
                         📞 {addr.contactNumber}
                       </Text>
@@ -395,7 +458,7 @@ export default function AddressScreen({ navigation }: any) {
                         style={[
                           styles.defBtnTxt,
                           addr.isDefault && {
-                            color: '#F97316',
+                            color: Colors.primary,
                             fontWeight: '700',
                           },
                         ]}
@@ -418,7 +481,7 @@ export default function AddressScreen({ navigation }: any) {
                         onPress={() => handleDelete(addr.id)}
                       >
                         <Text>🗑</Text>
-                        <Text style={[styles.acBtnTxt, { color: '#EF4444' }]}>
+                        <Text style={[styles.acBtnTxt, { color: Colors.red }]}>
                           {isBn ? 'মুছুন' : 'Delete'}
                         </Text>
                       </TouchableOpacity>
@@ -481,73 +544,67 @@ export default function AddressScreen({ navigation }: any) {
                 keyboardShouldPersistTaps="handled"
               >
                 <Text style={styles.secHead}>
-                  {isBn ? '📋 ঠিকানার ধরন' : '📋 ADDRESS TYPE'}
+                  {isBn ? '📋 ঠিকানার ধরন ও লেবেল' : '📋 ADDRESS TYPE & LABEL'}
                 </Text>
-                <View style={styles.typeRow}>
-                  {isLoadingTypes ? (
-                    <View style={{ padding: 20, alignItems: 'center' }}>
-                      <ActivityIndicator size="small" color={BRAND_PRIMARY} />
-                    </View>
-                  ) : (
-                    addressTypes.map(t => (
-                      <TouchableOpacity
-                        key={t.id}
-                        style={[
-                          styles.typeChip,
-                          type === t.type && styles.typeChipOn,
-                        ]}
-                        onPress={() => setType(t.type)}
-                      >
-                        <Text style={{ fontSize: 14 }}>{typeIcon(t.type)}</Text>
-                        <Text
-                          style={[
-                            styles.typeChipTxt,
-                            type === t.type && styles.typeChipTxtOn,
-                          ]}
-                        >
-                          {t.type}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
+                <View style={styles.row}>
+                  <View style={styles.fieldWrap}>
+                    <Dropdown
+                      label={isBn ? 'ঠিকানার ধরন' : 'ADDRESS TYPE'}
+                      required
+                      placeholder={isBn ? 'ধরন নির্বাচন করুন' : 'Select type'}
+                      options={addressTypes.map(t => ({
+                        id: t.type,
+                        name: t.type,
+                      }))}
+                      value={type}
+                      onSelect={v => setType(v)}
+                      error={errors.type}
+                    />
+                  </View>
+                  <Field
+                    lab={isBn ? 'লেবেল (ঐচ্ছিক)' : 'LABEL (OPTIONAL)'}
+                    val={label}
+                    setVal={setLabel}
+                    place="e.g. My Home, Office..."
+                  />
                 </View>
-
-                <Field
-                  lab={isBn ? 'লেবেল (ঐচ্ছিক)' : 'LABEL (OPTIONAL)'}
-                  val={label}
-                  setVal={setLabel}
-                  place="e.g. My Home..."
-                />
 
                 <View style={styles.div} />
                 <Text style={styles.secHead}>
                   {isBn ? '👤 যোগাযোগের তথ্য' : '👤 CONTACT INFORMATION'}
                 </Text>
+                <Field
+                  lab={isBn ? 'পুরো নাম' : 'FULL NAME'}
+                  req
+                  val={contactName}
+                  setVal={setContactName}
+                  place="e.g. Ramesh"
+                  err={errors.contactName}
+                />
                 <View style={styles.row}>
-                  <Field
-                    lab={isBn ? 'পুরো নাম' : 'FULL NAME'}
-                    req
-                    val={contactName}
-                    setVal={setContactName}
-                    place="e.g. Ramesh"
-                    err={errors.contactName}
-                  />
                   <Field
                     lab={isBn ? 'মোবাইল' : 'MOBILE'}
                     req
                     val={contactNumber}
                     setVal={setContactNumber}
-                    place="10-digit"
+                    place="10-digit mobile"
                     kbd="number-pad"
+                    maxLength={10}
                     err={errors.contactNumber}
                   />
+                  <View style={styles.fieldWrap}>
+                    <Dropdown
+                      label={isBn ? 'সম্পর্ক' : 'RELATION TYPE'}
+                      placeholder={
+                        isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select relation'
+                      }
+                      options={SOCIAL_RELATIONS}
+                      value={relationType}
+                      onSelect={v => setRelationType(v)}
+                      error={errors.relationType}
+                    />
+                  </View>
                 </View>
-                <Field
-                  lab={isBn ? 'সম্পর্ক (ঐচ্ছিক)' : 'RELATION (OPTIONAL)'}
-                  val={relationType}
-                  setVal={setRelationType}
-                  place="e.g. Self, Father..."
-                />
 
                 <View style={styles.div} />
                 <Text style={styles.secHead}>
@@ -572,7 +629,7 @@ export default function AddressScreen({ navigation }: any) {
                     lab={isBn ? 'ল্যান্ডমার্ক' : 'LANDMARK'}
                     val={landmark}
                     setVal={setLandmark}
-                    place="Near temple..."
+                    place="Near temple, park..."
                   />
                 </View>
                 <View style={styles.row}>
@@ -581,39 +638,32 @@ export default function AddressScreen({ navigation }: any) {
                     req
                     val={city}
                     setVal={setCity}
-                    place="City"
+                    place="city"
                     err={errors.city}
                   />
                   <Field
                     lab={isBn ? 'রাজ্য' : 'STATE'}
                     val={stateName}
                     setVal={setStateName}
-                    place="State"
+                    place="state"
                   />
                   <Field
                     lab={isBn ? 'পিনকোড' : 'PINCODE'}
                     req
                     val={pincode}
                     setVal={setPincode}
-                    place="Pincode"
+                    place="pincode"
                     kbd="number-pad"
+                    maxLength={6}
                     err={errors.pincode}
                   />
                 </View>
 
                 <View style={styles.div} />
                 <Text style={styles.secHead}>
-                  {isBn
-                    ? '🗺 অবস্থান (ঐচ্ছিক)'
-                    : '🗺 LOCATION COORDINATES (OPTIONAL)'}
+                  {isBn ? '🗺 অবস্থান স্থানাঙ্ক' : '🗺 LOCATION COORDINATES'}
                 </Text>
-                <View style={styles.locInfo}>
-                  <Text style={styles.locInfoTxt}>
-                    {isBn
-                      ? 'পূজার সঠিক স্থান চিহ্নিত করতে ব্যবহৃত হয়।'
-                      : 'Used for accurate puja venue mapping. You can skip this.'}
-                  </Text>
-                </View>
+
                 <View style={styles.row}>
                   <Field
                     lab={isBn ? 'অক্ষাংশ (Latitude)' : 'LATITUDE'}
@@ -632,7 +682,40 @@ export default function AddressScreen({ navigation }: any) {
                     err={errors.longitude}
                   />
                 </View>
-                <View style={{ height: 16 }} />
+
+                <TouchableOpacity
+                  style={styles.useLocBtn}
+                  onPress={handleUseMyLocation}
+                >
+                  <Text style={styles.useLocBtnIcon}>🧭</Text>
+                  <Text style={styles.useLocBtnText}>
+                    {isBn ? 'আমার অবস্থান ব্যবহার করুন' : 'Use My Location'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.div} />
+                <View style={styles.defaultRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.defaultTitle}>
+                      {isBn
+                        ? 'ডিফল্ট হিসেবে সেট করুন'
+                        : 'Set as Default Address'}
+                    </Text>
+                    <Text style={styles.defaultSub}>
+                      {isBn
+                        ? 'সব পূজা বুকিং এর জন্য ডিফল্ট হিসেবে ব্যবহার করা হবে'
+                        : 'Used by default for all puja bookings'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isDefault}
+                    onValueChange={setIsDefaultState}
+                    trackColor={{ false: Colors.divider, true: Colors.primary }}
+                    thumbColor={Colors.white}
+                  />
+                </View>
+
+                <View style={{ height: 24 }} />
               </ScrollView>
 
               {/* Footer — always at bottom of the sheet because sheet is flex column */}
@@ -666,7 +749,7 @@ export default function AddressScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FDF8F0' },
+  root: { flex: 1, backgroundColor: Colors.background },
 
   header: {
     flexDirection: 'row',
@@ -675,29 +758,29 @@ const styles = StyleSheet.create({
     paddingTop:
       Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
     paddingBottom: 10,
-    backgroundColor: '#FDF8F0',
+    backgroundColor: Colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#FEE8D5',
+    borderBottomColor: Colors.lightOrange,
   },
   navBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
-  navBtnIcon: { fontSize: 14, color: '#6B5E59' },
-  navBtnTxt: { fontSize: 13, fontWeight: '700', color: '#291811' },
+  navBtnIcon: { fontSize: 14, color: Colors.textMuted },
+  navBtnTxt: { fontSize: 13, fontWeight: '700', color: Colors.textMain },
 
   body: { flex: 1 },
   bodyContent: { padding: 16, paddingBottom: 40 },
 
   hero: {
-    backgroundColor: '#E87C21',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -716,7 +799,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#FFF',
+    color: Colors.white,
     marginBottom: 2,
   },
   heroSub: { fontSize: 11, color: 'rgba(255,255,255,0.88)' },
@@ -740,11 +823,11 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     overflow: 'visible',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
@@ -755,7 +838,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: Colors.lightOrange,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -763,24 +846,24 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#291811',
+    color: Colors.textMain,
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 13,
-    color: '#6B5E59',
+    color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 16,
     marginBottom: 24,
   },
   addFirstBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 12,
   },
-  addFirstBtnTxt: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  addFirstBtnTxt: { color: Colors.white, fontSize: 14, fontWeight: '700' },
 
   listHead: {
     flexDirection: 'row',
@@ -788,76 +871,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  listTitle: { fontSize: 15, fontWeight: '800', color: '#291811' },
-  listCount: { fontSize: 13, color: '#9CA3AF' },
+  listTitle: { fontSize: 15, fontWeight: '800', color: Colors.textMain },
+  listCount: { fontSize: 13, color: Colors.gray },
   addNewBtn: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
-  addNewBtnTxt: { color: '#F97316', fontSize: 12, fontWeight: '700' },
+  addNewBtnTxt: { color: Colors.primary, fontSize: 12, fontWeight: '700' },
 
   addrCard: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 14,
     padding: 16,
     marginTop: 14,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.ultraLightGray,
     position: 'relative',
   },
-  addrCardDef: { borderColor: '#FDBA74', backgroundColor: '#FFFBF5' },
+  addrCardDef: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.warningBackground,
+  },
   defBadge: {
     position: 'absolute',
     right: 14,
     top: -11,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: Colors.border,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
   },
-  defBadgeTxt: { fontSize: 10, color: '#F97316', fontWeight: '800' },
+  defBadgeTxt: { fontSize: 10, color: Colors.primary, fontWeight: '800' },
 
   addrTop: { flexDirection: 'row', gap: 12, marginBottom: 14 },
   addrTypeBox: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
   labelChip: {
     alignSelf: 'flex-start',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     marginBottom: 4,
   },
-  labelChipTxt: { fontSize: 10, color: '#4B5563', fontWeight: '700' },
-  addrName: { fontSize: 15, fontWeight: '800', color: '#291811' },
-  addrPhone: { fontSize: 12, color: '#6B5E59', marginTop: 2 },
+  labelChipTxt: { fontSize: 10, color: Colors.textMuted, fontWeight: '700' },
+  addrName: { fontSize: 15, fontWeight: '800', color: Colors.textMain },
+  addrPhone: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  relTag: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
 
   addrBody: { paddingLeft: 54, marginBottom: 14 },
   addrMain: {
     fontSize: 14,
-    color: '#291811',
+    color: Colors.textMain,
     fontWeight: '500',
     marginBottom: 3,
   },
-  addrSub: { fontSize: 13, color: '#6B5E59', lineHeight: 18 },
-  coords: { fontSize: 11, color: '#9CA3AF', marginTop: 6, fontStyle: 'italic' },
+  addrSub: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
+  coords: {
+    fontSize: 11,
+    color: Colors.gray,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
 
   addrFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
     paddingTop: 12,
   },
   defBtn: {
@@ -867,8 +959,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  defBtnActive: { backgroundColor: '#FFF0E5' },
-  defBtnTxt: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
+  defBtnActive: { backgroundColor: Colors.lightOrange },
+  defBtnTxt: { fontSize: 12, color: Colors.gray, fontWeight: '600' },
   acBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -876,22 +968,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.inputBg,
   },
-  acBtnRed: { backgroundColor: '#FFF5F5' },
-  acBtnTxt: { fontSize: 11, fontWeight: '700', color: '#374151' },
+  acBtnRed: { backgroundColor: Colors.tagRed },
+  acBtnTxt: { fontSize: 11, fontWeight: '700', color: Colors.textMain },
 
   addMoreBtn: {
     borderWidth: 1,
-    borderColor: '#F97316',
+    borderColor: Colors.primary,
     borderStyle: 'dashed',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#FFFBF5',
+    backgroundColor: Colors.warningBackground,
     marginTop: 4,
   },
-  addMoreBtnTxt: { color: '#F97316', fontSize: 13, fontWeight: '700' },
+  addMoreBtnTxt: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
 
   // Modal
   modalBg: {
@@ -903,7 +995,7 @@ const styles = StyleSheet.create({
   // Sheet: fixed height so flex:1 on the inner ScrollView has a parent height to work within.
   // maxHeight alone doesn't give the ScrollView a bounded height — it collapses the fields.
   sheet: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: '85%',
@@ -916,13 +1008,13 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   sheetHeadIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: Colors.lightOrange,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -930,17 +1022,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 17,
     fontWeight: '800',
-    color: '#291811',
+    color: Colors.textMain,
   },
   sheetClose: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sheetCloseTxt: { fontSize: 13, color: '#6B7280', fontWeight: 'bold' },
+  sheetCloseTxt: { fontSize: 13, color: Colors.textMuted, fontWeight: 'bold' },
 
   // flex:1 on ScrollView means it expands to fill sheet height but won't push out the sticky footer
   sheetScroll: { flex: 1 },
@@ -949,11 +1041,11 @@ const styles = StyleSheet.create({
   secHead: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#6B5E59',
+    color: Colors.textMuted,
     marginBottom: 14,
     letterSpacing: 0.4,
   },
-  div: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 20 },
+  div: { height: 1, backgroundColor: Colors.lightGray, marginVertical: 20 },
 
   typeRow: {
     flexDirection: 'row',
@@ -969,52 +1061,56 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
+    borderColor: Colors.disabled,
+    backgroundColor: Colors.ultraLightGray,
   },
-  typeChipOn: { borderColor: '#F97316', backgroundColor: '#FFF0E5' },
-  typeChipTxt: { fontSize: 13, color: '#6B5E59', fontWeight: '600' },
-  typeChipTxtOn: { color: '#F97316', fontWeight: '700' },
+  typeChipOn: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.lightOrange,
+  },
+  typeChipTxt: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
+  typeChipTxtOn: { color: Colors.primary, fontWeight: '700' },
 
   row: { flexDirection: 'row', gap: 10 },
   fieldWrap: { flex: 1, marginBottom: 14 },
   fieldLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#6B5E59',
+    color: Colors.textMuted,
     letterSpacing: 0.5,
     marginBottom: 6,
+    textTransform: 'uppercase',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5DFD7',
+    borderColor: Colors.divider,
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 48,
     fontSize: 14,
-    color: '#291811',
-    backgroundColor: '#FAFAFA',
+    color: Colors.textMain,
+    backgroundColor: Colors.ultraLightGray,
   },
-  inputErr: { borderColor: ERROR_COLOR, backgroundColor: '#FFF5F5' },
+  inputErr: { borderColor: ERROR_COLOR, backgroundColor: Colors.tagRed },
   errTxt: { fontSize: 11, color: ERROR_COLOR, marginTop: 4, fontWeight: '500' },
 
   locInfo: {
-    backgroundColor: '#FFFBF5',
+    backgroundColor: Colors.warningBackground,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     borderRadius: 10,
     padding: 12,
     marginBottom: 14,
   },
-  locInfoTxt: { fontSize: 12, color: '#92400E', lineHeight: 18 },
+  locInfoTxt: { fontSize: 12, color: Colors.warningText, lineHeight: 18 },
 
   sheetFooter: {
     flexDirection: 'row',
     gap: 12,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    backgroundColor: '#FFF',
+    borderTopColor: Colors.lightGray,
+    backgroundColor: Colors.white,
     // Extra padding at bottom for devices with home indicator
     paddingBottom: Platform.OS === 'ios' ? 28 : 16,
   },
@@ -1023,16 +1119,44 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     alignItems: 'center',
   },
-  cancelTxt: { fontSize: 14, fontWeight: '700', color: '#6B5E59' },
+  cancelTxt: { fontSize: 14, fontWeight: '700', color: Colors.textMuted },
   saveBtn: {
     flex: 2,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
   },
-  saveTxt: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  saveTxt: { fontSize: 14, fontWeight: '800', color: Colors.white },
+
+  useLocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 10,
+  },
+  useLocBtnIcon: { fontSize: 16 },
+  useLocBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+
+  defaultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.warningBackground,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  defaultTitle: { fontSize: 14, fontWeight: '800', color: Colors.textMain },
+  defaultSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 });

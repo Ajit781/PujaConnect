@@ -16,12 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
-import { toggleFavorite } from '../../store/slices/wishlistSlice';
+import { setFavorites } from '../../store/slices/wishlistSlice';
 import {
   useGetPujaTagsQuery,
   useGetTagPujasQuery,
+  useSavePujaTagMutation,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
+import { Colors } from '../../constants/Colors';
 
 export default function AllPujasScreen({ navigation, route }: any) {
   const { i18n } = useTranslation();
@@ -47,7 +49,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
 
   const {
     data: currentPujas = [],
-    isFetching: isLoading,
+    isLoading,
     isError,
     error,
   } = useGetTagPujasQuery(
@@ -57,7 +59,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
       pageNo,
       limit: LIMIT,
     },
-    { skip: !user?.user_id && !user?.id },
+    { skip: !user?.user_id && !user?.id, skipGlobalLoader: true } as any,
   );
 
   if (isError) {
@@ -71,7 +73,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
       pageNo: pageNo + 1,
       limit: LIMIT,
     },
-    { skip: !user?.user_id && !user?.id },
+    { skip: !user?.user_id && !user?.id, skipGlobalLoader: true } as any,
   );
 
   const hasMore = nextPujas.length > 0;
@@ -79,6 +81,49 @@ export default function AllPujasScreen({ navigation, route }: any) {
   React.useEffect(() => {
     setPageNo(1);
   }, [selectedTagId]);
+
+  // Sync favorites from server
+  const WISHLIST_TAG_ID = 3;
+  const { data: wishlistPujas } = useGetTagPujasQuery(
+    {
+      userId: user?.user_id || 0,
+      tagId: WISHLIST_TAG_ID,
+      pageNo: 1,
+      limit: 100,
+    },
+    { skip: !user?.user_id, skipGlobalLoader: true } as any,
+  );
+
+  const [savePujaTag] = useSavePujaTagMutation();
+
+  React.useEffect(() => {
+    if (wishlistPujas) {
+      const favIds = wishlistPujas.map(p =>
+        (p.puja_id || p.puja_type_id || '').toString(),
+      );
+      dispatch(setFavorites(favIds));
+    }
+  }, [wishlistPujas, dispatch]);
+
+  const handleToggleFavoriteServer = async (pujaId: string) => {
+    if (!user?.user_id) return;
+
+    const isCurrentlyFav = favorites.includes(pujaId);
+    // Optimistic toggle is handled by pujaApi.ts onQueryStarted
+
+    try {
+      await savePujaTag({
+        userId: user.user_id,
+        pujaId: parseInt(pujaId, 10),
+        tagId: WISHLIST_TAG_ID,
+        action: isCurrentlyFav ? 5 : 1,
+        skipGlobalLoader: true,
+      }).unwrap();
+    } catch (err) {
+      console.error('Wishlist sync failed:', err);
+      // Revert is handled by pujaApi.ts
+    }
+  };
 
   const handleNextPage = () => {
     if (hasMore) {
@@ -123,7 +168,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity
@@ -167,7 +212,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
               }
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Colors.placeholder}
             />
           </View>
         </View>
@@ -219,7 +264,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
                           <Image
                             source={{ uri: puja.icon }}
                             style={styles.pujaIconImage}
-                            resizeMode="contain"
+                            resizeMode="cover"
                           />
                         ) : (
                           <Text style={styles.pujaImgText}>🛕</Text>
@@ -227,7 +272,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
                         <TouchableOpacity
                           style={styles.heartBtn}
                           onPress={() =>
-                            pId && dispatch(toggleFavorite(pId.toString()))
+                            pId && handleToggleFavoriteServer(pId.toString())
                           }
                         >
                           <Text style={styles.heartIconText}>
@@ -421,12 +466,12 @@ export default function AllPujasScreen({ navigation, route }: any) {
   );
 }
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDF8F0' },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -452,18 +497,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5DFD7',
+    borderColor: Colors.divider,
     marginRight: 6,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
   filterChipActive: {
     backgroundColor: BRAND_PRIMARY,
     borderColor: BRAND_PRIMARY,
   },
   filterChipText: { fontSize: 12, fontWeight: '600', color: BRAND_MUTED },
-  filterChipTextActive: { color: '#FFF' },
+  filterChipTextActive: { color: Colors.white },
   countBadge: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -472,12 +517,12 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.blueBorder,
   },
   searchIcon: { fontSize: 16, marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14, color: BRAND_TEXT },
@@ -490,10 +535,10 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     width: '48%',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
@@ -501,8 +546,6 @@ const styles = StyleSheet.create({
   },
   cardImgBox: {
     height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
   },
   heartBtn: {
@@ -518,12 +561,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#F59E0B',
+    backgroundColor: Colors.gold,
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  popularBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  popularBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
   cardBody: { padding: 12 },
   cardTitle: {
     fontSize: 15,
@@ -545,27 +588,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
     paddingTop: 8,
   },
   priceLabel: {
     fontSize: 8,
-    color: '#6B5E59',
+    color: Colors.textMuted,
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 2,
   },
-  priceValue: { fontSize: 12, fontWeight: '800', color: '#291811' },
-  ratingValue: { fontSize: 12, fontWeight: '800', color: '#F59E0B' },
+  priceValue: { fontSize: 12, fontWeight: '800', color: Colors.textMain },
+  ratingValue: { fontSize: 12, fontWeight: '800', color: Colors.gold },
   bookBtn: {
     backgroundColor: BRAND_PRIMARY,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
-  bookBtnDisabled: { backgroundColor: '#E5E7EB' },
-  bookBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  bookBtnTextDisabled: { color: '#9CA3AF' },
+  bookBtnDisabled: { backgroundColor: Colors.disabled },
+  bookBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  bookBtnTextDisabled: { color: Colors.gray },
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -576,9 +619,9 @@ const styles = StyleSheet.create({
   emptyStateText: { color: BRAND_MUTED, fontSize: 14, textAlign: 'center' },
 
   safeArea: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
     zIndex: 10,
@@ -594,22 +637,22 @@ const styles = StyleSheet.create({
   headerFilterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF8F1',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.blueBorder,
     gap: 6,
   },
   headerFilterBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#F97316',
+    color: Colors.primary,
   },
   dropdownArrowSmall: {
     fontSize: 8,
-    color: '#F97316',
+    color: Colors.primary,
   },
 
   // Popover Styles (Unified with Dashboard)
@@ -620,10 +663,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   popoverBox: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     paddingVertical: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 20,
@@ -636,11 +679,11 @@ const styles = StyleSheet.create({
   popoverUserName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#291811',
+    color: Colors.textMain,
   },
   popoverDivider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     width: '100%',
     marginBottom: 8,
   },
@@ -653,7 +696,7 @@ const styles = StyleSheet.create({
   popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
   popoverItemText: {
     fontSize: 14,
-    color: '#4B5563',
+    color: Colors.textMuted,
     flex: 1,
     fontWeight: '500',
   },
@@ -671,7 +714,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   pageBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
@@ -679,31 +722,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageBtnDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.disabled,
   },
   pageBtnText: {
-    color: '#FFF',
+    color: Colors.white,
     fontWeight: '700',
     fontSize: 14,
   },
   pageNumBox: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#F97316',
+    borderColor: Colors.primary,
   },
   pageNumText: {
-    color: '#F97316',
+    color: Colors.primary,
     fontWeight: '800',
     fontSize: 16,
   },
   pujaIconImage: {
-    width: '60%',
-    height: '60%',
+    width: '100%',
+    height: '100%',
   },
   centerBox: {
     padding: 40,
@@ -720,7 +763,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   errorText: {
-    color: '#EF4444',
+    color: Colors.red,
     marginTop: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -739,11 +782,11 @@ const styles = StyleSheet.create({
   },
   starRatingText: {
     fontSize: 10,
-    color: '#F59E0B',
+    color: Colors.gold,
   },
   starIcon: {
     fontSize: 10,
-    color: '#F59E0B',
+    color: Colors.gold,
   },
   modalBoxWidth: {
     width: '85%',

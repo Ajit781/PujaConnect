@@ -2,10 +2,12 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface WishlistState {
   favorites: string[]; // array of Puja IDs
+  hasUnseenItems: boolean;
 }
 
 const initialState: WishlistState = {
   favorites: [],
+  hasUnseenItems: false,
 };
 
 const wishlistSlice = createSlice({
@@ -18,10 +20,18 @@ const wishlistSlice = createSlice({
         state.favorites = state.favorites.filter(id => id !== pujaId);
       } else {
         state.favorites.push(pujaId);
+        state.hasUnseenItems = true;
       }
+    },
+    setFavorites: (state, action: PayloadAction<string[]>) => {
+      state.favorites = action.payload;
+    },
+    markWishlistAsSeen: state => {
+      state.hasUnseenItems = false;
     },
   },
 });
 
-export const { toggleFavorite } = wishlistSlice.actions;
+export const { toggleFavorite, setFavorites, markWishlistAsSeen } =
+  wishlistSlice.actions;
 export default wishlistSlice.reducer;

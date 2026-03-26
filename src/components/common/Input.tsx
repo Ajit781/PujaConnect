@@ -1,5 +1,6 @@
 import React, { useState, forwardRef } from 'react';
 import { View, TextInput, Text, TextInputProps } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -31,7 +32,7 @@ export const Input = forwardRef<TextInput, InputProps>(
           <TextInput
             ref={ref}
             className="flex-1 text-base text-brand-textMain py-0"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.placeholder}
             onFocus={e => {
               setIsFocused(true);
               props.onFocus?.(e);

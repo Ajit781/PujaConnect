@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { rescheduleOrderItem, OrderItem } from '../../store/slices/orderSlice';
 import CustomDatePickerModal from '../common/CustomDatePickerModal';
+import { Colors } from '../../constants/Colors';
 
-const BRAND_TEXT = '#291811';
+const BRAND_TEXT = Colors.textMain;
 
 interface Props {
   visible: boolean;
@@ -63,7 +64,11 @@ export default function RescheduleOrderModal({
   const newDateIsoFromStr = (dStr: string) => {
     try {
       const [m, d, y] = dStr.split('/');
-      return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).toISOString();
+      return new Date(
+        parseInt(y, 10),
+        parseInt(m, 10) - 1,
+        parseInt(d, 10),
+      ).toISOString();
     } catch {
       return new Date().toISOString();
     }
@@ -126,7 +131,7 @@ export default function RescheduleOrderModal({
               <TouchableOpacity
                 style={[
                   styles.inputField,
-                  !dateStr && { backgroundColor: '#F9FAFB' },
+                  !dateStr && { backgroundColor: Colors.ultraLightGray },
                 ]}
                 disabled={!dateStr}
                 onPress={() => setShowPickerMode('time')}
@@ -142,7 +147,10 @@ export default function RescheduleOrderModal({
 
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.confirmBtn, !hasSelection && { opacity: 0.5 }]}
+              style={[
+                styles.confirmBtn,
+                !hasSelection && styles.confirmBtnDisabled,
+              ]}
               disabled={!hasSelection}
               onPress={handleConfirm}
             >
@@ -175,14 +183,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     width: '90%',
     overflow: 'hidden',
   },
 
   headerBox: {
-    backgroundColor: '#ffb703', // yellow-orange theme from screenshot
+    backgroundColor: Colors.primary, // Using primary for consistency
     padding: 20,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -195,22 +203,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconText: { fontSize: 20, color: '#fff' },
+  iconText: { fontSize: 20, color: Colors.white },
   modalTitleLabel: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.white,
     letterSpacing: 1,
   },
   modalSubRef: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.white,
     marginTop: 2,
   },
   instructionText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
+    color: Colors.white,
+    opacity: 0.9,
     marginTop: 2,
   },
   closeBtn: {
@@ -219,39 +228,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeBtnText: { color: '#fff', fontSize: 16 },
+  closeBtnText: { color: Colors.white, fontSize: 16 },
 
   body: { padding: 24, gap: 20 },
   inputBoxContainer: { gap: 8 },
   inputLabel: { fontSize: 12, fontWeight: 'bold', color: BRAND_TEXT },
-  inputLabelLight: { fontWeight: 'normal', color: '#9CA3AF' },
+  inputLabelLight: { fontWeight: 'normal', color: Colors.gray },
   inputField: {
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
   inputText: { fontSize: 14, color: BRAND_TEXT },
-  placeholderText: { color: '#9CA3AF' },
+  placeholderText: { color: Colors.gray },
 
   footer: { flexDirection: 'row', padding: 20, gap: 12 },
   confirmBtn: {
     flex: 6,
-    backgroundColor: '#fda470',
+    backgroundColor: Colors.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
-  confirmBtnText: { fontSize: 14, fontWeight: 'bold', color: '#fff' },
+  confirmBtnText: { fontSize: 14, fontWeight: 'bold', color: Colors.white },
   cancelBtn: {
     flex: 4,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#fda470',
+    borderColor: Colors.primary,
     alignItems: 'center',
   },
-  cancelBtnText: { fontSize: 14, fontWeight: 'bold', color: '#E65100' },
+  cancelBtnText: { fontSize: 14, fontWeight: 'bold', color: Colors.primary },
+  confirmBtnDisabled: { opacity: 0.5 },
 });

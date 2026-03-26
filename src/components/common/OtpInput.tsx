@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 interface OtpInputProps {
   value: string[];
@@ -104,24 +105,24 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: Colors.white,
+    shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   boxEmpty: {
-    borderColor: '#E5DFD7',
+    borderColor: Colors.divider,
   },
   boxFilled: {
-    borderColor: '#F97316',
-    backgroundColor: '#FFF8F4',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.lightOrange,
   },
   input: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#291811',
+    color: Colors.textMain,
     textAlign: 'center',
     width: '100%',
     height: '100%',

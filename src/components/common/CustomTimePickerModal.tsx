@@ -1,3 +1,4 @@
+import { Colors } from '../../constants/Colors';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -273,18 +274,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     width: width * 0.85,
     overflow: 'hidden',
     elevation: 10,
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 20,
   },
   header: {
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     paddingTop: 24,
     paddingBottom: 24,
     alignItems: 'center',
@@ -315,12 +316,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   timePartText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 48,
     fontWeight: '600',
   },
   separator: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 40,
     marginHorizontal: 8,
     opacity: 0.8,
@@ -343,16 +344,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   activePeriodText: {
-    color: '#fff',
+    color: Colors.white,
   },
   body: {
     padding: 24,
     alignItems: 'center',
-    backgroundColor: '#FFF8F4',
+    backgroundColor: Colors.background,
   },
   viewModeTitle: {
     fontSize: 14,
-    color: '#F97316',
+    color: Colors.primary,
     fontWeight: '700',
     marginBottom: 20,
     textTransform: 'uppercase',
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     width: CLOCK_SIZE,
     height: CLOCK_SIZE,
     borderRadius: CLOCK_SIZE / 2,
-    backgroundColor: '#FFEBDC',
+    backgroundColor: Colors.border,
     position: 'relative',
   },
   clockNumberWrap: {
@@ -380,23 +381,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   selectedNumberWrap: {
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     zIndex: 2,
   },
   clockNumberText: {
     fontSize: 14,
-    color: '#291811',
+    color: Colors.textMain,
     fontWeight: '600',
   },
   selectedNumberText: {
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '800',
   },
   clockCenterPoint: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     position: 'absolute',
     left: CENTER - 5,
     top: CENTER - 5,
@@ -415,14 +416,14 @@ const styles = StyleSheet.create({
   clockHandVisible: {
     width: 2,
     height: RADIUS,
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
   },
   clockHandCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#F97316',
+    borderColor: Colors.primary,
     backgroundColor: 'rgba(249, 115, 22, 0.1)',
     position: 'absolute',
     top: -20,
@@ -433,9 +434,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 16,
     gap: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#FDF2EB',
+    borderTopColor: Colors.divider,
   },
   footerBtn: {
     paddingHorizontal: 20,
@@ -444,16 +445,16 @@ const styles = StyleSheet.create({
   footerBtnOk: {
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.primary,
     borderRadius: 12,
   },
   footerBtnTextCancel: {
-    color: '#6B5E59',
+    color: Colors.textMuted,
     fontWeight: '700',
     fontSize: 15,
   },
   footerBtnTextOk: {
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '800',
     fontSize: 15,
   },

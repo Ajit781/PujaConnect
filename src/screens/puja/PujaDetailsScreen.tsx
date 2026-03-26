@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { FEATURED_PUJAS } from '../../data/dummyData';
 import BookingModal from '../../components/booking/BookingModal';
 import NoDataFound from '../../components/common/NoDataFound';
+import { Colors } from '../../constants/Colors';
 import {
   useGetPujaImagesQuery,
   useGetPujaPackagesQuery,
@@ -130,22 +131,22 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           id: idx,
           content: img.puja_image,
           isUrl: true,
-          color: '#FEE2E2',
+          color: Colors.tagRed,
         }))
       : [
           {
             id: 0,
             content: pujaData ? '🛕' : puja.imagePlaceholder,
             isUrl: false,
-            color: pujaData ? '#FEE2E2' : puja.color,
+            color: pujaData ? Colors.tagRed : puja.color,
           },
-          { id: 1, content: '🕉️', isUrl: false, color: '#FDE68A' },
-          { id: 2, content: '🛕', isUrl: false, color: '#FECACA' },
+          { id: 1, content: '🕉️', isUrl: false, color: Colors.tagYellow },
+          { id: 2, content: '🛕', isUrl: false, color: Colors.tagRed },
         ];
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
+      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity
@@ -167,7 +168,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         <View style={styles.bannerWrapper}>
           {isLoadingImages ? (
             <View style={[styles.bannerImg, styles.bannerLoadingContainer]}>
-              <ActivityIndicator color="#F97316" size="large" />
+              <ActivityIndicator color={Colors.primary} size="large" />
             </View>
           ) : (
             <>
@@ -598,7 +599,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
             <View style={styles.materialsTab}>
               {isLoadingMaterials ? (
                 <ActivityIndicator
-                  color="#F97316"
+                  color={Colors.primary}
                   style={styles.activityIndicatorMargin60}
                 />
               ) : !selectedPackageId ? (
@@ -691,12 +692,12 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   );
 }
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDF8F0' },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -709,14 +710,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5DFD7',
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backBtnText: { fontSize: 20, color: BRAND_TEXT },
   headerTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
   ratingBox: { flexDirection: 'row', alignItems: 'center' },
-  ratingText: { fontSize: 12, fontWeight: '700', color: '#F59E0B' },
+  ratingText: { fontSize: 12, fontWeight: '700', color: Colors.gold },
 
   body: { flex: 1 },
   bannerWrapper: { padding: 16 },
@@ -737,7 +738,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  vedicTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  vedicTagText: { color: Colors.white, fontSize: 10, fontWeight: '700' },
   floatingEmoji: { position: 'absolute', fontSize: 24 },
   thumbnailRow: { flexDirection: 'row', marginTop: 12, gap: 12 },
   thumbnailImg: {
@@ -760,9 +761,9 @@ const styles = StyleSheet.create({
 
   quickDetailsCard: {
     marginHorizontal: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 24,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
@@ -772,7 +773,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   tabBtn: {
     flex: 1,
@@ -787,7 +788,7 @@ const styles = StyleSheet.create({
 
   overviewTab: { padding: 16 },
   aboutBlock: {
-    backgroundColor: '#4A2A18',
+    backgroundColor: Colors.secondary,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
@@ -802,13 +803,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   aboutBadgeText: {
-    color: '#FCD34D',
+    color: Colors.gold,
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   aboutTitle: {
-    color: '#FFF',
+    color: Colors.white,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 12,
@@ -828,7 +829,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   packageInfoTitle: {
-    color: '#FFF',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '800',
     marginBottom: 8,
@@ -841,7 +842,7 @@ const styles = StyleSheet.create({
   featuresRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   featureCard: {
     flex: 1,
-    backgroundColor: '#FFF8F1',
+    backgroundColor: Colors.background,
     borderRadius: 16,
     padding: 12,
   },
@@ -855,17 +856,17 @@ const styles = StyleSheet.create({
   featureItem: { fontSize: 11, color: BRAND_MUTED, lineHeight: 16 },
 
   trustRow: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.border,
     marginBottom: 24,
   },
   trustItem: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#4A2A18',
+    color: Colors.secondary,
     marginBottom: 6,
   },
 
@@ -893,15 +894,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    shadowColor: '#000',
+    borderTopColor: Colors.border,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     elevation: 10,
@@ -920,11 +921,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
   },
-  footerBtnDisabled: { backgroundColor: '#E5E7EB' },
-  footerBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  footerBtnDisabled: { backgroundColor: Colors.disabled },
+  footerBtnText: { color: Colors.white, fontSize: 14, fontWeight: '800' },
 
   notFoundText: { textAlign: 'center', marginTop: 40 },
-  safeArea: { backgroundColor: '#FDF8F0', zIndex: 10 },
+  safeArea: { backgroundColor: Colors.background, zIndex: 10 },
   bannerIconLarge: { fontSize: 100, opacity: 0.8 },
   floatingEmoji1: { top: 20, right: 20 },
   floatingEmoji2: { bottom: 20, left: 30 },
@@ -937,20 +938,20 @@ const styles = StyleSheet.create({
   thumbImgReal: { width: '100%', height: '100%', borderRadius: 10 },
   packagesTab: { padding: 16 },
   packageCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#F8FAFC',
-    shadowColor: '#64748B',
+    borderColor: Colors.ultraLightGray,
+    shadowColor: Colors.textMuted,
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
   packageCardSelected: {
     borderColor: BRAND_PRIMARY,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderWidth: 2,
     shadowColor: BRAND_PRIMARY,
     shadowOpacity: 0.15,
@@ -986,7 +987,7 @@ const styles = StyleSheet.create({
   },
   pkgDivider: {
     height: 1.5,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Colors.ultraLightGray,
     marginVertical: 20,
     opacity: 0.8,
   },
@@ -997,7 +998,7 @@ const styles = StyleSheet.create({
   selectedIndicator: {
     marginTop: 24,
     alignSelf: 'flex-start',
-    backgroundColor: '#FFF7ED',
+    backgroundColor: Colors.lightOrange,
     borderWidth: 1.5,
     borderColor: BRAND_PRIMARY,
     paddingHorizontal: 16,
@@ -1023,16 +1024,16 @@ const styles = StyleSheet.create({
   errorBox: {
     padding: 30,
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.tagRed,
     borderRadius: 20,
     marginTop: 20,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: Colors.tagRed,
   },
   errorEmoji: { fontSize: 32, marginBottom: 8 },
   errorText: {
     fontSize: 14,
-    color: '#EF4444',
+    color: Colors.red,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 16,
@@ -1043,11 +1044,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
   },
-  retryBtnText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  retryBtnText: { color: Colors.white, fontWeight: '800', fontSize: 13 },
   emptyPackagesWrap: {
     padding: 40,
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 20,
     marginTop: 20,
   },
@@ -1072,13 +1073,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   matInfo: { flex: 1 },
   matName: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
   matQty: { fontSize: 12, color: BRAND_MUTED, marginTop: 2 },
   matBadge: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.ultraLightGray,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -1090,7 +1091,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: Colors.lightOrange,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -1118,20 +1119,20 @@ const styles = StyleSheet.create({
   benefitsCarousel: { paddingHorizontal: 16, paddingBottom: 16, gap: 16 },
   benefitCard: {
     width: 240,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#64748B',
+    shadowColor: Colors.textMuted,
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: Colors.lightGray,
   },
   benefitNumber: {
     fontSize: 40,
     fontWeight: '900',
-    color: '#F8FAFC',
+    color: Colors.ultraLightGray,
     position: 'absolute',
     top: 10,
     left: 20,
@@ -1159,10 +1160,10 @@ const styles = StyleSheet.create({
   promiseBox: {
     margin: 16,
     marginTop: 32,
-    backgroundColor: '#C2410C', // Richer brand orange-brown
+    backgroundColor: Colors.secondary, // Richer brand orange-brown
     borderRadius: 28,
     padding: 24,
-    shadowColor: '#C2410C',
+    shadowColor: Colors.secondary,
     shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 12 },
     elevation: 8,
@@ -1174,7 +1175,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   promiseIcon: { fontSize: 28 },
-  promiseTitle: { fontSize: 20, fontWeight: '900', color: '#FFF' },
+  promiseTitle: { fontSize: 20, fontWeight: '900', color: Colors.white },
   promiseContent: { gap: 14 },
   promiseText: {
     fontSize: 14,
@@ -1196,11 +1197,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
   },
-  promiseBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
+  promiseBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.white },
   emptySection: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: Colors.lightGray,
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
@@ -1209,7 +1210,7 @@ const styles = StyleSheet.create({
   bannerLoadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FDF2EB',
+    backgroundColor: Colors.lightOrange,
   },
   activityIndicatorMargin60: { margin: 60 },
   flowerIconFontSize: { fontSize: 16 },

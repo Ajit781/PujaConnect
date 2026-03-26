@@ -1,7 +1,6 @@
+import { Colors } from '../../constants/Colors';
 import React from 'react';
 import { View, Text, StyleSheet, DimensionValue } from 'react-native';
-
-const BRAND_MUTED = '#6B5E59';
 
 interface Props {
   message?: string;
@@ -37,7 +36,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
-    color: BRAND_MUTED,
+    color: Colors.textMuted,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 10,

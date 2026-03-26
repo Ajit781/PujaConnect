@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { cancelOrder, cancelOrderItem } from '../../store/slices/orderSlice';
+import { Colors } from '../../constants/Colors';
 
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 interface Props {
   visible: boolean;
@@ -78,7 +79,7 @@ export default function CancelOrderModal({
             <TextInput
               style={styles.reasonInput}
               placeholder="Describe your reason for cancellation..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Colors.placeholder}
               multiline
               numberOfLines={4}
               value={reason}
@@ -117,19 +118,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     width: '90%',
     overflow: 'hidden',
   },
   headerBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.redToastBg,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#FEE2E2',
+    borderBottomColor: Colors.redLight,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -140,15 +141,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FECACA',
+    backgroundColor: Colors.tagRed,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconText: { fontSize: 20, color: '#DC2626' },
+  iconText: { fontSize: 20, color: Colors.dangerRed },
   modalTitleLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#DC2626',
+    color: Colors.dangerRed,
     letterSpacing: 1,
   },
   modalSubRef: {
@@ -161,9 +162,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -180,17 +181,17 @@ const styles = StyleSheet.create({
   },
   reasonInput: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 12,
     padding: 16,
     minHeight: 120,
     fontSize: 14,
     color: BRAND_TEXT,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.inputBg,
   },
   charCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.gray,
     marginTop: 8,
   },
 
@@ -199,14 +200,14 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
   },
   goBackBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     alignItems: 'center',
   },
   goBackBtnText: { fontSize: 14, fontWeight: 'bold', color: BRAND_TEXT },
@@ -214,9 +215,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#F87171',
+    backgroundColor: Colors.dangerRed,
     alignItems: 'center',
   },
-  confirmCancelBtnText: { fontSize: 14, fontWeight: 'bold', color: '#fff' },
+  confirmCancelBtnText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.white,
+  },
   disabledOpac: { opacity: 0.5 },
 });

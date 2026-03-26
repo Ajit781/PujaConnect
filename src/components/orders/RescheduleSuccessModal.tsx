@@ -9,9 +9,11 @@ interface Props {
   onClose: () => void;
 }
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+import { Colors } from '../../constants/Colors';
+
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 export default function RescheduleSuccessModal({
   visible,
@@ -69,15 +71,7 @@ export default function RescheduleSuccessModal({
             <View style={styles.iconBg}>
               <Text style={styles.iconEmoji}>📅</Text>
               <View style={styles.checkBadge}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: BRAND_PRIMARY,
-                    fontWeight: 'bold',
-                  }}
-                >
-                  ✓
-                </Text>
+                <Text style={styles.checkText}>✓</Text>
               </View>
             </View>
           </View>
@@ -123,11 +117,11 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -139,7 +133,7 @@ const styles = StyleSheet.create({
   iconBg: {
     width: 64,
     height: 64,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -153,9 +147,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.warningBorder,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -167,23 +161,23 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: Colors.gray,
     textAlign: 'center',
     marginBottom: 24,
   },
   ticketBox: {
     width: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     marginBottom: 24,
     overflow: 'hidden',
   },
   ticketHeader: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#FFEDD5',
+    borderBottomColor: Colors.lightOrange, // Adjusted to lightOrange
   },
   ticketTitle: {
     fontSize: 14,
@@ -211,8 +205,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneBtnText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: 'bold',
   },
+  checkText: { fontSize: 16, color: BRAND_PRIMARY, fontWeight: 'bold' },
 });

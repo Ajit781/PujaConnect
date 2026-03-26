@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, View, Text, StyleSheet } from 'react-native';
 
-const BRAND_PRIMARY = '#F97316';
+import { Colors } from '../../constants/Colors';
+
+const BRAND_PRIMARY = Colors.primary;
 
 interface Props {
   size?: number;

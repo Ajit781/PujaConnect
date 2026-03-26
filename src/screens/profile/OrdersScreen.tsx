@@ -18,11 +18,12 @@ import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 import NoDataFound from '../../components/common/NoDataFound';
+import { Colors } from '../../constants/Colors';
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_BG = '#FDF8F0';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_BG = Colors.background;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 export default function OrdersScreen({ navigation }: any) {
   const { i18n } = useTranslation();
@@ -129,20 +130,20 @@ export default function OrdersScreen({ navigation }: any) {
   };
 
   const renderStatusBadge = (status: string) => {
-    let bgColor = '#F3F4F6';
-    let textColor = '#4B5563';
+    let bgColor = Colors.lightGray;
+    let textColor = Colors.textMuted;
     if (status === 'Booking Initiated' || status === 'Pending') {
-      bgColor = '#E0F2FE';
-      textColor = '#0369A1';
+      bgColor = Colors.statusPendingBg;
+      textColor = Colors.statusPendingText;
     } else if (status === 'Completed') {
-      bgColor = '#DCFCE7';
-      textColor = '#15803D';
+      bgColor = Colors.statusSuccessBg;
+      textColor = Colors.statusSuccessText;
     } else if (status === 'Cancelled' || status === 'Partial Cancelled') {
-      bgColor = '#FEE2E2';
-      textColor = '#B91C1C';
+      bgColor = Colors.tagRed;
+      textColor = Colors.red;
     } else if (status === 'Upcoming' || status === 'Rescheduled') {
-      bgColor = '#FEF3C7';
-      textColor = '#B45309';
+      bgColor = Colors.statusWarningBg;
+      textColor = Colors.statusWarningText;
     }
 
     return (
@@ -408,22 +409,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   backBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
   },
   backBtnText: { color: BRAND_TEXT, fontSize: 14, fontWeight: 'bold' },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: BRAND_TEXT },
 
   tabsWrapper: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     paddingVertical: 12,
   },
   tabsContent: {
@@ -435,38 +436,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#fff',
+    borderColor: Colors.disabled,
+    backgroundColor: Colors.white,
   },
   tabBtnActive: {
     backgroundColor: BRAND_PRIMARY,
     borderColor: BRAND_PRIMARY,
   },
   tabText: { color: BRAND_MUTED, fontSize: 14, fontWeight: '500' },
-  tabTextActive: { color: '#fff', fontWeight: 'bold' },
+  tabTextActive: { color: Colors.white, fontWeight: 'bold' },
 
   filtersWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     padding: 16,
     paddingTop: 0,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   filterGroup: { flex: 1, minWidth: '45%' },
-  filterLabel: { fontSize: 12, color: '#9CA3AF', marginBottom: 4 },
+  filterLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
   filterInputBox: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 40,
     justifyContent: 'center',
   },
   placeholderText: {
-    color: '#9CA3AF',
+    color: Colors.gray,
   },
   filterInputText: { fontSize: 14, color: BRAND_TEXT },
   searchInput: { padding: 0, fontSize: 14, color: BRAND_TEXT },
@@ -477,7 +478,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  statsText: { fontSize: 12, color: '#9CA3AF' },
+  statsText: { fontSize: 12, color: Colors.textMuted },
 
   listHeader: {
     flexDirection: 'row',
@@ -488,7 +489,7 @@ const styles = StyleSheet.create({
   },
   listHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: BRAND_TEXT },
   countBadge: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.border,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -498,10 +499,10 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 16 },
 
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     overflow: 'hidden',
   },
   cardHeader: {
@@ -510,12 +511,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   cardLabel: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: Colors.gray,
     letterSpacing: 0.5,
   },
   cardRef: {
@@ -536,21 +537,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#FAFAF9',
+    backgroundColor: Colors.cardBg,
   },
   col: { gap: 4 },
-  colLabel: { fontSize: 11, color: '#9CA3AF' },
+  colLabel: { fontSize: 11, color: Colors.textMuted },
   paymentText: { fontSize: 14, fontWeight: 'bold' },
   amountText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
-  paymentGreen: { color: '#16A34A' },
-  paymentOrange: { color: '#F97316' },
+  paymentGreen: { color: Colors.successGreen },
+  paymentOrange: { color: Colors.primary },
 
   cardFooter: {
     flexDirection: 'row',
     padding: 16,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
   },
   actionBtnOutline: {
     flexDirection: 'row',
@@ -559,8 +560,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFF7ED',
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.lightOrange,
   },
   actionBtnOutlineText: {
     color: BRAND_PRIMARY,
@@ -574,10 +575,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
+    borderColor: Colors.redLight,
+    backgroundColor: Colors.tagRed,
   },
-  actionBtnDangerText: { color: '#DC2626', fontSize: 14, fontWeight: 'bold' },
+  actionBtnDangerText: {
+    color: Colors.dangerRed,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 
   emptyBox: { padding: 40, alignItems: 'center' },
   emptyText: { color: BRAND_MUTED, fontSize: 16 },

@@ -17,9 +17,11 @@ import CancelSuccessModal from './CancelSuccessModal';
 
 const { height } = Dimensions.get('window');
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+import { Colors } from '../../constants/Colors';
+
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 interface Props {
   visible: boolean;
@@ -266,20 +268,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: height * 0.9,
     overflow: 'hidden',
   },
   headerBox: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: Colors.lightOrange,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#FED7AA',
+    borderBottomColor: Colors.border,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -303,33 +305,33 @@ const styles = StyleSheet.create({
   },
   modalTitleLabel: { fontSize: 12, fontWeight: 'bold', color: BRAND_PRIMARY },
   badgeSm: {
-    backgroundColor: '#FFEDD5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
   },
   badgeSmText: { fontSize: 10, color: BRAND_PRIMARY, fontWeight: 'bold' },
   modalTitleRef: { fontSize: 18, fontWeight: 'bold', color: BRAND_TEXT },
-  modalSubRef: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  modalSubRef: { fontSize: 12, color: Colors.gray, marginTop: 2 },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeBtnText: { color: BRAND_MUTED, fontSize: 14 },
 
-  scrollBody: { flex: 1, backgroundColor: '#F9FAFB' },
+  scrollBody: { flex: 1, backgroundColor: Colors.ultraLightGray },
 
   itemBox: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     padding: 16,
     marginBottom: 16,
   },
@@ -348,10 +350,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  itemIndexText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  itemIndexText: { color: Colors.white, fontWeight: 'bold', fontSize: 14 },
   itemTitle: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
   itemSubTitle: { fontSize: 12, color: BRAND_PRIMARY, marginTop: 2 },
-  itemPriceText: { fontSize: 16, fontWeight: 'bold', color: '#DC2626' },
+  itemPriceText: { fontSize: 16, fontWeight: 'bold', color: Colors.red },
 
   statsRow: {
     flexDirection: 'row',
@@ -364,13 +366,13 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: Colors.lightGray,
     alignItems: 'center',
   },
   statIcon: { fontSize: 16, marginBottom: 4 },
   statLabel: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: Colors.gray,
     fontWeight: 'bold',
     marginBottom: 2,
   },
@@ -381,13 +383,13 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#FFFBEB',
+    backgroundColor: Colors.warningBackground,
     borderWidth: 1,
-    borderColor: '#FEF3C7',
+    borderColor: Colors.warningBorder,
     marginBottom: 16,
   },
   descIcon: { fontSize: 14 },
-  descText: { fontSize: 12, color: '#92400E', flex: 1 },
+  descText: { fontSize: 12, color: Colors.warningText, flex: 1 },
 
   sessionsBox: { marginBottom: 16 },
   sessionsHeader: {
@@ -403,18 +405,18 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
   },
   sessionIndex: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: Colors.lightOrange,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sessionDate: { fontSize: 14, fontWeight: 'bold', color: BRAND_TEXT },
-  sessionTime: { fontSize: 12, color: '#9CA3AF' },
+  sessionTime: { fontSize: 12, color: Colors.gray },
 
   actionRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   rescheduleBtn: {
@@ -422,34 +424,34 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
+    borderColor: Colors.blueBorder,
+    backgroundColor: Colors.blueLight,
     alignItems: 'center',
   },
-  rescheduleBtnText: { color: '#2563EB', fontSize: 14, fontWeight: 'bold' },
+  rescheduleBtnText: { color: Colors.blue, fontSize: 14, fontWeight: 'bold' },
   cancelBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
+    borderColor: Colors.tagRed,
+    backgroundColor: Colors.tagRed,
     alignItems: 'center',
   },
-  cancelBtnText: { color: '#DC2626', fontSize: 14, fontWeight: 'bold' },
+  cancelBtnText: { color: Colors.red, fontSize: 14, fontWeight: 'bold' },
 
   footer: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
   },
   footerBtn: {
     width: '100%',
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.border,
     alignItems: 'center',
   },
   footerBtnText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },

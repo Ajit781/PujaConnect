@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import {
@@ -26,10 +27,11 @@ import {
   useManagePujaCartMutation,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
+import { Colors } from '../../constants/Colors';
 
-const BRAND_PRIMARY = '#F97316'; // Orange
-const BRAND_TEXT = '#291811'; // Dark brown
-const BRAND_MUTED = '#6B5E59'; // Muted brown
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 export default function CartScreen({ navigation }: any) {
   const { i18n } = useTranslation();
@@ -37,53 +39,53 @@ export default function CartScreen({ navigation }: any) {
   const dispatch = useDispatch();
   const [manageCart] = useManagePujaCartMutation();
 
-  React.useEffect(() => {
-    dispatch(markCartAsSeen());
-  }, [dispatch]);
+  useFocusEffect(
+    React.useCallback(() => {
+      dispatch(markCartAsSeen());
+      return () => {};
+    }, [dispatch]),
+  );
 
   const user = useSelector((state: RootState) => state.auth.user);
   const addresses = useSelector((state: RootState) => state.address.addresses);
 
   const [pageNo, setPageNo] = useState(1);
-  const limit = 10;
+  const itemsPerPage = 10;
 
-  const { data: apiCartItems = [], isLoading: isFetchingCart } =
+  // Fetch full cart (limit 1000) for accurate subtotal calculations
+  const { data: fullApiCartItems = [], isLoading: isFetchingCart } =
     useGetPujaCartInfoQuery(
       {
         userId: user?.user_id || 0,
-        pageNo,
-        limit,
+        pageNo: 1,
+        limit: 1000,
       },
       { skip: !user?.user_id },
     );
 
-  // We'll maintain a local state for the accumulated cart items to support pagination
-  const [allCartItems, setAllCartItems] = useState<any[]>([]);
+  // Local pagination logic
+  const totalPages = Math.ceil(fullApiCartItems.length / itemsPerPage);
+  const startIndex = (pageNo - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = fullApiCartItems.slice(startIndex, endIndex);
 
-  React.useEffect(() => {
-    if (apiCartItems.length > 0) {
-      console.log('--- CART SCREEN: API DATA ---', apiCartItems);
-    }
-    if (pageNo === 1) {
-      setAllCartItems(apiCartItems);
-    } else {
-      setAllCartItems(prev => [...prev, ...apiCartItems]);
-    }
-  }, [apiCartItems, pageNo]);
-
-  const cartItemsMapped = allCartItems.map(item => ({
+  const cartItemsMapped = currentItems.map(item => ({
     cartItemId: item.cart_item_id.toString(),
     pujaId: item.puja_id.toString(),
     titleEn: item.puja_name,
-    titleBn: item.puja_name, // Assuming same for now or handle accordingly
+    titleBn: item.puja_name,
     exactPrice: item.pkg_price,
     selectedDate: item.preferred_puja_date,
     selectedTime: item.preferred_puja_time,
     imagePlaceholder: item.icon,
-    color: '#FFF', // Default
+    color: Colors.white,
     pkg_name: item.pkg_name,
     pkg_quantity: item.pkg_quantity,
     duration: item.duration,
+  }));
+
+  const allItemsForCalc = fullApiCartItems.map(item => ({
+    exactPrice: item.pkg_price,
   }));
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -94,7 +96,7 @@ export default function CartScreen({ navigation }: any) {
   const [orderSuccessRef, setOrderSuccessRef] = useState<string | null>(null);
 
   const calculateSubtotal = () => {
-    return cartItemsMapped.reduce(
+    return allItemsForCalc.reduce(
       (sum, item) => sum + (item.exactPrice || 0),
       0,
     );
@@ -201,9 +203,9 @@ export default function CartScreen({ navigation }: any) {
           titleBn: item.titleBn,
           price: item.exactPrice || 0,
           pandits: 1, // Defaulting to 1 as it's not in CartItem
-          duration: item.duration || '1-2 hours',
+          duration: (item.duration || '1-2 hours').toString(),
           imagePlaceholder: item.imagePlaceholder || '',
-          color: item.color || '#DDD',
+          color: item.color || Colors.lightGray,
           scheduledDate: item.selectedDate || '',
           scheduledTime: item.selectedTime || '',
           status: 'Upcoming',
@@ -230,15 +232,18 @@ export default function CartScreen({ navigation }: any) {
           { justifyContent: 'center', alignItems: 'center' },
         ]}
       >
-        <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
+        <StatusBar
+          backgroundColor={Colors.background}
+          barStyle="dark-content"
+        />
         <View
           style={{
-            backgroundColor: '#fff',
+            backgroundColor: Colors.white,
             padding: 32,
             borderRadius: 16,
             width: '85%',
             alignItems: 'center',
-            shadowColor: '#000',
+            shadowColor: Colors.shadow,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.1,
             shadowRadius: 10,
@@ -250,7 +255,7 @@ export default function CartScreen({ navigation }: any) {
               width: 80,
               height: 80,
               borderRadius: 40,
-              backgroundColor: '#6EE7B7',
+              backgroundColor: Colors.tagGreen,
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 24,
@@ -284,14 +289,14 @@ export default function CartScreen({ navigation }: any) {
 
           <View
             style={{
-              backgroundColor: '#FFF7ED',
+              backgroundColor: Colors.lightOrange,
               padding: 16,
               borderRadius: 8,
               width: '100%',
               alignItems: 'center',
               marginBottom: 24,
               borderWidth: 1,
-              borderColor: '#FED7AA',
+              borderColor: Colors.border,
             }}
           >
             <Text
@@ -331,7 +336,9 @@ export default function CartScreen({ navigation }: any) {
               navigation.navigate('Orders');
             }}
           >
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+            <Text
+              style={{ color: Colors.white, fontSize: 16, fontWeight: 'bold' }}
+            >
               {isBn ? 'আমার অর্ডার দেখুন' : 'View My Orders'} →
             </Text>
           </TouchableOpacity>
@@ -344,7 +351,7 @@ export default function CartScreen({ navigation }: any) {
               width: '100%',
               alignItems: 'center',
               borderWidth: 1,
-              borderColor: '#FED7AA',
+              borderColor: Colors.border,
             }}
             onPress={() => {
               setOrderSuccessRef(null);
@@ -365,7 +372,10 @@ export default function CartScreen({ navigation }: any) {
   if (cartItemsMapped.length === 0 && !isFetchingCart) {
     return (
       <View style={styles.container}>
-        <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
+        <StatusBar
+          backgroundColor={Colors.background}
+          barStyle="dark-content"
+        />
         <SafeAreaView edges={['top']} style={styles.safeArea}>
           <View style={styles.header}>
             <TouchableOpacity
@@ -477,7 +487,7 @@ export default function CartScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#FDF8F0" barStyle="dark-content" />
+      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity
@@ -502,111 +512,149 @@ export default function CartScreen({ navigation }: any) {
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         {/* Cart Items List */}
         <View style={styles.listSection}>
-          {cartItemsMapped.map(item => (
-            <View key={item.cartItemId} style={styles.cartCard}>
-              <View style={styles.cardHeaderRow}>
-                <View
-                  style={[
-                    styles.cardImgPlaceholder,
-                    { backgroundColor: item.color || '#F3F4F6' },
-                  ]}
-                >
-                  {item.imagePlaceholder &&
-                  item.imagePlaceholder.startsWith('http') ? (
-                    <Image
-                      source={{ uri: item.imagePlaceholder }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        borderRadius: 12,
-                      }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text style={styles.cardImgEmoji}>
-                      {item.imagePlaceholder || '🛕'}
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={styles.cardTitle}>
-                    {isBn ? item.titleBn : item.titleEn}
-                  </Text>
-                  <Text style={styles.cardPackageText}>
-                    {item.pkg_name ||
-                      (isBn
-                        ? item.titleBn + ' প্যাকেজ'
-                        : item.titleEn + ' Package')}
-                  </Text>
-                  <Text style={styles.cardDescText} numberOfLines={1}>
-                    {isBn
-                      ? 'বাস্তু আচার সহ হিন্দু পূজা।'
-                      : 'Authentic Hindu puja with rituals.'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => handleRemoveSingleItem(item.cartItemId)}
-                  style={styles.deleteBtn}
-                >
-                  <Text style={styles.deleteIcon}>🗑️</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.tagsRow}>
-                <View style={styles.tagBox}>
-                  <Text style={styles.tagText}>⏱️ 4h</Text>
-                </View>
-                <View style={styles.tagBox}>
-                  <Text style={styles.tagText}>🧘 2 Pandits</Text>
-                </View>
-                <View style={styles.tagBox}>
-                  <Text style={styles.tagText}>⭐ 2</Text>
-                </View>
-                <View style={styles.tagBoxGreen}>
-                  <Text style={styles.tagTextGreen}>
-                    📅 {formatDate(item.selectedDate)}
-                  </Text>
-                </View>
-                <View style={styles.tagBoxBlue}>
-                  <Text style={styles.tagTextBlue}>
-                    🕒 {formatTime12Hr(item.selectedTime)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.priceRow}>
-                <Text style={styles.exactPriceMain}>
-                  ₹{item.exactPrice?.toLocaleString('en-IN')}
-                </Text>
-                <Text style={styles.exactPriceSub}>
-                  ₹{item.exactPrice?.toLocaleString('en-IN')} × 1
-                </Text>
-              </View>
-            </View>
-          ))}
-
-          <TouchableOpacity
-            style={styles.addMoreBtn}
-            onPress={() => navigation.navigate('AllPujas')}
+          <ScrollView
+            nestedScrollEnabled={true}
+            style={styles.itemListScroll}
+            showsVerticalScrollIndicator={true}
           >
-            <Text style={styles.addMoreBtnText}>
-              + {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
-            </Text>
-          </TouchableOpacity>
+            {cartItemsMapped.map(item => (
+              <View key={item.cartItemId} style={styles.cartCard}>
+                <View style={styles.cardHeaderRow}>
+                  <View
+                    style={[
+                      styles.cardImgPlaceholder,
+                      { backgroundColor: item.color || Colors.lightGray },
+                    ]}
+                  >
+                    {item.imagePlaceholder &&
+                    item.imagePlaceholder.startsWith('http') ? (
+                      <Image
+                        source={{ uri: item.imagePlaceholder }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          borderRadius: 12,
+                        }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={styles.cardImgEmoji}>
+                        {item.imagePlaceholder || '🛕'}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.cardHeaderInfo}>
+                    <Text style={styles.cardTitle}>
+                      {isBn ? item.titleBn : item.titleEn}
+                    </Text>
+                    <Text style={styles.cardPackageText}>
+                      {item.pkg_name ||
+                        (isBn
+                          ? item.titleBn + ' প্যাকেজ'
+                          : item.titleEn + ' Package')}
+                    </Text>
+                    <Text style={styles.cardDescText} numberOfLines={1}>
+                      {isBn
+                        ? 'বাস্তু আচার সহ হিন্দু পূজা।'
+                        : 'Authentic Hindu puja with rituals.'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveSingleItem(item.cartItemId)}
+                    style={styles.deleteBtn}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
 
-          {apiCartItems.length === limit && (
+                <View style={styles.tagsRow}>
+                  <View style={styles.tagBox}>
+                    <Text style={styles.tagText}>⏱️ 4h</Text>
+                  </View>
+                  <View style={styles.tagBox}>
+                    <Text style={styles.tagText}>🧘 2 Pandits</Text>
+                  </View>
+                  <View style={styles.tagBox}>
+                    <Text style={styles.tagText}>⭐ 2</Text>
+                  </View>
+                  <View style={styles.tagBoxGreen}>
+                    <Text style={styles.tagTextGreen}>
+                      📅 {formatDate(item.selectedDate)}
+                    </Text>
+                  </View>
+                  <View style={styles.tagBoxBlue}>
+                    <Text style={styles.tagTextBlue}>
+                      🕒 {formatTime12Hr(item.selectedTime)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.priceRow}>
+                  <Text style={styles.exactPriceMain}>
+                    ₹{item.exactPrice?.toLocaleString('en-IN')}
+                  </Text>
+                  <Text style={styles.exactPriceSub}>
+                    ₹{item.exactPrice?.toLocaleString('en-IN')} × 1
+                  </Text>
+                </View>
+              </View>
+            ))}
+
             <TouchableOpacity
-              style={[
-                styles.addMoreBtn,
-                { marginTop: 12, borderColor: BRAND_PRIMARY },
-              ]}
-              onPress={() => setPageNo(prev => prev + 1)}
-              disabled={isFetchingCart}
+              style={styles.addMoreBtn}
+              onPress={() => navigation.navigate('AllPujas')}
             >
-              <Text style={[styles.addMoreBtnText, { color: BRAND_PRIMARY }]}>
-                {isFetchingCart ? '...' : isBn ? 'আরও লোড করুন' : 'Load More'}
+              <Text style={styles.addMoreBtnText}>
+                + {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
               </Text>
             </TouchableOpacity>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <View style={styles.paginationRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.pageBtn,
+                    pageNo === 1 && styles.pageBtnDisabled,
+                  ]}
+                  onPress={() => setPageNo(prev => Math.max(1, prev - 1))}
+                  disabled={pageNo === 1}
+                >
+                  <Text style={styles.pageBtnText}>
+                    ← {isBn ? 'আগের' : 'Prev'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.pageNumBox}>
+                  <Text style={styles.pageNumText}>{pageNo}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.pageBtn,
+                    pageNo === totalPages && styles.pageBtnDisabled,
+                  ]}
+                  onPress={() =>
+                    setPageNo(prev => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={pageNo === totalPages}
+                >
+                  <Text style={styles.pageBtnText}>
+                    {isBn ? 'পরের' : 'Next'} →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+          {fullApiCartItems.length > 2 && (
+            <View style={styles.scrollHint}>
+              <Text style={styles.scrollHintText}>
+                {isBn
+                  ? 'আরও দেখতে নিচে স্ক্রোল করুন'
+                  : 'Scroll down for more items'}{' '}
+                ⌄
+              </Text>
+            </View>
           )}
         </View>
 
@@ -771,7 +819,7 @@ export default function CartScreen({ navigation }: any) {
                 <View style={styles.savedAddressesHeaderRow}>
                   <Text style={styles.savedAddressesTitle}>
                     {isBn ? 'সংরক্ষিত ঠিকানা' : 'SAVED ADDRESSES'}{' '}
-                    <Text style={{ color: '#9CA3AF' }}>
+                    <Text style={{ color: Colors.gray }}>
                       ({addresses.length})
                     </Text>
                   </Text>
@@ -854,7 +902,7 @@ export default function CartScreen({ navigation }: any) {
                           <View
                             style={[
                               styles.radioCircle,
-                              isSelected && { borderColor: '#16A34A' },
+                              isSelected && { borderColor: Colors.greenMedium },
                             ]}
                           >
                             {isSelected && <View style={styles.radioDot} />}
@@ -910,8 +958,8 @@ export default function CartScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDFCF4' }, // VERY light warm background
-  safeArea: { backgroundColor: '#FDF8F0', zIndex: 10 },
+  container: { flex: 1, backgroundColor: Colors.extraLightWarm }, // VERY light warm background
+  safeArea: { backgroundColor: Colors.background, zIndex: 10 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -921,25 +969,42 @@ const styles = StyleSheet.create({
   backBtnBig: {
     width: 36,
     height: 36,
-    backgroundColor: '#FF6D00',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  backBtnBigText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  backBtnBigText: { color: Colors.white, fontSize: 18, fontWeight: 'bold' },
   headerTitleBox: { flex: 1 },
-  headerTitleMain: { fontSize: 24, fontWeight: '900', color: '#111827' },
-  headerTitleSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  headerTitleMain: { fontSize: 24, fontWeight: '900', color: Colors.textMain },
+  headerTitleSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   headerSparkle: { fontSize: 24 },
 
   body: { flex: 1, padding: 16 },
 
-  listSection: { marginBottom: 24 },
-  cartCard: {
-    backgroundColor: '#FFF',
+  listSection: { marginBottom: 12 },
+  itemListScroll: { maxHeight: 485, paddingBottom: 8 },
+  scrollHint: {
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.ultraLightGray,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     borderWidth: 1,
-    borderColor: '#FED7AA', // Light orange border
+    borderTopWidth: 0,
+    borderColor: Colors.disabled,
+  },
+  scrollHintText: {
+    fontSize: 10,
+    color: Colors.gray,
+    fontWeight: '600',
+  },
+  cartCard: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border, // Light orange border
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -962,84 +1027,92 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#111827',
+    color: Colors.textMain,
     marginBottom: 2,
   },
   cardPackageText: {
     fontSize: 12,
-    color: '#FF6D00',
+    color: Colors.primary,
     fontWeight: '600',
     marginBottom: 4,
   },
-  cardDescText: { fontSize: 11, color: '#9CA3AF' },
+  cardDescText: { fontSize: 11, color: Colors.gray },
   deleteBtn: { padding: 4 },
-  deleteIcon: { fontSize: 16, color: '#EF4444' },
+  deleteIcon: { fontSize: 16, color: Colors.red },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   tagBox: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.ultraLightGray,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
   },
-  tagText: { fontSize: 10, color: '#4B5563', fontWeight: '500' },
+  tagText: { fontSize: 10, color: Colors.textMuted, fontWeight: '500' },
   tagBoxGreen: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: Colors.greenLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: Colors.successBorder,
   },
-  tagTextGreen: { fontSize: 10, color: '#15803D', fontWeight: '600' },
+  tagTextGreen: {
+    fontSize: 10,
+    color: Colors.statusSuccessText,
+    fontWeight: '600',
+  },
   tagBoxBlue: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: Colors.blueLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: Colors.blueBorder,
   },
-  tagTextBlue: { fontSize: 10, color: '#1D4ED8', fontWeight: '600' },
+  tagTextBlue: { fontSize: 10, color: Colors.blue, fontWeight: '600' },
 
-  priceRow: { alignItems: 'flex-end' },
-  exactPriceMain: { fontSize: 18, fontWeight: '900', color: '#FF6D00' },
-  exactPriceSub: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exactPriceMain: { fontSize: 18, fontWeight: '900', color: Colors.textMain },
+  exactPriceSub: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
 
   addMoreBtn: {
     borderWidth: 1,
-    borderColor: '#FF6D00',
+    borderColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
-  addMoreBtnText: { color: '#FF6D00', fontSize: 14, fontWeight: '800' },
+  addMoreBtnText: { color: Colors.primary, fontSize: 14, fontWeight: '800' },
 
   summarySection: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#FEF08A',
+    borderColor: Colors.gold,
   },
   orderSummaryBox: { marginBottom: 16 },
   osHeader: { alignItems: 'center', marginBottom: 20 },
   omIconBoxSm: {
     width: 32,
     height: 32,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ rotate: '-10deg' }],
     marginBottom: 8,
     borderWidth: 1.5,
-    borderColor: '#111827',
+    borderColor: Colors.textMain,
   },
-  omTextSm: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  osTitle: { fontSize: 16, fontWeight: '800', color: '#EA580C' },
+  omTextSm: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
+  osTitle: { fontSize: 16, fontWeight: '800', color: Colors.primary },
 
   osRow: {
     flexDirection: 'row',
@@ -1047,21 +1120,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
   },
-  osLabel: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
-  osValueBox: { fontSize: 14, fontWeight: '800', color: '#111827' },
+  osLabel: { fontSize: 13, color: Colors.textMuted, fontWeight: '500' },
+  osValueBox: { fontSize: 14, fontWeight: '800', color: Colors.textMain },
   fixedBadge: {
     fontSize: 9,
-    backgroundColor: '#FFEDD5',
-    color: '#EA580C',
+    backgroundColor: Colors.lightOrange,
+    color: Colors.primary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
     overflow: 'hidden',
   },
-  osDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 },
+  osDivider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 8,
+  },
 
   yellowBox: {
-    backgroundColor: '#FEF9C3',
+    backgroundColor: Colors.tagYellow,
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
@@ -1071,73 +1148,99 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  grandTotalLabel: { fontSize: 14, fontWeight: '800', color: '#111827' },
-  grandTotalValue: { fontSize: 20, fontWeight: '900', color: '#EA580C' },
-  yellowDivider: { height: 1, backgroundColor: '#FDE047', marginVertical: 12 },
+  grandTotalLabel: { fontSize: 14, fontWeight: '800', color: Colors.textMain },
+  grandTotalValue: { fontSize: 20, fontWeight: '900', color: Colors.primary },
+  yellowDivider: {
+    height: 1,
+    backgroundColor: Colors.gold,
+    marginVertical: 12,
+  },
   paymentSplitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  paymentSplitLabel: { fontSize: 11, color: '#4B5563', fontWeight: '600' },
+  paymentSplitLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '600',
+  },
   paymentSplitRowDistant: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,
   },
-  smallMuted: { fontSize: 9, color: '#9CA3AF', fontWeight: 'normal' },
-  paymentSplitValueBlue: { fontSize: 12, fontWeight: '800', color: '#2563EB' },
-  paymentSplitValueGreen: { fontSize: 12, fontWeight: '800', color: '#16A34A' },
+  smallMuted: { fontSize: 9, color: Colors.gray, fontWeight: 'normal' },
+  paymentSplitValueBlue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.blue,
+  },
+  paymentSplitValueGreen: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.greenMedium,
+  },
 
   infoBoxGreen: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: Colors.greenLight,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: Colors.successBorder,
     marginBottom: 12,
   },
   infoBoxBlue: {
     flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: Colors.blueLight,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: Colors.blueBorder,
     marginBottom: 24,
   },
   infoBoxIcon: { fontSize: 14, marginRight: 8 },
-  infoBoxText: { flex: 1, fontSize: 11, color: '#166534', lineHeight: 16 },
-  infoBoxTextBlue: { flex: 1, fontSize: 11, color: '#1E40AF', lineHeight: 16 },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.statusSuccessText,
+    lineHeight: 16,
+  },
+  infoBoxTextBlue: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.blue,
+    lineHeight: 16,
+  },
   infoBoxBold: { fontWeight: 'bold' },
 
   checkoutBtn: {
-    backgroundColor: '#EA580C',
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     elevation: 2,
-    shadowColor: '#EA580C',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     marginBottom: 16,
   },
-  checkoutBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  checkoutBtnText: { color: Colors.white, fontSize: 15, fontWeight: '800' },
   fixedFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 32 : 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
     elevation: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -1150,7 +1253,7 @@ const styles = StyleSheet.create({
   fixedFooterPriceBox: { flex: 1 },
   fixedFooterPriceLabel: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.textMuted,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1158,33 +1261,33 @@ const styles = StyleSheet.create({
   fixedFooterPriceValue: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#EA580C',
+    color: Colors.primary,
   },
   fixedFooterBtn: {
-    backgroundColor: '#EA580C',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 40,
     paddingVertical: 14,
     borderRadius: 14,
     elevation: 4,
-    shadowColor: '#EA580C',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
   fixedFooterBtnText: {
-    color: '#FFF',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '900',
   },
   clearCartBtn: {
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: Colors.tagRed,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.redToastBg,
   },
-  clearCartBtnText: { color: '#EF4444', fontSize: 14, fontWeight: '700' },
+  clearCartBtnText: { color: Colors.red, fontSize: 14, fontWeight: '700' },
 
   emptyState: {
     flex: 1,
@@ -1211,9 +1314,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 30,
   },
-  exploreBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  exploreBtnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
 
-  bottomSpacer: { height: 60 },
+  bottomSpacer: { height: 100 },
 
   modalOverlay: {
     flex: 1,
@@ -1224,7 +1327,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '100%',
-    backgroundColor: '#FFFBF5',
+    backgroundColor: Colors.extraLightWarm,
     borderRadius: 24,
     padding: 24,
     elevation: 10,
@@ -1232,7 +1335,7 @@ const styles = StyleSheet.create({
   omIconBoxModal: {
     width: 40,
     height: 40,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ rotate: '-10deg' }],
@@ -1240,63 +1343,67 @@ const styles = StyleSheet.create({
     marginTop: -40,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#111827',
+    borderColor: Colors.textMain,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#111827',
+    color: Colors.textMain,
     textAlign: 'center',
     marginBottom: 6,
   },
   modalSub: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.textMuted,
     textAlign: 'center',
     marginBottom: 24,
   },
   modalOrderSummaryBox: { marginBottom: 0 },
   disclaimerBox: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: Colors.greenVeryLight,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: Colors.successBorder,
     borderRadius: 8,
     padding: 12,
     marginVertical: 20,
   },
   disclaimerText: {
     fontSize: 10,
-    color: '#065F46',
+    color: Colors.statusSuccessText,
     textAlign: 'center',
     lineHeight: 15,
   },
   modalActionBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: Colors.greenMedium,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 12,
     elevation: 2,
   },
-  modalActionBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  modalActionBtnText: { color: Colors.white, fontSize: 15, fontWeight: '800' },
   modalCancelBtn: {
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: Colors.border,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  modalCancelBtnText: { color: '#EA580C', fontSize: 14, fontWeight: '700' },
+  modalCancelBtnText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   // Delivery Address Modal
   modalContentAddr: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
     width: '100%',
   },
   modalHeaderOrange: {
-    backgroundColor: '#E87C21',
+    backgroundColor: Colors.primary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -1314,7 +1421,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalHeaderIcon: { fontSize: 16 },
-  modalTitleWhite: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+  modalTitleWhite: { fontSize: 18, fontWeight: '800', color: Colors.white },
   modalSubWhite: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
   modalCloseBtnWhite: {
     padding: 4,
@@ -1325,7 +1432,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCloseTxtWhite: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
+  modalCloseTxtWhite: { color: Colors.white, fontSize: 14, fontWeight: 'bold' },
 
   modalBodyScroll: { padding: 20 },
   savedAddressesHeaderRow: {
@@ -1337,84 +1444,92 @@ const styles = StyleSheet.create({
   savedAddressesTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#6B5E59',
+    color: Colors.textMuted,
     letterSpacing: 0.5,
   },
   addNewInlineBtn: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
-  addNewInlineBtnTxt: { color: '#F97316', fontSize: 12, fontWeight: '700' },
+  addNewInlineBtnTxt: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   noAddressBox: {
     padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.ultraLightGray,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderStyle: 'dashed',
   },
-  noAddressText: { color: '#9CA3AF', fontSize: 14, fontWeight: '600' },
+  noAddressText: { color: Colors.gray, fontSize: 14, fontWeight: '600' },
 
   addrSelectCard: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
   addrSelectCardActive: {
-    borderColor: '#16A34A',
+    borderColor: Colors.greenMedium,
     borderWidth: 2,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: Colors.greenLight,
   },
   addrSelectHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   addrSelectIconBox: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.ultraLightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addrSelectIconBoxActive: { backgroundColor: '#DCFCE7' },
+  addrSelectIconBoxActive: { backgroundColor: Colors.greenVeryLight },
   addrSelectIcon: { fontSize: 18 },
   addrSelectInfo: { flex: 1 },
   addrLabelChip: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     marginBottom: 4,
   },
-  addrLabelChipTxt: { fontSize: 10, color: '#4B5563', fontWeight: '700' },
-  addrSelectName: { fontSize: 14, fontWeight: '800', color: '#291811' },
+  addrLabelChipTxt: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '700',
+  },
+  addrSelectName: { fontSize: 14, fontWeight: '800', color: Colors.textMain },
   addrSelectPhone: {
     fontSize: 12,
-    color: '#6B5E59',
+    color: Colors.textMuted,
     marginTop: 2,
     marginBottom: 8,
   },
   addrSelectText: {
     fontSize: 13,
-    color: '#291811',
+    color: Colors.textMain,
     fontWeight: '500',
     marginBottom: 2,
   },
-  addrSelectSubText: { fontSize: 12, color: '#6B5E59', lineHeight: 18 },
+  addrSelectSubText: { fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
 
   radioCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: Colors.gray,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -1423,45 +1538,93 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#16A34A',
+    backgroundColor: Colors.greenMedium,
   },
 
   addAnotherBtnDashed: {
     borderWidth: 1,
-    borderColor: '#F97316',
+    borderColor: Colors.primary,
     borderStyle: 'dashed',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
-  addAnotherBtnDashedTxt: { color: '#F97316', fontSize: 13, fontWeight: '700' },
+  addAnotherBtnDashedTxt: {
+    color: Colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
 
   modalFooterBtns: {
     flexDirection: 'row',
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    backgroundColor: '#FFF',
+    borderTopColor: Colors.lightGray,
+    backgroundColor: Colors.white,
   },
   modalCancelOutlinedBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     alignItems: 'center',
   },
-  modalCancelOutlinedTxt: { fontSize: 14, fontWeight: '700', color: '#6B5E59' },
+  modalCancelOutlinedTxt: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textMuted,
+  },
   modalConfirmBtn: {
     flex: 2,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#16A34A',
+    backgroundColor: Colors.greenMedium,
     alignItems: 'center',
   },
-  modalConfirmBtnTxt: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  modalConfirmBtnTxt: { fontSize: 14, fontWeight: '800', color: Colors.white },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 16,
+    backgroundColor: Colors.white,
+    marginTop: 8,
+  },
+  pageBtn: {
+    backgroundColor: BRAND_PRIMARY,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  pageBtnDisabled: {
+    backgroundColor: Colors.disabled,
+  },
+  pageBtnText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  pageNumBox: {
+    backgroundColor: Colors.lightOrange,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: BRAND_PRIMARY,
+  },
+  pageNumText: {
+    color: BRAND_PRIMARY,
+    fontWeight: '800',
+    fontSize: 14,
+  },
 });

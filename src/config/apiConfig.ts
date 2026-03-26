@@ -19,6 +19,11 @@ export const ENDPOINTS = {
   addPujaToCart: '/citizen/add_puja_cart',
   getPujaCartInfo: '/citizen/get_puja_cart_info',
   managePujaCart: '/citizen/manage_puja_cart',
+  savePujaTag: '/citizen/save_puja_tag',
+  saveUserProfile: '/citizen/save_user_profile',
+  getUserDetails: '/citizen/get_user_details_by_user_id',
+  saveRelativeDetails: '/citizen/save_relative_details',
+  deleteRelativeDetails: '/citizen/delete_relative_details',
 };
 
 // Validation constants

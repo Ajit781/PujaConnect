@@ -6,11 +6,11 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Image,
   StatusBar,
   StyleSheet,
   Dimensions,
   Keyboard,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import { login } from '../../store/slices/authSlice';
 import SmsRetriever from 'react-native-sms-retriever';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
+import { Colors } from '../../constants/Colors';
 
 const { height } = Dimensions.get('window');
 const HEADER_HEIGHT = Math.max(height * 0.42, 300);
@@ -54,6 +55,48 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
+
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const headerHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
+  const logoSize = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setIsKeyboardVisible(true);
+      Animated.parallel([
+        Animated.timing(headerHeight, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(logoSize, {
+          toValue: 180,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
+      Animated.parallel([
+        Animated.timing(headerHeight, {
+          toValue: HEADER_HEIGHT,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(logoSize, {
+          toValue: 300,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [headerHeight, logoSize]);
 
   // Phone History state
   const [phoneHistory, setPhoneHistory] = useState<string[]>([]);
@@ -96,10 +139,16 @@ export default function LoginPage({ navigation: _navigation }: Props) {
           const tenDigits = cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
           setMobile(tenDigits);
           setMobileError('');
+          Keyboard.dismiss();
+          if (mobileInputRef.current) {
+            mobileInputRef.current.blur();
+          }
+          setCanShowKeyboard(false); // Prevent autofocus if number already filled
+        } else {
+          setCanShowKeyboard(true);
         }
       } catch (err) {
         console.log('--- SMS Hint Cancelled or Failed ---', err);
-      } finally {
         setCanShowKeyboard(true);
       }
     };
@@ -123,6 +172,17 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     } catch (e) {
       console.log('Error saving history:', e);
     }
+  };
+
+  const handleSelectHistory = (num: string) => {
+    setMobile(num);
+    setMobileError('');
+    setShowHistory(false);
+    Keyboard.dismiss();
+    if (mobileInputRef.current) {
+      mobileInputRef.current.blur();
+    }
+    setCanShowKeyboard(false);
   };
 
   const toggleLanguage = () =>
@@ -206,6 +266,12 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     }
   };
 
+  useEffect(() => {
+    if (mobile.length === 10) {
+      Keyboard.dismiss();
+    }
+  }, [mobile]);
+
   const handleVerify = async (code: string = otpValue) => {
     if (code.length < VALIDATION.OTP_LENGTH) return;
     setIsVerifying(true);
@@ -259,7 +325,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   return (
     <View style={styles.root}>
       <StatusBar
-        backgroundColor="#7F1D1D"
+        backgroundColor={Colors.splashBg}
         barStyle="light-content"
         translucent
       />
@@ -268,26 +334,33 @@ export default function LoginPage({ navigation: _navigation }: Props) {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.flex1}
         >
-          <View style={styles.header}>
+          {/* ── Animated Header ── */}
+          <Animated.View style={[styles.header, { height: headerHeight }]}>
             <View style={styles.headerTopRow}>
-              <View style={styles.flex1} />
               <TouchableOpacity
-                onPress={toggleLanguage}
                 style={styles.langPill}
+                onPress={toggleLanguage} // Restore original function
               >
                 <Text style={styles.langText}>
-                  {i18n.language.toUpperCase()}
+                  {i18n.language === 'en' ? 'বাংলা' : 'English'}
                 </Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.logoWrap}>
-              <Image source={appLogo} style={styles.logo} />
-              <Text style={styles.tagline}>
-                {t('auth.yourSpiritualGateway')}
-              </Text>
-            </View>
-          </View>
 
+            <View style={styles.logoWrap}>
+              <Animated.Image
+                source={appLogo}
+                style={[styles.logo, { width: logoSize }]}
+              />
+              {!isKeyboardVisible && (
+                <Text style={styles.tagline}>
+                  {t('auth.yourSpiritualGateway')}
+                </Text>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* ── Main Input Card ── */}
           <View style={styles.card}>
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -348,11 +421,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                           <TouchableOpacity
                             key={index}
                             style={styles.historyItem}
-                            onPress={() => {
-                              setMobile(item);
-                              setShowHistory(false);
-                              setMobileError('');
-                            }}
+                            onPress={() => handleSelectHistory(item)}
                           >
                             <Text style={styles.historyItemIcon}>📱</Text>
                             <Text style={styles.historyItemText}>{item}</Text>
@@ -433,7 +502,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#7F1D1D' },
+  root: { flex: 1, backgroundColor: Colors.splashBg },
   flex1: { flex: 1 },
   header: { height: HEADER_HEIGHT, paddingHorizontal: 24, paddingTop: 8 },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
@@ -446,7 +515,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
   },
   langText: {
-    color: '#FDF8F0',
+    color: Colors.background,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
@@ -459,13 +528,13 @@ const styles = StyleSheet.create({
   },
   logo: { width: 300, height: 90, resizeMode: 'contain', marginBottom: 10 },
   tagline: {
-    color: 'rgba(253,248,240,0.65)',
+    color: 'rgba(253,248,240,0.65)', // This is Colors.background with 65% alpha
     fontSize: 13,
     letterSpacing: 0.6,
   },
   card: {
     flex: 1,
-    backgroundColor: '#FDF8F0',
+    backgroundColor: Colors.background,
     borderTopLeftRadius: 36,
     borderTopRightRadius: 36,
     paddingHorizontal: 24,
@@ -475,14 +544,14 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 16 },
   titleSection: { alignItems: 'center', marginBottom: 24 },
   badge: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 14,
     paddingVertical: 5,
     borderRadius: 20,
     marginBottom: 12,
   },
   badgeText: {
-    color: '#F97316',
+    color: Colors.primary,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
@@ -490,36 +559,36 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#291811',
+    color: Colors.textMain,
     marginBottom: 6,
     textAlign: 'center',
   },
   subtitle: {
-    color: '#6B5E59',
+    color: Colors.textMuted,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
   },
-  subtitleBold: { fontWeight: '700', color: '#291811' },
+  subtitleBold: { fontWeight: '700', color: Colors.textMain },
   inputSection: { marginBottom: 24 },
   countryCode: {
-    color: '#291811',
+    color: Colors.textMain,
     fontWeight: '700',
     fontSize: 15,
     borderRightWidth: 1,
-    borderRightColor: '#E5DFD7',
+    borderRightColor: Colors.divider,
     paddingRight: 12,
   },
-  hint: { color: '#9CA3AF', fontSize: 12, marginTop: 12 },
+  hint: { color: Colors.textMuted, fontSize: 12, marginTop: 12 },
   historyDropdown: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.border,
     overflow: 'hidden',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
@@ -530,26 +599,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.tagRed,
   },
   historyHeaderText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#F97316',
+    color: Colors.primary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  closeHistory: { fontSize: 14, color: '#9CA3AF', padding: 4 },
+  closeHistory: { fontSize: 14, color: Colors.textMuted, padding: 4 },
   historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FDF8F0',
+    borderTopColor: Colors.background,
   },
   historyItemIcon: { fontSize: 14, marginRight: 10, opacity: 0.7 },
-  historyItemText: { fontSize: 15, color: '#291811', fontWeight: '600' },
+  historyItemText: { fontSize: 15, color: Colors.textMain, fontWeight: '600' },
   otpSection: { marginBottom: 8 },
   otpActionsRow: {
     flexDirection: 'row',
@@ -559,16 +628,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   changeMobileBtn: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
-  changeMobileText: { color: '#F97316', fontSize: 12, fontWeight: '600' },
-  resendText: { color: '#F97316', fontSize: 13, fontWeight: '600' },
-  resendDisabled: { color: '#9CA3AF' },
+  changeMobileText: { color: Colors.primary, fontSize: 12, fontWeight: '600' },
+  resendText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+  resendDisabled: { color: Colors.textMuted },
   secureText: {
-    color: '#9CA3AF',
+    color: Colors.textMuted,
     fontSize: 12,
     textAlign: 'center',
     marginTop: 16,

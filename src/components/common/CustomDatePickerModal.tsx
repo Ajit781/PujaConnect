@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { Colors } from '../../constants/Colors';
+
 interface Props {
   visible: boolean;
   mode: 'date' | 'datetime' | 'time';
@@ -16,10 +18,6 @@ interface Props {
   onSelect: (date: Date, time?: string) => void;
   onClose: () => void;
 }
-
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
 
 const TIME_SLOTS = [
   '08:00 AM',
@@ -50,7 +48,25 @@ const MONTHS = [
   'Nov',
   'Dec',
 ];
+const MONTHS_BN = [
+  'জানুয়ারি',
+  'ফেব্রুয়ারি',
+  'মার্চ',
+  'এপ্রিল',
+  'মে',
+  'জুন',
+  'জুলাই',
+  'আগস্ট',
+  'সেপ্টেম্বর',
+  'অক্টোবর',
+  'নভেম্বের',
+  'ডিসেম্বর',
+];
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const YEARS = Array.from(
+  { length: 131 },
+  (_, i) => new Date().getFullYear() + 10 - i,
+);
 
 export default function CustomDatePickerModal({
   visible,
@@ -72,6 +88,9 @@ export default function CustomDatePickerModal({
     mode === 'datetime' || mode === 'time' ? TIME_SLOTS[0] : null,
   );
   const [showTimePicker, setShowTimePicker] = useState(mode === 'time');
+  const [viewMode, setViewMode] = useState<'calendar' | 'month' | 'year'>(
+    'calendar',
+  );
 
   useEffect(() => {
     if (visible && initialDate) {
@@ -117,6 +136,20 @@ export default function CustomDatePickerModal({
     }
   };
 
+  const currentMonthName = isBn
+    ? MONTHS_BN[currentMonthIdx]
+    : MONTHS[currentMonthIdx];
+
+  const handleYearSelect = (year: number) => {
+    setCurrentMonth(new Date(year, currentMonthIdx, 1));
+    setViewMode('calendar');
+  };
+
+  const handleMonthSelect = (idx: number) => {
+    setCurrentMonth(new Date(currentYear, idx, 1));
+    setViewMode('calendar');
+  };
+
   const renderCalendar = () => {
     const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -127,9 +160,14 @@ export default function CustomDatePickerModal({
           <TouchableOpacity onPress={handlePrevMonth} style={styles.navBtn}>
             <Text style={styles.navText}>&lt;</Text>
           </TouchableOpacity>
-          <Text style={styles.monthText}>
-            {MONTHS[currentMonthIdx]} {currentYear}
-          </Text>
+          <View style={styles.monthSelectorRow}>
+            <TouchableOpacity onPress={() => setViewMode('month')}>
+              <Text style={styles.monthText}>{currentMonthName}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setViewMode('year')}>
+              <Text style={styles.monthText}> {currentYear}</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity onPress={handleNextMonth} style={styles.navBtn}>
             <Text style={styles.navText}>&gt;</Text>
           </TouchableOpacity>
@@ -176,6 +214,65 @@ export default function CustomDatePickerModal({
     );
   };
 
+  const renderMonthPicker = () => {
+    const list = isBn ? MONTHS_BN : MONTHS;
+    return (
+      <View style={styles.pickerGrid}>
+        {list.map((m, i) => (
+          <TouchableOpacity
+            key={m}
+            style={[
+              styles.pickerCell,
+              i === currentMonthIdx && styles.pickerCellActive,
+            ]}
+            onPress={() => handleMonthSelect(i)}
+          >
+            <Text
+              style={[
+                styles.pickerCellText,
+                i === currentMonthIdx && styles.pickerCellTextActive,
+              ]}
+            >
+              {m}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
+  const renderYearPicker = () => {
+    return (
+      <ScrollView
+        style={styles.yearScroll}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
+        <View style={styles.pickerGrid}>
+          {YEARS.map(y => (
+            <TouchableOpacity
+              key={y}
+              style={[
+                styles.pickerCell,
+                y === currentYear && styles.pickerCellActive,
+              ]}
+              onPress={() => handleYearSelect(y)}
+            >
+              <Text
+                style={[
+                  styles.pickerCellText,
+                  y === currentYear && styles.pickerCellTextActive,
+                ]}
+              >
+                {y}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  };
+
   const renderTimePicker = () => {
     return (
       <View>
@@ -191,11 +288,15 @@ export default function CustomDatePickerModal({
             </TouchableOpacity>
           )}
           <Text
-            style={[styles.monthText, mode === 'time' && { marginLeft: 16 }]}
+            style={[styles.monthText, mode === 'time' && styles.monthTextTime]}
           >
             {isBn ? 'সময়' : 'Time'}
           </Text>
-          <View style={{ width: mode === 'time' ? 0 : 60 }} />
+          <View
+            style={
+              mode === 'time' ? styles.timeSpacerHidden : styles.timeSpacer
+            }
+          />
         </View>
 
         <ScrollView style={styles.timeScroll} nestedScrollEnabled>
@@ -260,8 +361,10 @@ export default function CustomDatePickerModal({
           </View>
 
           <View style={styles.body}>
-            {mode === 'date'
-              ? renderCalendar()
+            {viewMode === 'month'
+              ? renderMonthPicker()
+              : viewMode === 'year'
+              ? renderYearPicker()
               : mode === 'time' || showTimePicker
               ? renderTimePicker()
               : renderCalendar()}
@@ -281,7 +384,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     overflow: 'hidden',
   },
@@ -291,17 +394,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#FFF7ED',
+    borderBottomColor: Colors.lightGray,
+    backgroundColor: Colors.lightOrange,
   },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textMain },
   closeBtn: {
     width: 32,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeBtnText: { fontSize: 18, color: BRAND_MUTED },
+  closeBtnText: { fontSize: 18, color: Colors.textMuted },
   body: { padding: 16 },
 
   headerRow: {
@@ -310,16 +413,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  navBtn: { padding: 8, backgroundColor: '#F3F4F6', borderRadius: 8 },
-  navText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
-  monthText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
+  navBtn: {
+    padding: 8,
+    backgroundColor: Colors.ultraLightGray,
+    borderRadius: 8,
+  },
+  navText: { fontSize: 16, fontWeight: 'bold', color: Colors.textMain },
+  monthSelectorRow: { flexDirection: 'row', alignItems: 'center' },
+  monthText: { fontSize: 16, fontWeight: 'bold', color: Colors.textMain },
 
   daysHeader: { flexDirection: 'row', marginBottom: 8 },
   dayHeadText: {
     flex: 1,
     textAlign: 'center',
     fontSize: 12,
-    color: BRAND_MUTED,
+    color: Colors.textMuted,
     fontWeight: 'bold',
   },
 
@@ -331,9 +439,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 2,
   },
-  cellText: { fontSize: 14, color: BRAND_TEXT },
-  cellSelected: { backgroundColor: BRAND_PRIMARY, borderRadius: 20 },
-  cellTextSelected: { color: '#fff', fontWeight: 'bold' },
+  cellText: { fontSize: 14, color: Colors.textMain },
+  cellSelected: { backgroundColor: Colors.primary, borderRadius: 20 },
+  cellTextSelected: { color: Colors.white, fontWeight: 'bold' },
 
   titleRow: {
     flexDirection: 'row',
@@ -342,7 +450,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 8 },
-  backBtnText: { color: BRAND_PRIMARY, fontWeight: 'bold' },
+  backBtnText: { color: Colors.primary, fontWeight: 'bold' },
 
   timeScroll: { maxHeight: 200, marginBottom: 16 },
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -350,23 +458,49 @@ const styles = StyleSheet.create({
     width: '31%',
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 8,
     alignItems: 'center',
   },
   timeBoxSelected: {
-    backgroundColor: BRAND_PRIMARY,
-    borderColor: BRAND_PRIMARY,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  timeText: { fontSize: 13, color: BRAND_TEXT },
-  timeTextSelected: { color: '#fff', fontWeight: 'bold' },
+  timeText: { fontSize: 13, color: Colors.textMain },
+  timeTextSelected: { color: Colors.white, fontWeight: 'bold' },
 
   confirmBtn: {
-    backgroundColor: BRAND_PRIMARY,
+    backgroundColor: Colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  confirmBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  confirmBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
   btnDisabled: { opacity: 0.5 },
+
+  pickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  pickerCell: {
+    width: '31%',
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: Colors.ultraLightGray || '#F5F5F5',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pickerCellActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  pickerCellText: { fontSize: 13, color: Colors.textMain, fontWeight: '600' },
+  pickerCellTextActive: { color: Colors.white, fontWeight: '800' },
+  yearScroll: { maxHeight: 300 },
+  monthTextTime: { marginLeft: 16 },
+  timeSpacer: { width: 60 },
+  timeSpacerHidden: { width: 0 },
 });

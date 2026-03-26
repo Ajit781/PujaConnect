@@ -6,6 +6,7 @@ import {
   TouchableOpacityProps,
   View,
 } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 interface ButtonProps extends TouchableOpacityProps {
   label: string;
@@ -55,7 +56,7 @@ export const Button = ({
     >
       {isLoading ? (
         <ActivityIndicator
-          color={variant === 'outline' ? '#F97316' : '#FFFFFF'}
+          color={variant === 'outline' ? Colors.primary : Colors.white}
         />
       ) : (
         <View className="flex-row items-center justify-center">

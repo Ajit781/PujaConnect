@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 export interface AlertButton {
   text: string;
@@ -101,12 +102,12 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     paddingTop: 24,
     overflow: 'hidden',
     // Subtle shadow
-    shadowColor: '#291811',
+    shadowColor: Colors.textMain,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#291811',
+    color: Colors.textMain,
     textAlign: 'center',
     paddingHorizontal: 20,
     marginBottom: 8,
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#6B5E59',
+    color: Colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
     lineHeight: 20,
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E5DFD7',
+    backgroundColor: Colors.divider,
     marginHorizontal: 0,
   },
   buttonRow: {
@@ -153,12 +154,12 @@ const styles = StyleSheet.create({
   },
   buttonLeft: {
     borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: '#E5DFD7',
+    borderLeftColor: Colors.divider,
   },
   buttonFullCol: {
     flex: undefined,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5DFD7',
+    borderTopColor: Colors.divider,
   },
   buttonCancel: {
     // No special background — just muted text
@@ -169,15 +170,15 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F97316', // brand primary
+    color: Colors.primary, // brand primary
     letterSpacing: 0.1,
   },
   buttonTextCancel: {
-    color: '#6B5E59', // muted
+    color: Colors.textMuted, // muted
     fontWeight: '400',
   },
   buttonTextDestructive: {
-    color: '#DC2626', // red
+    color: Colors.dangerRed, // red
     fontWeight: '600',
   },
 });

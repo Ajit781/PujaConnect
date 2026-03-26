@@ -21,8 +21,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useAlert } from '../../context/AlertContext';
-import { toggleFavorite } from '../../store/slices/wishlistSlice';
-import { hideLoader, showLoader } from '../../store/slices/loaderSlice';
+import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { setCartItems } from '../../store/slices/cartSlice';
+import { setFavorites } from '../../store/slices/wishlistSlice';
 import {
   getSummaryCount,
   getAllPujaTags,
@@ -31,8 +32,14 @@ import {
   SummaryCount,
   PujaTag,
 } from '../../service/api/dashboardService';
+import {
+  useGetPujaCartInfoQuery,
+  useGetTagPujasQuery,
+  useSavePujaTagMutation,
+} from '../../store/api/pujaApi';
 import appLogo from '../../assets/images/Logo.png';
 import NoDataFound from '../../components/common/NoDataFound';
+import { Colors } from '../../constants/Colors';
 
 const { width } = Dimensions.get('window');
 
@@ -105,10 +112,10 @@ export default function DashboardScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const { showAlert } = useAlert();
   const user = useSelector((state: RootState) => state.auth.user);
-  const favorites = useSelector(
-    (state: RootState) => state.wishlist?.favorites || [],
+  const { favorites, hasUnseenItems: hasUnseenWishlistItems } = useSelector(
+    (state: RootState) => state.wishlist,
   );
-  const { items: cartItems, hasUnseenItems } = useSelector(
+  const { items: cartItems, hasUnseenItems: hasUnseenCartItems } = useSelector(
     (state: RootState) => state.cart,
   );
   const dispatch = useDispatch();
@@ -124,6 +131,79 @@ export default function DashboardScreen({ navigation }: any) {
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
   const flatListRef = React.useRef<FlatList>(null);
+
+  // Sync cart from server
+  const { data: serverCartItems } = useGetPujaCartInfoQuery(
+    {
+      userId: user?.user_id || 0,
+      pageNo: 1,
+      limit: 1000,
+    },
+    { skip: !user?.user_id },
+  );
+
+  React.useEffect(() => {
+    if (serverCartItems) {
+      const mappedItems = serverCartItems.map(item => ({
+        cartItemId: item.cart_item_id.toString(),
+        pujaId: item.puja_id.toString(),
+        titleEn: item.puja_name,
+        titleBn: item.puja_name,
+        exactPrice: item.pkg_price,
+        exactPriceBn: `₹${item.pkg_price.toLocaleString('en-IN')}`,
+        selectedDate: item.preferred_puja_date,
+        selectedTime: item.preferred_puja_time,
+        imagePlaceholder: item.icon || '🛕',
+        color: Colors.white,
+        cart_id: item.cart_id,
+        cart_item_id: item.cart_item_id,
+      }));
+      dispatch(setCartItems(mappedItems));
+    }
+  }, [serverCartItems, dispatch]);
+
+  // Sync favorites from server
+  const WISHLIST_TAG_ID = 3;
+  const { data: wishlistPujas } = useGetTagPujasQuery(
+    {
+      userId: user?.user_id || 0,
+      tagId: WISHLIST_TAG_ID,
+      pageNo: 1,
+      limit: 100, // Fetch first 100 to sync local heart icons
+    },
+    { skip: !user?.user_id, skipGlobalLoader: true } as any,
+  );
+
+  const [savePujaTag] = useSavePujaTagMutation();
+
+  React.useEffect(() => {
+    if (wishlistPujas) {
+      const favIds = wishlistPujas.map(p =>
+        (p.puja_id || p.puja_type_id || '').toString(),
+      );
+      dispatch(setFavorites(favIds));
+    }
+  }, [wishlistPujas, dispatch]);
+
+  const handleToggleFavoriteServer = async (pujaId: string) => {
+    if (!user?.user_id) return;
+
+    const isCurrentlyFav = favorites.includes(pujaId);
+    // Optimistic toggle is now handled in pujaApi.ts via onQueryStarted
+
+    try {
+      await savePujaTag({
+        userId: user.user_id,
+        pujaId: parseInt(pujaId, 10),
+        tagId: WISHLIST_TAG_ID,
+        action: isCurrentlyFav ? 5 : 1,
+        skipGlobalLoader: true,
+      }).unwrap();
+    } catch (error) {
+      console.error('Wishlist sync failed:', error);
+      // Rollback is handled in pujaApi.ts onQueryStarted catch block
+    }
+  };
 
   // Build a large repeated array so we can scroll forward forever with no snap-back
   const REPEAT_COUNT = 100;
@@ -290,7 +370,7 @@ export default function DashboardScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
       {/* ── Top Header ── */}
       <View style={styles.header}>
         <SafeAreaView edges={['top']}>
@@ -314,16 +394,21 @@ export default function DashboardScreen({ navigation }: any) {
               {/* Header icons */}
               <TouchableOpacity
                 onPress={() => navigation.navigate('Wishlist')}
-                style={styles.iconBtn}
+                style={styles.cartBtn}
               >
                 <Text style={styles.iconBtnText}>❤️</Text>
+                {hasUnseenWishlistItems && favorites.length > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{favorites.length}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Cart')}
                 style={styles.cartBtn}
               >
                 <Text style={styles.iconBtnText}>🛒</Text>
-                {hasUnseenItems && cartItems.length > 0 && (
+                {hasUnseenCartItems && cartItems.length > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
                   </View>
@@ -567,7 +652,9 @@ export default function DashboardScreen({ navigation }: any) {
                     )}
                     <TouchableOpacity
                       style={styles.heartBtn}
-                      onPress={() => dispatch(toggleFavorite(pId.toString()))}
+                      onPress={() =>
+                        pId && handleToggleFavoriteServer(pId.toString())
+                      }
                     >
                       <Text style={styles.heartIconText}>
                         {favorites.includes(pId.toString()) ? '❤️' : '🤍'}
@@ -815,19 +902,19 @@ export default function DashboardScreen({ navigation }: any) {
   );
 }
 
-const BRAND_PRIMARY = '#F97316';
-const BRAND_SECONDARY = '#7F1D1D';
-const BRAND_BG = '#FDF8F0';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_SECONDARY = Colors.splashRed;
+const BRAND_BG = Colors.background;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BRAND_BG },
 
   // Header
   header: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: Colors.white,
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
@@ -850,7 +937,7 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   langPill: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -866,32 +953,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  avatarText: { color: Colors.white, fontSize: 15, fontWeight: '800' },
 
   // Navigation chips
-  navRow: { marginTop: 16, backgroundColor: '#FFFFFF' },
+  navRow: { marginTop: 16, backgroundColor: Colors.white },
   navChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.lightGray,
     marginRight: 8,
   },
   navChipActive: { backgroundColor: BRAND_PRIMARY },
   navChipIcon: { fontSize: 14, marginRight: 5 },
   navChipLabel: { color: BRAND_MUTED, fontSize: 13, fontWeight: '500' },
-  navChipLabelActive: { color: '#FFF', fontWeight: '700' },
+  navChipLabelActive: { color: Colors.white, fontWeight: '700' },
   comingSoonBadge: {
-    backgroundColor: '#EF4444',
+    backgroundColor: Colors.red,
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 6,
     marginLeft: 6,
   },
   comingSoonText: {
-    color: '#FFF',
+    color: Colors.white,
     fontSize: 8,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -912,7 +999,7 @@ const styles = StyleSheet.create({
   },
   bannerContent: { flex: 1 },
   bannerTitle: {
-    color: '#FDF8F0',
+    color: Colors.background,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 6,
@@ -924,7 +1011,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bannerBtn: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -944,7 +1031,7 @@ const styles = StyleSheet.create({
   },
   dot: { height: 6, borderRadius: 3, marginHorizontal: 4 },
   dotActive: { width: 18, backgroundColor: BRAND_PRIMARY },
-  dotInactive: { width: 6, backgroundColor: '#E5DFD7' },
+  dotInactive: { width: 6, backgroundColor: Colors.cardBorder },
 
   // Stats
   horizontalScroll: {
@@ -956,7 +1043,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   statCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 20,
@@ -964,7 +1051,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
     width: 150, // Fixed width for horizontal items
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
@@ -997,18 +1084,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5DFD7',
+    borderColor: Colors.cardBorder,
     marginRight: 6,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
   filterChipActive: {
     backgroundColor: BRAND_PRIMARY,
     borderColor: BRAND_PRIMARY,
   },
   filterChipText: { fontSize: 12, fontWeight: '600', color: BRAND_MUTED },
-  filterChipTextActive: { color: '#FFF' },
+  filterChipTextActive: { color: Colors.white },
   countBadge: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1017,12 +1104,12 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.border,
   },
   searchIcon: { fontSize: 16, marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14, color: BRAND_TEXT },
@@ -1036,10 +1123,10 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     width: '48%',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
@@ -1063,12 +1150,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#F59E0B',
+    backgroundColor: Colors.gold,
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  popularBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  popularBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
   cardBody: { padding: 12 },
   cardTitle: {
     fontSize: 15,
@@ -1090,7 +1177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
     paddingTop: 8,
   },
   priceLabel: {
@@ -1101,16 +1188,16 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   priceValue: { fontSize: 13, fontWeight: '800', color: BRAND_TEXT },
-  ratingValue: { fontSize: 12, fontWeight: '800', color: '#F59E0B' },
+  ratingValue: { fontSize: 12, fontWeight: '800', color: Colors.gold },
   bookBtn: {
     backgroundColor: BRAND_PRIMARY,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
-  bookBtnDisabled: { backgroundColor: '#E5E7EB' },
-  bookBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  bookBtnTextDisabled: { color: '#9CA3AF' },
+  bookBtnDisabled: { backgroundColor: Colors.disabled },
+  bookBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  bookBtnTextDisabled: { color: Colors.gray },
 
   emptyState: {
     flex: 1,
@@ -1131,10 +1218,10 @@ const styles = StyleSheet.create({
     top: 60, // Place it right below the header
     right: 16,
     width: 200,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 20,
     paddingVertical: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
@@ -1144,11 +1231,15 @@ const styles = StyleSheet.create({
   popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
   popoverUserPhone: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.gray,
     marginTop: 2,
     fontWeight: '500',
   },
-  popoverDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
+  popoverDivider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 4,
+  },
 
   popoverItem: {
     flexDirection: 'row',
@@ -1159,14 +1250,14 @@ const styles = StyleSheet.create({
   popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
   popoverItemText: {
     fontSize: 14,
-    color: '#4B5563',
+    color: Colors.textMuted,
     flex: 1,
     fontWeight: '500',
   },
-  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.red },
 
   popoverItemIconRed: { fontSize: 16, marginRight: 12, opacity: 0.8 },
-  popoverItemTextRed: { fontSize: 14, color: '#EF4444', fontWeight: '500' },
+  popoverItemTextRed: { fontSize: 14, color: Colors.red, fontWeight: '500' },
 
   headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
   navRowContent: { paddingHorizontal: 8, paddingBottom: 12 },
@@ -1185,7 +1276,7 @@ const styles = StyleSheet.create({
   featuredImgText: { fontSize: 44 },
   ratingText: {
     fontSize: 11,
-    color: '#F59E0B',
+    color: Colors.gold,
     fontWeight: '700',
     marginLeft: 6,
   },
@@ -1206,14 +1297,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -4,
-    backgroundColor: '#EF4444',
+    backgroundColor: Colors.red,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cartBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
 
   sectionLoaderBox: {
     padding: 30,
@@ -1244,9 +1335,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   showMoreCardInner: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 2,
-    borderColor: '#FEE2E2',
+    borderColor: Colors.redLight,
     borderStyle: 'dashed',
     borderRadius: 16,
     flex: 1,
@@ -1258,7 +1349,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: Colors.tagRed,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -1283,12 +1374,12 @@ const styles = StyleSheet.create({
   filterDropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FDE1D3',
+    borderColor: Colors.border,
     gap: 8,
   },
   filterDropdownText: {

@@ -17,9 +17,11 @@ import { RootState } from '../../store';
 import CustomTimePickerModal from '../common/CustomTimePickerModal';
 
 const { width } = Dimensions.get('window');
-const BRAND_PRIMARY = '#F97316';
-const BRAND_TEXT = '#291811';
-const BRAND_MUTED = '#6B5E59';
+import { Colors } from '../../constants/Colors';
+
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
 
 interface BookingModalProps {
   visible: boolean;
@@ -160,7 +162,7 @@ export default function BookingModal({
 
   const pImage =
     puja.puja_type_id || puja.puja_id ? '🛕' : puja.imagePlaceholder;
-  const pColor = puja.puja_type_id || puja.puja_id ? '#FEE2E2' : puja.color;
+  const pColor = puja.puja_type_id || puja.puja_id ? Colors.tagRed : puja.color;
 
   const handleViewCart = () => {
     clearState();
@@ -657,14 +659,14 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: width - 40,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     overflow: 'hidden',
     maxHeight: '90%',
   },
   contentWrap: { flexShrink: 1 },
   headerBox: {
-    backgroundColor: '#FF9800',
+    backgroundColor: Colors.primary, // Using primary for orange
     paddingHorizontal: 24,
     paddingVertical: 20,
     flexDirection: 'row',
@@ -673,7 +675,7 @@ const styles = StyleSheet.create({
   },
   headerTextCol: { flex: 1, paddingRight: 16 },
   headerTitle: {
-    color: '#FFF',
+    color: Colors.white,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 4,
@@ -687,7 +689,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  closeBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
 
   bodyScroll: { padding: 24, flexShrink: 1 },
 
@@ -703,28 +705,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
   },
   inputBoxActive: { borderColor: BRAND_PRIMARY, borderWidth: 1.5 },
-  inputBoxDisabled: { backgroundColor: '#F9FAFB', opacity: 0.7 },
+  inputBoxDisabled: { backgroundColor: Colors.ultraLightGray, opacity: 0.7 },
   inputText: { fontSize: 14, color: BRAND_TEXT, fontWeight: '600' },
-  inputPlaceholder: { color: '#9CA3AF', fontWeight: '400' },
+  inputPlaceholder: { color: Colors.textMuted, fontWeight: '400' },
   dropdownIcon: { fontSize: 12, color: BRAND_MUTED },
 
   dropdownMenu: {
     marginTop: -16,
     marginBottom: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     elevation: 3,
@@ -761,18 +763,18 @@ const styles = StyleSheet.create({
   },
   calDayActive: { backgroundColor: BRAND_PRIMARY, borderRadius: 20 },
   calDayText: { fontSize: 13, color: BRAND_TEXT },
-  calDayTextActive: { color: '#FFF', fontWeight: 'bold' },
-  calDayPast: { color: '#D1D5DB' },
+  calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
+  calDayPast: { color: Colors.textMuted },
 
   dropdownMenuVertical: {
     marginTop: -16,
     marginBottom: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     borderRadius: 12,
     height: 200,
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     elevation: 3,
@@ -784,16 +786,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.lightGray,
   },
   timeSlotText: { fontSize: 14, color: BRAND_TEXT },
   timeSlotTextActive: { color: BRAND_PRIMARY, fontWeight: '700' },
   checkIcon: { color: BRAND_PRIMARY, fontWeight: '800' },
 
   summaryBox: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: Colors.greenLight,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: Colors.greenVeryLight,
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
@@ -801,51 +803,51 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#166534',
+    color: Colors.green,
     marginBottom: 8,
   },
-  summaryText: { fontSize: 13, color: '#15803D', marginBottom: 4 },
+  summaryText: { fontSize: 13, color: Colors.green, marginBottom: 4 },
 
   actionRow: {
     flexDirection: 'row',
     padding: 24,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
   },
   actionRowRev: {
     flexDirection: 'row-reverse',
     padding: 24,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
   },
   actionCol: { padding: 24 },
   flex1: { flex: 1 },
 
   btnPrimary: {
-    backgroundColor: '#FF6D00',
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnPrimaryText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  btnPrimaryText: { color: Colors.white, fontSize: 14, fontWeight: '800' },
   btnSecondary: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FF6D00',
+    borderColor: Colors.primary,
   },
-  btnSecondaryText: { color: '#FF6D00', fontSize: 14, fontWeight: '800' },
+  btnSecondaryText: { color: Colors.primary, fontSize: 14, fontWeight: '800' },
   btnSecondaryOuter: { marginTop: 12 },
-  btnDisabled: { backgroundColor: '#FDBA74', opacity: 0.8 },
+  btnDisabled: { backgroundColor: Colors.border, opacity: 0.8 },
 
   pujaDetailsCard: {
-    backgroundColor: '#FFFBF2',
+    backgroundColor: Colors.warningBackground,
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
@@ -885,29 +887,29 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: Colors.border,
     marginBottom: 24,
     alignItems: 'center',
   },
   totalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
-  totalValue: { fontSize: 20, fontWeight: '900', color: '#FF6D00' },
+  totalValue: { fontSize: 20, fontWeight: '900', color: Colors.primary },
 
   secureBox: {
     flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: Colors.blueLight,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: Colors.blueBorder,
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
   },
   secureBoxIcon: { fontSize: 18, marginRight: 12 },
-  secureBoxText: { flex: 1, fontSize: 11, color: '#1E40AF', lineHeight: 16 },
+  secureBoxText: { flex: 1, fontSize: 11, color: Colors.blue, lineHeight: 16 },
 
   successHeader: {
     padding: 32,
     alignItems: 'center',
-    backgroundColor: '#FFFAF0',
+    backgroundColor: Colors.warningBackground,
   },
   successIconRow: {
     flexDirection: 'row',
@@ -924,9 +926,9 @@ const styles = StyleSheet.create({
     marginRight: -10,
     zIndex: 2,
     borderWidth: 3,
-    borderColor: '#FFF',
+    borderColor: Colors.white,
   },
-  omIconText: { color: '#FFF', fontSize: 24, fontWeight: '800' },
+  omIconText: { color: Colors.white, fontSize: 24, fontWeight: '800' },
   checkIconBox: {
     width: 60,
     height: 60,
@@ -935,13 +937,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 30,
     borderWidth: 4,
-    borderColor: '#FFF',
+    borderColor: Colors.white,
   },
-  checkIconText: { color: '#FF6D00', fontSize: 30, fontWeight: '800' },
+  checkIconText: { color: Colors.primary, fontSize: 30, fontWeight: '800' },
   successTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#FF6D00',
+    color: Colors.primary,
     marginBottom: 8,
   },
   successSub: { fontSize: 13, color: BRAND_MUTED, textAlign: 'center' },
@@ -949,11 +951,11 @@ const styles = StyleSheet.create({
   successCard: {
     margin: 24,
     padding: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FFEDD5',
-    shadowColor: '#000',
+    borderColor: Colors.lightOrange,
+    shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     elevation: 3,
@@ -978,12 +980,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 2,
   },
-  scDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 16 },
+  scDivider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 16,
+  },
   scTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   scTotalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_MUTED },
-  scTotalValue: { fontSize: 18, fontWeight: '800', color: '#EA580C' },
+  scTotalValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
 });

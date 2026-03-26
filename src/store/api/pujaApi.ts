@@ -19,6 +19,7 @@ import {
 } from '../../service/api/apiErrorHandler';
 
 import { showLoader, hideLoader } from '../slices/loaderSlice';
+import { toggleFavorite } from '../slices/wishlistSlice';
 import { logout } from '../slices/authSlice';
 
 const rawBaseQuery = fetchBaseQuery({
@@ -36,7 +37,14 @@ const rawBaseQuery = fetchBaseQuery({
 });
 
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
-  const skipGlobal = extraOptions?.skipGlobalLoader;
+  const url = typeof args === 'string' ? args : args?.url;
+
+  // Explicitly skip global loader for wishlist-related operations (background processing)
+  const skipGlobal =
+    extraOptions?.skipGlobalLoader ||
+    args?.skipGlobalLoader ||
+    url?.includes('/citizen/get_tag_pujas') ||
+    url?.includes('/citizen/save_puja_tag');
 
   // Start global loader if not skipped
   if (!skipGlobal) {
@@ -49,7 +57,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
   if (result.error) {
     const statusStr = result.error.status;
     const httpStatus = typeof statusStr === 'number' ? statusStr : undefined;
-    const url = typeof args === 'string' ? args : args?.url;
+    const errorUrl = typeof args === 'string' ? args : args?.url;
 
     if (httpStatus === 401) {
       if (token) {
@@ -63,7 +71,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
       }
     } else {
       // Other HTTP errors (500, etc)
-      handleApiHttpError(httpStatus, url);
+      handleApiHttpError(httpStatus, errorUrl);
     }
   } else if (result.data) {
     const resData = result.data as any;
@@ -84,7 +92,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const pujaApi = createApi({
   reducerPath: 'pujaApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Pujas', 'Tags', 'Cart'],
+  tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails'],
   endpoints: builder => ({
     getPujaTags: builder.query<PujaTag[], void>({
       query: () => ({
@@ -323,6 +331,112 @@ export const pujaApi = createApi({
       },
       invalidatesTags: ['Cart'],
     }),
+    savePujaTag: builder.mutation<
+      { status: number; message: string; data: any },
+      {
+        userId: number;
+        pujaId: number;
+        tagId: number;
+        action: number;
+        skipGlobalLoader?: boolean;
+      }
+    >({
+      query: ({ userId, pujaId, tagId, action, skipGlobalLoader }) => ({
+        url: ENDPOINTS.savePujaTag,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            ctzn_id: userId,
+            puja_id: pujaId,
+            puja_tag_id: tagId,
+            action,
+          }),
+        },
+        skipGlobalLoader, // Passed to baseQuery
+      }),
+      invalidatesTags: ['Pujas'],
+      async onQueryStarted({ pujaId }, { dispatch, queryFulfilled }) {
+        // Optimistically update the favorites slice (local state for heart icons)
+        // action 1 = save, 5 = remove (as per user correction)
+        dispatch(toggleFavorite(pujaId.toString()));
+
+        try {
+          await queryFulfilled;
+        } catch {
+          // Revert if API fails
+          dispatch(toggleFavorite(pujaId.toString()));
+        }
+      },
+    }),
+    getUserDetails: builder.query<any, string | number>({
+      query: userId => {
+        const payload = {
+          enc_data: JSON.stringify({ user_id: userId.toString() }),
+        };
+        return {
+          url: ENDPOINTS.getUserDetails,
+          method: 'POST',
+          body: payload,
+        };
+      },
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return data;
+        }
+        return null;
+      },
+      providesTags: ['UserDetails'],
+    }),
+    saveRelativeDetails: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string }
+    >({
+      query: ({ data }) => ({
+        url: ENDPOINTS.saveRelativeDetails,
+        method: 'POST',
+        body: data,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      invalidatesTags: ['UserDetails'],
+    }),
+    deleteRelativeDetails: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string }
+    >({
+      query: ({ data }) => ({
+        url: ENDPOINTS.deleteRelativeDetails,
+        method: 'POST',
+        body: data,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      invalidatesTags: ['UserDetails'],
+    }),
+    saveUserProfile: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string; file?: any }
+    >({
+      query: ({ data, file }) => {
+        const formData = new FormData();
+        formData.append('data', data);
+        if (file) {
+          formData.append('file', file);
+        }
+        return {
+          url: ENDPOINTS.saveUserProfile,
+          method: 'POST',
+          body: formData,
+          // Content-Type is set automatically by browser/RN for FormData
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        };
+      },
+      invalidatesTags: ['UserDetails'],
+    }),
   }),
 });
 
@@ -336,4 +450,9 @@ export const {
   useAddPujaToCartMutation,
   useGetPujaCartInfoQuery,
   useManagePujaCartMutation,
+  useSavePujaTagMutation,
+  useGetUserDetailsQuery,
+  useSaveRelativeDetailsMutation,
+  useDeleteRelativeDetailsMutation,
+  useSaveUserProfileMutation,
 } = pujaApi;

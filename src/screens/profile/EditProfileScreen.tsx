@@ -8,26 +8,39 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  SafeAreaView,
   Platform,
+  Modal,
+  Image,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
 import { useAlert } from '../../context/AlertContext';
+import { Colors } from '../../constants/Colors';
+import {
+  useSaveUserProfileMutation,
+  useGetUserDetailsQuery,
+  useSaveRelativeDetailsMutation,
+  useDeleteRelativeDetailsMutation,
+} from '../../store/api/pujaApi';
+import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
+import CustomTimePickerModal from '../../components/common/CustomTimePickerModal';
+import Dropdown from '../../components/common/Dropdown';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
-import { useDispatch } from 'react-redux';
 
-const BRAND_ORANGE = '#F97316';
-const BRAND_TEXT = '#1F2937';
-const BRAND_MUTED = '#6B7280';
-const ERROR_COLOR = '#EF4444';
+const BRAND_ORANGE = Colors.primary;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
+const ERROR_COLOR = Colors.red;
 
 type Gender = 'Male' | 'Female' | 'Others';
 
 interface RelativeProfile {
   id: string;
   relationType: string;
+  relationTypeId?: number;
   firstName: string;
   lastName: string;
   gender: Gender;
@@ -44,25 +57,20 @@ interface ProfileErrors {
   timeOfBirth?: string;
   birthPlace?: string;
   gotro?: string;
+  address?: string;
 }
 
 interface RelErrors {
-  firstName?: string;
   relationType?: string;
+  firstName?: string;
+  lastName?: string;
   dob?: string;
   timeOfBirth?: string;
+  placeOfBirth?: string;
+  gotram?: string;
 }
 
-const RELATION_TYPES = [
-  'Father',
-  'Mother',
-  'Spouse',
-  'Son',
-  'Daughter',
-  'Brother',
-  'Sister',
-  'Other',
-];
+// RELATION_TYPES replaced by API or SOCIAL_RELATIONS below
 
 // ── Reusable field components ─────────────────────────────────────────────────
 
@@ -75,6 +83,8 @@ function Field({
   error,
   keyboardType,
   multiline,
+  onPress,
+  editable,
 }: {
   label: string;
   required?: boolean;
@@ -84,6 +94,8 @@ function Field({
   error?: string;
   keyboardType?: any;
   multiline?: boolean;
+  onPress?: () => void;
+  editable?: boolean;
 }) {
   const hasErr = !!error;
   return (
@@ -91,21 +103,26 @@ function Field({
       <Text style={styles.fieldLabel}>
         {label} {required && <Text style={styles.required}>*</Text>}
       </Text>
-      <TextInput
-        style={[
-          styles.input,
-          multiline && styles.inputMulti,
-          hasErr && styles.inputError,
-        ]}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        value={value}
-        onChangeText={onChange}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        textAlignVertical={multiline ? 'top' : 'center'}
-      />
+      <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
+        <TextInput
+          style={[
+            styles.input,
+            multiline && styles.inputMulti,
+            hasErr && styles.inputError,
+            !editable && onPress && { color: Colors.textMain }, // Show value clearly even if not keyboard editable
+          ]}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textMuted}
+          value={value}
+          onChangeText={onChange}
+          keyboardType={keyboardType}
+          multiline={multiline}
+          numberOfLines={multiline ? 3 : 1}
+          textAlignVertical={multiline ? 'top' : 'center'}
+          editable={editable ?? !onPress}
+          pointerEvents={onPress ? 'none' : 'auto'}
+        />
+      </TouchableOpacity>
       {hasErr && <Text style={styles.errorText}>⚠ {error}</Text>}
     </View>
   );
@@ -140,7 +157,16 @@ function GenderPicker({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+const SOCIAL_RELATIONS = [
+  { id: 1, name: 'Father' },
+  { id: 2, name: 'Mother' },
+  { id: 3, name: 'Brother' },
+  { id: 4, name: 'Sister' },
+  { id: 5, name: 'Son' },
+  { id: 6, name: 'Daughter' },
+  { id: 9, name: 'Grandfather' },
+  { id: 11, name: 'Cousin' },
+];
 
 export default function EditProfileScreen({ navigation }: any) {
   const { i18n } = useTranslation();
@@ -160,24 +186,166 @@ export default function EditProfileScreen({ navigation }: any) {
   const [address, setAddress] = useState('');
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
 
+  React.useEffect(() => {
+    // No logging
+  }, [user?.user_id]);
+
+  const [profileImageFile, setProfileImageFile] = useState<any>(null);
+  const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+
+  // ── Modals / Pickers State ──────────────────────────────────────────────────
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'profile' | 'relative'>(
+    'profile',
+  );
+
+  // -- API Hooks --
+  const { data: userDetailsRaw } = useGetUserDetailsQuery(user?.user_id || 0, {
+    skip: !user?.user_id,
+    refetchOnMountOrArgChange: true,
+  });
+  const [saveProfile] = useSaveUserProfileMutation();
+  const [saveRelativeMutation] = useSaveRelativeDetailsMutation();
+  const [deleteRelativeMutation] = useDeleteRelativeDetailsMutation();
+
+  React.useEffect(() => {
+    if (userDetailsRaw) {
+      if (userDetailsRaw.ctnz_profile_image) {
+        setProfileImageUri(userDetailsRaw.ctnz_profile_image);
+      }
+    }
+  }, [userDetailsRaw]);
+
+  // ── Auto-fill Profile Data ────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (userDetailsRaw) {
+      // Parse main profile
+      const fullName = userDetailsRaw.ctnz_full_name || '';
+      const nameParts = fullName.split(' ');
+      setFirstName(nameParts[0] || '');
+      setLastName(nameParts.slice(1).join(' ') || '');
+
+      setGender((userDetailsRaw.ctnz_gender as Gender) || 'Male');
+      setGotro(userDetailsRaw.ctnz_gotra || '');
+      setBirthPlace(userDetailsRaw.ctnz_birth_place || '');
+      setAddress(userDetailsRaw.ctnz_address || '');
+
+      if (userDetailsRaw.ctnz_dob) {
+        const [dPart, tPart] = userDetailsRaw.ctnz_dob.split('T');
+        if (dPart) {
+          const [y, m, d] = dPart.split('-');
+          setDob(`${d}/${m}/${y}`);
+        }
+        if (tPart) {
+          const [h, min] = tPart.split(':');
+          let hr = parseInt(h, 10);
+          const ampm = hr >= 12 ? 'PM' : 'AM';
+          hr = hr % 12 || 12;
+          setTimeOfBirth(`${hr.toString().padStart(2, '0')}:${min} ${ampm}`);
+        }
+      }
+
+      // Parse relatives
+      if (
+        userDetailsRaw.relative_details &&
+        Array.isArray(userDetailsRaw.relative_details)
+      ) {
+        const mappedRels = userDetailsRaw.relative_details.map((r: any) => {
+          let rDob = '';
+          let rTime = '';
+          if (r.relative_dob && r.relative_dob.trim()) {
+            // Updated to handle space between date and time
+            const parts = r.relative_dob.split(' ');
+            if (parts[0]) {
+              const [y, m, d] = parts[0].split('-');
+              if (y && m && d) rDob = `${d}/${m}/${y}`;
+            }
+            if (parts[1]) {
+              const [h, min] = parts[1].split(':');
+              if (h && min) {
+                let hr = parseInt(h, 10);
+                const ampm = hr >= 12 ? 'PM' : 'AM';
+                hr = hr % 12 || 12;
+                rTime = `${hr.toString().padStart(2, '0')}:${min} ${ampm}`;
+              }
+            }
+          }
+          const relParts = (r.relative_full_name || '').split(' ');
+          const masterRelName =
+            SOCIAL_RELATIONS.find(m => m.id === r.relation_type_id)?.name || '';
+
+          return {
+            id: r.relative_id.toString(),
+            relationType: r.relation_type_name || masterRelName,
+            relationTypeId: r.relation_type_id,
+            firstName: relParts[0] || '',
+            lastName: relParts.slice(1).join(' ') || '',
+            gender: r.relative_gender || 'Male',
+            dob: rDob,
+            timeOfBirth: rTime,
+            placeOfBirth: r.relative_birth_place || '',
+            gotram: r.relative_gotra || '',
+          };
+        });
+        setRelatives(mappedRels);
+      }
+    }
+  }, [userDetailsRaw]);
+
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const isValidCalendarDate = (ddmmyyyy: string): boolean => {
-    const parts = ddmmyyyy.split('/');
-    if (parts.length !== 3) return false;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10);
-    const year = parseInt(parts[2], 10);
-    if (month < 1 || month > 12) return false;
-    if (day < 1 || day > 31) return false;
-    if (year < 1900 || year > new Date().getFullYear()) return false;
-    const date = new Date(year, month - 1, day);
-    if (date > new Date()) return false; // DOB must be in the past
-    return date.getDate() === day && date.getMonth() === month - 1;
+  // Removed unused isValidCalendarDate helper logic
+
+  const convertTo24Hour = (timeStr: string): string => {
+    // Expected: "HH:MM AM/PM"
+    if (!timeStr) return '';
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return timeStr;
+
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
   };
 
-  const isValidTimeFormat = (t: string): boolean => {
-    // Accepts: HH:MM AM/PM or H:MM AM/PM (e.g. 09:30 AM, 3:00 PM)
-    return /^([01]?\d|2[0-3]):[0-5]\d\s?(AM|PM|am|pm)$/i.test(t.trim());
+  const formatApiDate = (dateStr: string, timeStr: string): string => {
+    // dateStr: DD/MM/YYYY, timeStr: HH:MM AM/PM
+    if (!dateStr) return '';
+    const [d, m, y] = dateStr.split('/');
+    const time24 = convertTo24Hour(timeStr);
+    return `${y}-${m}-${d}${time24 ? ' ' + time24 : ''}`;
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const formatted = `${day}/${month}/${year}`;
+
+    if (pickerTarget === 'profile') {
+      setDob(formatted);
+      if (profileErrors.dob) setProfileErrors(p => ({ ...p, dob: undefined }));
+    } else {
+      setRelDob(formatted);
+      if (relErrors.dob) setRelErrors(p => ({ ...p, dob: undefined }));
+    }
+  };
+
+  const handleTimeSelect = (time: string) => {
+    // time is "HH:MM AM/PM"
+    if (pickerTarget === 'profile') {
+      setTimeOfBirth(time);
+      if (profileErrors.timeOfBirth)
+        setProfileErrors(p => ({ ...p, timeOfBirth: undefined }));
+    } else {
+      setRelTimeOfBirth(time);
+      if (relErrors.timeOfBirth)
+        setRelErrors(p => ({ ...p, timeOfBirth: undefined }));
+    }
   };
 
   const isAlphaText = (s: string): boolean =>
@@ -214,20 +382,12 @@ export default function EditProfileScreen({ navigation }: any) {
     // Date of Birth
     if (!dob.trim())
       errs.dob = isBn ? 'জন্ম তারিখ আবশ্যক' : 'Date of birth is required';
-    else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dob))
-      errs.dob = isBn ? 'সঠিক ফরম্যাট: DD/MM/YYYY' : 'Format: DD/MM/YYYY';
-    else if (!isValidCalendarDate(dob))
-      errs.dob = isBn ? 'বৈধ অতীত তারিখ লিখুন' : 'Enter a valid past date';
 
     // Time of Birth
     if (!timeOfBirth.trim())
       errs.timeOfBirth = isBn
         ? 'জন্ম সময় আবশ্যক'
         : 'Time of birth is required';
-    else if (!isValidTimeFormat(timeOfBirth))
-      errs.timeOfBirth = isBn
-        ? 'সঠিক ফরম্যাট: HH:MM AM/PM'
-        : 'Format: HH:MM AM or PM';
 
     // Birth Place
     if (!birthPlace.trim())
@@ -244,29 +404,100 @@ export default function EditProfileScreen({ navigation }: any) {
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
+    // Address
+    if (!address.trim())
+      errs.address = isBn ? 'ঠিকানা আবশ্যক' : 'Address is required';
+    else if (address.trim().length < 5)
+      errs.address = isBn
+        ? 'অন্তত ৫টি অক্ষর আবশ্যক'
+        : 'At least 5 characters required';
+
     setProfileErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSaveProfile = () => {
+  const handleSelectImage = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+      });
+
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        showAlert({
+          title: isBn ? 'সতর্কতা' : 'Alert',
+          message: isBn ? 'ছবি নির্বাচন করা যায়নি' : 'Could not select image',
+          buttons: [{ text: 'OK' }],
+        });
+        return;
+      }
+
+      if (result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setProfileImageUri(asset.uri || null);
+        setProfileImageFile({
+          uri: asset.uri,
+          type: asset.type || 'image/jpeg',
+          name: asset.fileName || 'profile.jpg',
+        });
+      }
+    } catch (error) {
+      console.log('Image picker exception:', error);
+    }
+  };
+
+  const handleSaveProfile = async () => {
     if (!validateProfile()) return;
-    dispatch(showLoader());
-    setTimeout(() => {
-      dispatch(hideLoader());
+
+    try {
+      dispatch(showLoader());
+      const payload = {
+        auth_id: user?.user_id || 0,
+        full_name: `${firstName} ${lastName}`.trim(),
+        gotra: gotro,
+        gender: gender,
+        dob: formatApiDate(dob, timeOfBirth),
+        birthplace: birthPlace,
+        entry_user_id: user?.user_id || 0,
+        ctz_address: address,
+        social_relation_id: 18, // 18 is 'Self'
+      };
+
+      const fileData = profileImageFile || undefined;
+
+      const result = await saveProfile({
+        data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
+        file: fileData,
+      }).unwrap();
+
+      if (result.status === 0) {
+        showAlert({
+          title: isBn ? 'সফল' : 'Success',
+          message:
+            result.message ||
+            (isBn ? 'সংরক্ষিত হয়েছে' : 'Profile saved successfully'),
+          buttons: [{ text: 'OK' }],
+        });
+      }
+    } catch (err: any) {
       showAlert({
-        title: isBn ? 'সফল' : 'Profile Saved',
-        message: isBn
-          ? 'আপনার প্রোফাইল সফলভাবে সংরক্ষিত হয়েছে।'
-          : 'Your profile has been saved successfully.',
+        title: isBn ? 'সতর্কতা' : 'Alert',
+        message:
+          err?.data?.message ||
+          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
         buttons: [{ text: 'OK' }],
       });
-    }, 800);
+    } finally {
+      dispatch(hideLoader());
+    }
   };
 
   // ── Relative form ─────────────────────────────────────────────────────────
   const [relatives, setRelatives] = useState<RelativeProfile[]>([]);
   const [showAddRelative, setShowAddRelative] = useState(false);
-  const [relationType, setRelationType] = useState('');
+  const [editingRelId, setEditingRelId] = useState<string | null>(null);
+  const [relationType, setRelationType] = useState<number | null>(null);
   const [relFirstName, setRelFirstName] = useState('');
   const [relLastName, setRelLastName] = useState('');
   const [relGender, setRelGender] = useState<Gender>('Male');
@@ -276,12 +507,73 @@ export default function EditProfileScreen({ navigation }: any) {
   const [relGotram, setRelGotram] = useState('');
   const [relErrors, setRelErrors] = useState<RelErrors>({});
 
+  const handleEditRelative = (rel: RelativeProfile) => {
+    setEditingRelId(rel.id);
+    setRelationType(rel.relationTypeId || null);
+    setRelFirstName(rel.firstName);
+    setRelLastName(rel.lastName);
+    setRelGender(rel.gender);
+    setRelDob(rel.dob);
+    setRelTimeOfBirth(rel.timeOfBirth);
+    setRelPlaceOfBirth(rel.placeOfBirth);
+    setRelGotram(rel.gotram);
+    setRelErrors({});
+    setShowAddRelative(true);
+  };
+
+  const handleDeleteRelative = (id: string) => {
+    showAlert({
+      title: isBn ? 'মুছে ফেলুন' : 'Delete Relative',
+      message: isBn
+        ? 'আপনি কি নিশ্চিত?'
+        : 'Are you sure you want to delete this relative?',
+      buttons: [
+        { text: isBn ? 'বাতিল' : 'Cancel' },
+        {
+          text: isBn ? 'মুছুন' : 'Delete',
+          onPress: async () => {
+            try {
+              dispatch(showLoader());
+              const payload = { relative_id: parseInt(id, 10) };
+              const result = await deleteRelativeMutation({
+                data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
+              }).unwrap();
+
+              if (result.status === 0) {
+                setRelatives(prev => prev.filter(r => r.id !== id));
+                showAlert({
+                  title: isBn ? 'সফল' : 'Success',
+                  message:
+                    result.message ||
+                    (isBn
+                      ? 'আত্মীয় প্রোফাইল মুছে ফেলা হয়েছে'
+                      : 'Relative profile deleted successfully'),
+                  buttons: [{ text: 'OK' }],
+                });
+              }
+            } catch (err: any) {
+              showAlert({
+                title: isBn ? 'সতর্কতা' : 'Alert',
+                message:
+                  err?.data?.message ||
+                  (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+                buttons: [{ text: 'OK' }],
+              });
+            } finally {
+              dispatch(hideLoader());
+            }
+          },
+        },
+      ],
+    });
+  };
+
   // ── Relative validation ───────────────────────────────────────────────────
   const validateRelative = (): boolean => {
     const errs: RelErrors = {};
 
     // Relation Type
-    if (!relationType.trim())
+    if (relationType === null)
       errs.relationType = isBn
         ? 'সম্পর্কের ধরন নির্বাচন করুন'
         : 'Please select a relation type';
@@ -293,65 +585,160 @@ export default function EditProfileScreen({ navigation }: any) {
       errs.firstName = isBn
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
+    else if (!isAlphaText(relFirstName))
+      errs.firstName = isBn
+        ? 'শুধুমাত্র অক্ষর ব্যবহার করুন'
+        : 'Only letters allowed';
+
+    // Last Name
+    if (!relLastName.trim())
+      errs.lastName = isBn ? 'শেষ নাম আবশ্যক' : 'Last name is required';
+    else if (relLastName.trim().length < 2)
+      errs.lastName = isBn
+        ? 'অন্তত ২টি অক্ষর আবশ্যক'
+        : 'At least 2 characters required';
+    else if (!isAlphaText(relLastName))
+      errs.lastName = isBn
+        ? 'শুধুমাত্র অক্ষর ব্যবহার করুন'
+        : 'Only letters allowed';
 
     // Date of Birth
     if (!relDob.trim())
       errs.dob = isBn ? 'জন্ম তারিখ আবশ্যক' : 'Date of birth is required';
-    else if (!/^\d{2}\/\d{2}\/\d{4}$/.test(relDob))
-      errs.dob = isBn ? 'সঠিক ফরম্যাট: DD/MM/YYYY' : 'Format: DD/MM/YYYY';
-    else if (!isValidCalendarDate(relDob))
-      errs.dob = isBn ? 'বৈধ অতীত তারিখ লিখুন' : 'Enter a valid past date';
 
-    // Time of Birth (optional but if filled must be valid format)
-    if (relTimeOfBirth.trim() && !isValidTimeFormat(relTimeOfBirth))
+    // Time of Birth
+    if (!relTimeOfBirth.trim())
       errs.timeOfBirth = isBn
-        ? 'সঠিক ফরম্যাট: HH:MM AM/PM'
-        : 'Format: HH:MM AM or PM';
+        ? 'জন্ম সময় আবশ্যক'
+        : 'Time of birth is required';
+
+    // Birth Place
+    if (!relPlaceOfBirth.trim())
+      errs.placeOfBirth = isBn ? 'জন্মস্থান আবশ্যক' : 'Birth place is required';
+    else if (relPlaceOfBirth.trim().length < 2)
+      errs.placeOfBirth = isBn
+        ? 'অন্তত ২টি অক্ষর আবশ্যক'
+        : 'At least 2 characters required';
+
+    // Gotram
+    if (!relGotram.trim())
+      errs.gotram = isBn ? 'গোত্র আবশ্যক' : 'Gotram is required';
+    else if (relGotram.trim().length < 2)
+      errs.gotram = isBn
+        ? 'অন্তত ২টি অক্ষর আবশ্যক'
+        : 'At least 2 characters required';
 
     setRelErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSaveRelative = () => {
+  const handleSaveRelative = async () => {
     if (!validateRelative()) return;
-    dispatch(showLoader());
-    setTimeout(() => {
-      setRelatives(prev => [
-        ...prev,
+
+    try {
+      dispatch(showLoader());
+      const relName =
+        SOCIAL_RELATIONS.find(r => r.id === relationType)?.name || '';
+
+      const payload = [
         {
-          id: Date.now().toString(),
-          relationType,
-          firstName: relFirstName,
-          lastName: relLastName,
+          relative_id: editingRelId ? parseInt(editingRelId, 10) : 0,
+          relation_type_id: relationType,
+          full_name: `${relFirstName} ${relLastName}`.trim(),
+          date_of_birth: formatApiDate(relDob, relTimeOfBirth),
+          place_of_birth: relPlaceOfBirth,
           gender: relGender,
-          dob: relDob,
-          timeOfBirth: relTimeOfBirth,
-          placeOfBirth: relPlaceOfBirth,
           gotram: relGotram,
+          created_by: user?.user_id || 0,
         },
-      ]);
-      setRelationType('');
-      setRelFirstName('');
-      setRelLastName('');
-      setRelGender('Male');
-      setRelDob('');
-      setRelTimeOfBirth('');
-      setRelPlaceOfBirth('');
-      setRelGotram('');
-      setRelErrors({});
-      setShowAddRelative(false);
+      ];
+
+      const result = await saveRelativeMutation({
+        data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
+      }).unwrap();
+
+      if (result.status === 0) {
+        if (editingRelId) {
+          setRelatives(prev =>
+            prev.map(r =>
+              r.id === editingRelId
+                ? {
+                    id: editingRelId,
+                    relationType: relName,
+                    relationTypeId: relationType ?? undefined,
+                    firstName: relFirstName,
+                    lastName: relLastName,
+                    gender: relGender,
+                    dob: relDob,
+                    timeOfBirth: relTimeOfBirth,
+                    placeOfBirth: relPlaceOfBirth,
+                    gotram: relGotram,
+                  }
+                : r,
+            ),
+          );
+        } else {
+          // Fallback optimistically if we don't have the new ID
+          setRelatives(prev => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              relationType: relName,
+              relationTypeId: relationType ?? undefined,
+              firstName: relFirstName,
+              lastName: relLastName,
+              gender: relGender,
+              dob: relDob,
+              timeOfBirth: relTimeOfBirth,
+              placeOfBirth: relPlaceOfBirth,
+              gotram: relGotram,
+            },
+          ]);
+        }
+
+        clearRelForm();
+
+        showAlert({
+          title: isBn ? 'সফল' : 'Success',
+          message:
+            result.message ||
+            (isBn
+              ? 'আত্মীয় প্রোফাইল সংরক্ষিত হয়েছে'
+              : 'Relative profile saved successfully'),
+          buttons: [{ text: 'OK' }],
+        });
+      }
+    } catch (err: any) {
+      console.log('Save Relative Error:', err);
+      showAlert({
+        title: isBn ? 'সতর্কতা' : 'Alert',
+        message:
+          err?.data?.message ||
+          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+        buttons: [{ text: 'OK' }],
+      });
+    } finally {
       dispatch(hideLoader());
-    }, 600);
+    }
   };
 
   const clearRelForm = () => {
+    setEditingRelId(null);
+    setRelationType(null);
+    setRelFirstName('');
+    setRelLastName('');
+    setRelGender('Male');
+    setRelDob('');
+    setRelTimeOfBirth('');
+    setRelPlaceOfBirth('');
+    setRelGotram('');
     setRelErrors({});
     setShowAddRelative(false);
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={BRAND_ORANGE} barStyle="light-content" />
+      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
       <SafeAreaView>
         <View style={styles.headerBar}>
           <TouchableOpacity
@@ -372,16 +759,29 @@ export default function EditProfileScreen({ navigation }: any) {
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarOuter}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarLetter}>
-                {(user?.user_name ?? 'U').toString().slice(0, 1).toUpperCase()}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.cameraBtn}>
+          <TouchableOpacity
+            onPress={handleSelectImage}
+            style={styles.avatarOuter}
+          >
+            {profileImageUri ? (
+              <Image
+                source={{ uri: profileImageUri }}
+                style={styles.avatarCircle}
+              />
+            ) : (
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarLetter}>
+                  {(user?.user_name ?? 'U')
+                    .toString()
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.cameraBtn}>
               <Text style={styles.cameraIcon}>📷</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.avatarName}>{user?.user_name || 'User'}</Text>
           <Text style={styles.avatarPhone}>{user?.mobile || ''}</Text>
         </View>
@@ -429,23 +829,22 @@ export default function EditProfileScreen({ navigation }: any) {
               label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
               required
               value={dob}
-              onChange={v => {
-                setDob(v);
-                if (profileErrors.dob)
-                  setProfileErrors(p => ({ ...p, dob: undefined }));
+              onChange={() => {}}
+              onPress={() => {
+                setPickerTarget('profile');
+                setShowDatePicker(true);
               }}
               placeholder="DD/MM/YYYY"
-              keyboardType="numeric"
               error={profileErrors.dob}
             />
             <Field
               label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
               required
               value={timeOfBirth}
-              onChange={v => {
-                setTimeOfBirth(v);
-                if (profileErrors.timeOfBirth)
-                  setProfileErrors(p => ({ ...p, timeOfBirth: undefined }));
+              onChange={() => {}}
+              onPress={() => {
+                setPickerTarget('profile');
+                setShowTimePicker(true);
               }}
               placeholder="HH:MM AM/PM"
               error={profileErrors.timeOfBirth}
@@ -482,16 +881,18 @@ export default function EditProfileScreen({ navigation }: any) {
             />
           </View>
 
-          <Text style={styles.fieldLabel}>{isBn ? 'ঠিকানা' : 'ADDRESS'}</Text>
-          <TextInput
-            style={[styles.input, styles.inputMulti]}
-            placeholder={isBn ? 'আপনার ঠিকানা লিখুন' : 'Enter your address'}
-            placeholderTextColor="#9CA3AF"
-            value={address}
-            onChangeText={setAddress}
+          <Field
+            label={isBn ? 'ঠিকানা' : 'ADDRESS'}
+            required
             multiline
-            numberOfLines={3}
-            textAlignVertical="top"
+            value={address}
+            onChange={v => {
+              setAddress(v);
+              if (profileErrors.address)
+                setProfileErrors(p => ({ ...p, address: undefined }));
+            }}
+            placeholder={isBn ? 'আপনার ঠিকানা লিখুন' : 'Enter your address'}
+            error={profileErrors.address}
           />
 
           {/* Save Profile Footer */}
@@ -551,67 +952,99 @@ export default function EditProfileScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {relatives.map(rel => (
-            <View key={rel.id} style={styles.relativeCard}>
-              <Text style={styles.relativeCardTitle}>
-                {rel.firstName} {rel.lastName}
-              </Text>
-              <Text style={styles.relativeCardSub}>
-                {rel.relationType} · {rel.gender} · {rel.dob}
-              </Text>
-            </View>
-          ))}
-
-          {showAddRelative && (
-            <View style={styles.addRelForm}>
-              <Text style={styles.addRelFormTitle}>
-                {isBn ? 'নতুন আত্মীয় প্রোফাইল' : 'New Relative Profile'}
-              </Text>
-
+          {relatives.length > 0 && !showAddRelative && (
+            <View style={{ marginTop: 10 }}>
               <Text style={styles.fieldLabel}>
-                {isBn ? 'সম্পর্কের ধরন' : 'RELATION TYPE'}{' '}
-                <Text style={styles.required}>*</Text>
+                {isBn ? 'যোগ করা আত্মীয়' : 'Added Relations'} (
+                {relatives.length})
               </Text>
-              <View
-                style={[
-                  styles.relationPickerBox,
-                  relErrors.relationType ? styles.relationPickerBoxError : null,
-                ]}
+              <ScrollView
+                style={{ maxHeight: 420, marginTop: 8 }}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
               >
-                {RELATION_TYPES.map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[
-                      styles.relationOption,
-                      relationType === r && styles.relationOptionActive,
-                    ]}
-                    onPress={() => {
-                      setRelationType(r);
-                      if (relErrors.relationType)
-                        setRelErrors(p => ({ ...p, relationType: undefined }));
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.relationOptionText,
-                        relationType === r && styles.relationOptionTextActive,
-                      ]}
-                    >
-                      {r}
-                    </Text>
-                  </TouchableOpacity>
+                {relatives.map(rel => (
+                  <View key={rel.id} style={styles.relativeCard}>
+                    <View style={styles.relCardHeader}>
+                      <Text style={styles.relativeCardTitle}>
+                        {rel.firstName} {rel.lastName}
+                      </Text>
+                      <View style={styles.relCardActions}>
+                        <TouchableOpacity
+                          onPress={() => handleEditRelative(rel)}
+                          style={{ padding: 4 }}
+                        >
+                          <Text style={{ fontSize: 13 }}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteRelative(rel.id)}
+                          style={{ padding: 4 }}
+                        >
+                          <Text style={{ fontSize: 13 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <View style={styles.relCardDetails}>
+                      <View style={styles.relPill}>
+                        <Text style={styles.relPillText}>
+                          {rel.relationType}
+                        </Text>
+                      </View>
+                      <Text style={styles.relativeCardSub}>
+                        {' '}
+                        • {rel.gender}{' '}
+                        {rel.dob
+                          ? `• ${rel.dob.split('/').reverse().join('-')}`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
                 ))}
-              </View>
-              {relErrors.relationType && (
-                <Text
-                  style={[
-                    styles.errorText,
-                    { marginBottom: 16, marginTop: -8 },
-                  ]}
-                >
-                  ⚠ {relErrors.relationType}
-                </Text>
-              )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      {/* Pickers & Modals */}
+      <Modal
+        visible={showAddRelative}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={clearRelForm}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.addRelFormTitle}>
+                {editingRelId
+                  ? isBn
+                    ? 'আত্মীয় প্রোফাইল আপডেট করুন'
+                    : 'Edit Relative Profile'
+                  : isBn
+                  ? 'নতুন আত্মীয় প্রোফাইল'
+                  : 'New Relative Profile'}
+              </Text>
+              <TouchableOpacity onPress={clearRelForm}>
+                <Text style={styles.closeIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              <Dropdown
+                label={isBn ? 'সম্পর্কের ধরন' : 'RELATION TYPE'}
+                required
+                placeholder={isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select relation'}
+                options={SOCIAL_RELATIONS}
+                value={relationType}
+                onSelect={setRelationType}
+                isLoading={false}
+                error={relErrors.relationType}
+              />
 
               <View style={styles.rowTwo}>
                 <Field
@@ -628,9 +1061,15 @@ export default function EditProfileScreen({ navigation }: any) {
                 />
                 <Field
                   label={isBn ? 'শেষ নাম' : 'LAST NAME'}
+                  required
                   value={relLastName}
-                  onChange={setRelLastName}
+                  onChange={v => {
+                    setRelLastName(v);
+                    if (relErrors.lastName)
+                      setRelErrors(p => ({ ...p, lastName: undefined }));
+                  }}
                   placeholder={isBn ? 'শেষ নাম' : 'Enter last name'}
+                  error={relErrors.lastName}
                 />
               </View>
 
@@ -642,22 +1081,21 @@ export default function EditProfileScreen({ navigation }: any) {
                   label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
                   required
                   value={relDob}
-                  onChange={v => {
-                    setRelDob(v);
-                    if (relErrors.dob)
-                      setRelErrors(p => ({ ...p, dob: undefined }));
+                  onChange={() => {}}
+                  onPress={() => {
+                    setPickerTarget('relative');
+                    setShowDatePicker(true);
                   }}
                   placeholder="DD/MM/YYYY"
-                  keyboardType="numeric"
                   error={relErrors.dob}
                 />
                 <Field
                   label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
                   value={relTimeOfBirth}
-                  onChange={v => {
-                    setRelTimeOfBirth(v);
-                    if (relErrors.timeOfBirth)
-                      setRelErrors(p => ({ ...p, timeOfBirth: undefined }));
+                  onChange={() => {}}
+                  onPress={() => {
+                    setPickerTarget('relative');
+                    setShowTimePicker(true);
                   }}
                   placeholder="HH:MM AM/PM"
                   error={relErrors.timeOfBirth}
@@ -667,15 +1105,27 @@ export default function EditProfileScreen({ navigation }: any) {
               <View style={styles.rowTwo}>
                 <Field
                   label={isBn ? 'জন্মস্থান' : 'PLACE OF BIRTH'}
+                  required
                   value={relPlaceOfBirth}
-                  onChange={setRelPlaceOfBirth}
+                  onChange={v => {
+                    setRelPlaceOfBirth(v);
+                    if (relErrors.placeOfBirth)
+                      setRelErrors(p => ({ ...p, placeOfBirth: undefined }));
+                  }}
                   placeholder={isBn ? 'জন্মস্থান' : 'Enter place of birth'}
+                  error={relErrors.placeOfBirth}
                 />
                 <Field
                   label={isBn ? 'গোত্র' : 'GOTRAM'}
+                  required
                   value={relGotram}
-                  onChange={setRelGotram}
+                  onChange={v => {
+                    setRelGotram(v);
+                    if (relErrors.gotram)
+                      setRelErrors(p => ({ ...p, gotram: undefined }));
+                  }}
                   placeholder={isBn ? 'গোত্র' : 'Enter gotram'}
+                  error={relErrors.gotram}
                 />
               </View>
 
@@ -693,22 +1143,39 @@ export default function EditProfileScreen({ navigation }: any) {
                   onPress={handleSaveRelative}
                 >
                   <Text style={styles.relSaveBtnText}>
-                    {isBn ? 'আত্মীয় সংরক্ষণ করুন' : 'Save Relative'}
+                    {editingRelId
+                      ? isBn
+                        ? 'আপডেট করুন'
+                        : 'Update Relative'
+                      : isBn
+                      ? 'আত্মীয় সংরক্ষণ করুন'
+                      : 'Save Relative'}
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          )}
+            </ScrollView>
+          </View>
         </View>
+      </Modal>
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+      <CustomDatePickerModal
+        visible={showDatePicker}
+        mode="date"
+        onSelect={handleDateSelect}
+        onClose={() => setShowDatePicker(false)}
+      />
+      <CustomTimePickerModal
+        visible={showTimePicker}
+        onSelect={handleTimeSelect}
+        onClose={() => setShowTimePicker(false)}
+        initialTime={pickerTarget === 'profile' ? timeOfBirth : relTimeOfBirth}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDF8F0' },
+  container: { flex: 1, backgroundColor: Colors.background },
   headerBar: {
     backgroundColor: BRAND_ORANGE,
     paddingHorizontal: 20,
@@ -716,7 +1183,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 36 : 14,
   },
   headerBackBtn: { flexDirection: 'row', alignItems: 'center' },
-  headerBackText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  headerBackText: { color: Colors.white, fontSize: 14, fontWeight: '600' },
   body: { flex: 1 },
 
   avatarSection: {
@@ -730,13 +1197,13 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#FF8C3A',
+    backgroundColor: Colors.splashBg,
     borderWidth: 3,
-    borderColor: '#FFF',
+    borderColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { color: '#FFF', fontSize: 36, fontWeight: '900' },
+  avatarLetter: { color: Colors.white, fontSize: 36, fontWeight: '900' },
   cameraBtn: {
     position: 'absolute',
     right: 0,
@@ -744,23 +1211,23 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
   },
   cameraIcon: { fontSize: 13 },
-  avatarName: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  avatarName: { color: Colors.white, fontSize: 18, fontWeight: '800' },
   avatarPhone: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 2 },
 
   card: {
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.white,
     borderRadius: 20,
     marginHorizontal: 16,
     marginTop: 20,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.black,
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
@@ -771,7 +1238,11 @@ const styles = StyleSheet.create({
     color: BRAND_TEXT,
     marginBottom: 16,
   },
-  sectionDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 20 },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 20,
+  },
 
   rowTwo: { flexDirection: 'row', gap: 12, marginBottom: 16 },
 
@@ -787,15 +1258,15 @@ const styles = StyleSheet.create({
 
   input: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
     color: BRAND_TEXT,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.ultraLightGray,
   },
-  inputError: { borderColor: ERROR_COLOR, backgroundColor: '#FFF5F5' },
+  inputError: { borderColor: ERROR_COLOR, backgroundColor: Colors.tagRed },
   inputMulti: { height: 80, textAlignVertical: 'top', marginBottom: 16 },
   errorText: {
     fontSize: 11,
@@ -810,19 +1281,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.cardBg,
   },
   genderBtnActive: { backgroundColor: BRAND_ORANGE, borderColor: BRAND_ORANGE },
   genderBtnText: { fontSize: 13, fontWeight: '600', color: BRAND_MUTED },
-  genderBtnTextActive: { color: '#FFF', fontWeight: '700' },
+  genderBtnTextActive: { color: Colors.white, fontWeight: '700' },
 
   saveBox: {
-    backgroundColor: '#FFFBF5',
+    backgroundColor: Colors.lightOrange,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.cardBorder,
     padding: 12,
     marginTop: 8,
     gap: 10,
@@ -832,7 +1303,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: Colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -842,7 +1313,7 @@ const styles = StyleSheet.create({
   saveBoxBtns: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   cancelBtn: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.border,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -854,7 +1325,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
-  saveBtnText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+  saveBtnText: { fontSize: 13, color: Colors.white, fontWeight: '700' },
 
   relationHeader: {
     flexDirection: 'row',
@@ -864,69 +1335,81 @@ const styles = StyleSheet.create({
   },
   addRelBtn: {
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Colors.cardBorder,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    backgroundColor: '#FFFBF5',
+    backgroundColor: Colors.lightOrange,
   },
   addRelBtnText: { fontSize: 12, color: BRAND_ORANGE, fontWeight: '700' },
 
   relativeCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  relativeCardTitle: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
-  relativeCardSub: { fontSize: 11, color: BRAND_MUTED, marginTop: 4 },
+  relCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  relCardActions: { flexDirection: 'row', gap: 6 },
+  relativeCardTitle: { fontSize: 14, fontWeight: '800', color: BRAND_TEXT },
+  relativeCardSub: { fontSize: 12, color: BRAND_MUTED, paddingTop: 1 },
+  relCardDetails: { flexDirection: 'row', alignItems: 'center' },
+  relPill: {
+    backgroundColor: Colors.lightOrange,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  relPillText: { fontSize: 11, color: BRAND_ORANGE, fontWeight: '700' },
 
   addRelForm: {
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.lightGray,
     paddingTop: 16,
     marginTop: 8,
   },
   addRelFormTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: BRAND_TEXT,
-    marginBottom: 16,
   },
 
-  relationPickerBox: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '85%',
+  },
+  modalHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  relationPickerBoxError: {
-    padding: 8,
-    borderWidth: 1,
-    borderColor: ERROR_COLOR,
-    borderRadius: 12,
-    backgroundColor: '#FFF5F5',
+  closeIcon: {
+    fontSize: 22,
+    color: BRAND_MUTED,
+    fontWeight: '700',
   },
-  relationOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-  },
-  relationOptionActive: {
-    backgroundColor: BRAND_ORANGE,
-    borderColor: BRAND_ORANGE,
-  },
-  relationOptionText: { fontSize: 12, color: BRAND_MUTED, fontWeight: '600' },
-  relationOptionTextActive: { color: '#FFF', fontWeight: '700' },
 
-  relFormBtnsRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  relFormBtnsRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   relCancelBtn: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.disabled,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
@@ -939,7 +1422,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  relSaveBtnText: { fontSize: 14, color: '#FFF', fontWeight: '700' },
+  relSaveBtnText: { fontSize: 14, color: Colors.white, fontWeight: '700' },
 
   bottomSpacer: { height: 60 },
 });

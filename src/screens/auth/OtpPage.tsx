@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Image,
   StatusBar,
   Dimensions,
+  Keyboard,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +26,7 @@ import { generateOtp, validateOtp } from '../../service/auth/authService';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
+import { Colors } from '../../constants/Colors';
 
 const { height } = Dimensions.get('window');
 const HEADER_HEIGHT = Math.max(height * 0.38, 270);
@@ -45,6 +47,47 @@ export default function OtpPage({ navigation, route }: Props) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const headerHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
+  const logoSize = useRef(new Animated.Value(280)).current;
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setIsKeyboardVisible(true);
+      Animated.parallel([
+        Animated.timing(headerHeight, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(logoSize, {
+          toValue: 160,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
+      Animated.parallel([
+        Animated.timing(headerHeight, {
+          toValue: HEADER_HEIGHT,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(logoSize, {
+          toValue: 280,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [headerHeight, logoSize]);
 
   useEffect(() => {
     if (resendCountdown === 0) return;
@@ -59,6 +102,7 @@ export default function OtpPage({ navigation, route }: Props) {
 
   useEffect(() => {
     if (isComplete && !isVerifying) {
+      Keyboard.dismiss();
       handleVerify(otpValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,7 +156,7 @@ export default function OtpPage({ navigation, route }: Props) {
   return (
     <View style={styles.root}>
       <StatusBar
-        backgroundColor="#7F1D1D"
+        backgroundColor={Colors.splashBg}
         barStyle="light-content"
         translucent
       />
@@ -121,15 +165,20 @@ export default function OtpPage({ navigation, route }: Props) {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.flex1}
         >
-          {/* ── Top Header ── */}
-          <View style={styles.header}>
+          {/* ── Animated Header ── */}
+          <Animated.View style={[styles.header, { height: headerHeight }]}>
             <View style={styles.logoWrap}>
-              <Image source={appLogo} style={styles.logo} />
-              <Text style={styles.tagline}>
-                {t('auth.yourSpiritualGateway')}
-              </Text>
+              <Animated.Image
+                source={appLogo}
+                style={[styles.logo, { width: logoSize }]}
+              />
+              {!isKeyboardVisible && (
+                <Text style={styles.tagline}>
+                  {t('auth.yourSpiritualGateway')}
+                </Text>
+              )}
             </View>
-          </View>
+          </Animated.View>
 
           {/* ── White Card ── */}
           <View style={styles.card}>
@@ -202,12 +251,11 @@ export default function OtpPage({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#7F1D1D' },
+  root: { flex: 1, backgroundColor: Colors.splashBg },
   flex1: { flex: 1 },
 
   // ─ Header ─
   header: {
-    height: HEADER_HEIGHT,
     paddingHorizontal: 24,
     paddingTop: 8,
   },
@@ -232,7 +280,7 @@ const styles = StyleSheet.create({
   // ─ Card ─
   card: {
     flex: 1,
-    backgroundColor: '#FDF8F0',
+    backgroundColor: Colors.background,
     borderTopLeftRadius: 36,
     borderTopRightRadius: 36,
     paddingHorizontal: 24,
@@ -249,19 +297,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#291811',
+    color: Colors.textMain,
     marginBottom: 6,
     textAlign: 'center',
   },
   subtitle: {
-    color: '#6B5E59',
+    color: Colors.textMuted,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
   },
   subtitleBold: {
     fontWeight: '700',
-    color: '#291811',
+    color: Colors.textMain,
   },
 
   // ─ OTP ─
@@ -274,25 +322,25 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   changeMobileBtn: {
-    backgroundColor: '#FFF0E5',
+    backgroundColor: Colors.lightOrange,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   changeMobileText: {
-    color: '#F97316',
+    color: Colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
   resendText: {
-    color: '#F97316',
+    color: Colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },
-  resendDisabled: { color: '#9CA3AF' },
+  resendDisabled: { color: Colors.textMuted },
 
   secureText: {
-    color: '#9CA3AF',
+    color: Colors.textMuted,
     fontSize: 12,
     textAlign: 'center',
     marginTop: 16,
