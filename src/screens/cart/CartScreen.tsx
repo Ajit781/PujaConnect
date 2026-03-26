@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,8 @@ import { placeOrder, Order } from '../../store/slices/orderSlice';
 import {
   useGetPujaCartInfoQuery,
   useManagePujaCartMutation,
+  useGetAddressesQuery,
+  useBookPujaMutation,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
 import { Colors } from '../../constants/Colors';
@@ -38,6 +40,7 @@ export default function CartScreen({ navigation }: any) {
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
   const [manageCart] = useManagePujaCartMutation();
+  const [bookPuja] = useBookPujaMutation();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -47,7 +50,31 @@ export default function CartScreen({ navigation }: any) {
   );
 
   const user = useSelector((state: RootState) => state.auth.user);
-  const addresses = useSelector((state: RootState) => state.address.addresses);
+  const { data: serverAddresses } = useGetAddressesQuery(
+    { userId: user?.user_id || 0, pageNo: 1, pageSize: 100 },
+    { skip: !user?.user_id },
+  );
+
+  const addresses = useMemo(() => {
+    if (!serverAddresses || !Array.isArray(serverAddresses)) return [];
+    return serverAddresses.map((a: any) => ({
+      id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
+      type: a.address_type || a.address_type_name || 'Home',
+      label: a.label || '',
+      contactName: a.full_name || a.name || '',
+      contactNumber: a.phone || a.contact_no || '',
+      relationType: a.relation_type || a.relation_type_name || '',
+      addressLine1: a.address || '',
+      streetArea: a.street || '',
+      landmark: a.landmark || '',
+      city: a.city || '',
+      state: a.state || '',
+      pincode: a.pincode || '',
+      latitude: a.latitude?.toString() || '',
+      longitude: a.longitude?.toString() || '',
+      isDefault: a.is_default === 1 || a.is_default === true,
+    }));
+  }, [serverAddresses]);
 
   const [pageNo, setPageNo] = useState(1);
   const itemsPerPage = 10;
@@ -183,45 +210,73 @@ export default function CartScreen({ navigation }: any) {
     }
   };
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     if (!selectedAddressId && addresses.length > 0) return;
     dispatch(showLoader());
-    setTimeout(() => {
-      const now = new Date();
-      const dateString = `${now.getFullYear()}${(now.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
-      const randomId = Math.floor(10000000 + Math.random() * 90000000);
-      const bookingRef = `PB-${dateString}-${randomId}`;
 
-      const newOrder: Order = {
-        id: Math.random().toString(36).substring(7),
-        bookingRef,
-        items: cartItemsMapped.map(item => ({
-          id: Math.random().toString(36).substring(7),
-          titleEn: item.titleEn,
-          titleBn: item.titleBn,
-          price: item.exactPrice || 0,
-          pandits: 1, // Defaulting to 1 as it's not in CartItem
-          duration: (item.duration || '1-2 hours').toString(),
-          imagePlaceholder: item.imagePlaceholder || '',
-          color: item.color || Colors.lightGray,
-          scheduledDate: item.selectedDate || '',
-          scheduledTime: item.selectedTime || '',
-          status: 'Upcoming',
-        })),
-        totalAmount: grandTotal,
-        datePlaced: now.toISOString(),
-        status: 'Booking Initiated',
-        paymentStatus: 'PAID',
-      };
+    const cart_id =
+      fullApiCartItems.length > 0 ? fullApiCartItems[0].cart_id : 1;
 
-      dispatch(placeOrder(newOrder));
-      dispatch(clearCart());
+    try {
+      const response = await bookPuja({
+        in_booking_id: 0,
+        ctzn_id: user?.user_id || 0,
+        cart_id: cart_id,
+        payment_mode: 1,
+        payment_status: 1, // 1 for Paid/COD assumed from user snippet
+        payable_amount: grandTotal,
+        total_amount: grandTotal,
+        ctzn_address_id: parseInt(selectedAddressId || '0', 10),
+      }).unwrap();
+
+      console.log('--- API: bookPuja Formatted Response ---', response);
+
+      if (response.status === 0) {
+        const now = new Date();
+        const dateString = `${now.getFullYear()}${(now.getMonth() + 1)
+          .toString()
+          .padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
+        const randomId = Math.floor(10000000 + Math.random() * 90000000);
+        const bookingRef =
+          response.data?.booking_ref || `PB-${dateString}-${randomId}`;
+
+        const newOrder: Order = {
+          id:
+            response.data?.booking_id?.toString() ||
+            Math.random().toString(36).substring(7),
+          bookingRef,
+          items: cartItemsMapped.map(item => ({
+            id: Math.random().toString(36).substring(7),
+            titleEn: item.titleEn,
+            titleBn: item.titleBn,
+            price: item.exactPrice || 0,
+            pandits: 1,
+            duration: (item.duration || '1-2 hours').toString(),
+            imagePlaceholder: item.imagePlaceholder || '',
+            color: item.color || Colors.lightGray,
+            scheduledDate: item.selectedDate || '',
+            scheduledTime: item.selectedTime || '',
+            status: 'Upcoming',
+          })),
+          totalAmount: grandTotal,
+          datePlaced: now.toISOString(),
+          status: 'Booking Initiated',
+          paymentStatus: 'PAID',
+        };
+
+        dispatch(placeOrder(newOrder));
+        dispatch(clearCart());
+        dispatch(hideLoader());
+        setShowAddressModal(false);
+        setOrderSuccessRef(bookingRef);
+      } else {
+        dispatch(hideLoader());
+        console.error('Booking failed API Response:', response);
+      }
+    } catch (err) {
       dispatch(hideLoader());
-      setShowAddressModal(false);
-      setOrderSuccessRef(bookingRef);
-    }, 1200);
+      console.error('Booking failed Exception:', err);
+    }
   };
 
   if (orderSuccessRef) {
@@ -1399,6 +1454,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     maxHeight: '90%',
     width: '100%',
   },
@@ -1434,7 +1491,7 @@ const styles = StyleSheet.create({
   },
   modalCloseTxtWhite: { color: Colors.white, fontSize: 14, fontWeight: 'bold' },
 
-  modalBodyScroll: { padding: 20 },
+  modalBodyScroll: { padding: 20, flexShrink: 1 },
   savedAddressesHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

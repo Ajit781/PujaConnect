@@ -24,6 +24,10 @@ export const ENDPOINTS = {
   getUserDetails: '/citizen/get_user_details_by_user_id',
   saveRelativeDetails: '/citizen/save_relative_details',
   deleteRelativeDetails: '/citizen/delete_relative_details',
+  saveAddress: '/citizen/save_address',
+  getAddresses: '/citizen/get_addresses',
+  saveDefaultAddress: '/citizen/save_default_address',
+  bookPuja: '/citizen/book_puja',
 };
 
 // Validation constants

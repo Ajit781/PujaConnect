@@ -26,6 +26,23 @@ interface Props {
   required?: boolean;
 }
 
+const OptionItem = React.memo(({ item, value, onSelect }: any) => (
+  <TouchableOpacity
+    style={[styles.optionItem, item.id === value && styles.optionItemSelected]}
+    onPress={() => onSelect(item.id)}
+  >
+    <Text
+      style={[
+        styles.optionText,
+        item.id === value && styles.optionTextSelected,
+      ]}
+    >
+      {item.name}
+    </Text>
+    {item.id === value && <Text style={styles.check}>✓</Text>}
+  </TouchableOpacity>
+));
+
 export default function Dropdown({
   label,
   placeholder = 'Select an option',
@@ -96,26 +113,14 @@ export default function Dropdown({
                 data={options}
                 keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      item.id === value && styles.optionItemSelected,
-                    ]}
-                    onPress={() => {
-                      onSelect(item.id);
+                  <OptionItem
+                    item={item}
+                    value={value}
+                    onSelect={(id: any) => {
+                      onSelect(id);
                       setVisible(false);
                     }}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        item.id === value && styles.optionTextSelected,
-                      ]}
-                    >
-                      {item.name}
-                    </Text>
-                    {item.id === value && <Text style={styles.check}>✓</Text>}
-                  </TouchableOpacity>
+                  />
                 )}
                 contentContainerStyle={styles.listContent}
               />

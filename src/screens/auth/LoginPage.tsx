@@ -12,7 +12,7 @@ import {
   Keyboard,
   Animated,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -104,18 +104,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const hintShown = useRef(false);
   const mobileInputRef = useRef<any>(null);
 
-  // Load history on mount
-  useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('PHONE_HISTORY');
-        if (saved) setPhoneHistory(JSON.parse(saved));
-      } catch (e) {
-        console.log('Error loading history:', e);
-      }
-    };
-    loadHistory();
-  }, []);
+  // Auto-fill logic (removed AsyncStorage history as per user request)
 
   // Phone Hint Retriever on Mount
   useEffect(() => {
@@ -162,16 +151,8 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   }, [otpSent]);
 
   const saveToHistory = async (num: string) => {
-    try {
-      const newHistory = [num, ...phoneHistory.filter(h => h !== num)].slice(
-        0,
-        5,
-      );
-      setPhoneHistory(newHistory);
-      await AsyncStorage.setItem('PHONE_HISTORY', JSON.stringify(newHistory));
-    } catch (e) {
-      console.log('Error saving history:', e);
-    }
+    // Disabled AsyncStorage saving as per user request
+    setPhoneHistory(prev => [num, ...prev.filter(h => h !== num)].slice(0, 5));
   };
 
   const handleSelectHistory = (num: string) => {

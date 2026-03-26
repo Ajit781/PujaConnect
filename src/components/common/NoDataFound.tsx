@@ -15,7 +15,7 @@ const NoDataFound = ({
 }: Props) => {
   return (
     <View style={[styles.container, { height: containerHeight }]}>
-      <Text style={styles.icon}>🗇</Text>
+      <Text style={styles.icon}>📦</Text>
       <Text style={styles.text}>{message}</Text>
       {children}
     </View>

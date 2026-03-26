@@ -8,6 +8,7 @@ import {
   TextInput,
   StatusBar,
   FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +25,134 @@ const BRAND_PRIMARY = Colors.primary;
 const BRAND_BG = Colors.background;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
+
+const formatDate = (isoString: string) => {
+  const d = new Date(isoString);
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return `${d.getDate().toString().padStart(2, '0')} ${
+    months[d.getMonth()]
+  } ${d.getFullYear()}`;
+};
+
+const StatusBadge = React.memo(({ status }: { status: string }) => {
+  let bgColor = Colors.lightGray;
+  let textColor = Colors.textMuted;
+  if (status === 'Booking Initiated' || status === 'Pending') {
+    bgColor = Colors.statusPendingBg;
+    textColor = Colors.statusPendingText;
+  } else if (status === 'Completed') {
+    bgColor = Colors.statusSuccessBg;
+    textColor = Colors.statusSuccessText;
+  } else if (status === 'Cancelled' || status === 'Partial Cancelled') {
+    bgColor = Colors.tagRed;
+    textColor = Colors.red;
+  } else if (status === 'Upcoming' || status === 'Rescheduled') {
+    bgColor = Colors.statusWarningBg;
+    textColor = Colors.statusWarningText;
+  }
+
+  return (
+    <View style={[styles.badge, { backgroundColor: bgColor }]}>
+      <Text style={[styles.badgeText, { color: textColor }]}>{status}</Text>
+    </View>
+  );
+});
+
+const OrderCard = React.memo(
+  ({
+    item,
+    isBn,
+    onPressDetails,
+    onPressCancel,
+  }: {
+    item: Order;
+    isBn: boolean;
+    onPressDetails: (id: string) => void;
+    onPressCancel: (id: string) => void;
+  }) => {
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View>
+            <Text style={styles.cardLabel}>
+              {isBn ? 'বুকিং রেফারেন্স' : 'BOOKING REFERENCE'}
+            </Text>
+            <Text style={styles.cardRef}>{item.bookingRef}</Text>
+            <Text style={styles.cardDate}>
+              📅 {formatDate(item.datePlaced)}
+            </Text>
+          </View>
+          <StatusBadge status={item.status} />
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.col}>
+            <Text style={styles.colLabel}>{isBn ? 'স্ট্যাটাস' : 'Status'}</Text>
+            <StatusBadge status={item.status} />
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.colLabel}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
+            <Text
+              style={[
+                styles.paymentText,
+                item.paymentStatus === 'PAID'
+                  ? styles.paymentGreen
+                  : styles.paymentOrange,
+              ]}
+            >
+              {item.paymentStatus}
+            </Text>
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.colLabel}>
+              {isBn ? 'মোট পরিমাণ' : 'Total Amount'}
+            </Text>
+            <Text style={styles.amountText}>
+              ₹{item.totalAmount.toLocaleString('en-IN')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <TouchableOpacity
+            style={styles.actionBtnOutline}
+            onPress={() => onPressDetails(item.id)}
+          >
+            <Text style={styles.actionBtnOutlineText}>
+              🎯 {isBn ? 'বিস্তারিত দেখুন' : 'See Details'}
+            </Text>
+          </TouchableOpacity>
+
+          {(item.status === 'Upcoming' ||
+            item.status === 'Booking Initiated' ||
+            item.status === 'Pending') && (
+            <TouchableOpacity
+              style={styles.actionBtnDanger}
+              onPress={() => onPressCancel(item.id)}
+            >
+              <Text style={styles.actionBtnDangerText}>
+                ✖ {isBn ? 'বাতিল করুন' : 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  },
+);
 
 export default function OrdersScreen({ navigation }: any) {
   const { i18n } = useTranslation();
@@ -56,45 +185,44 @@ export default function OrdersScreen({ navigation }: any) {
     'Rescheduled',
   ];
 
-  // Filter logic
-  const filteredOrders = orders.filter(o => {
-    if (activeTab !== 'All' && o.status !== activeTab) return false;
-    if (
-      searchQuery &&
-      !o.bookingRef.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-      return false;
+  const filteredOrders = React.useMemo(() => {
+    return orders.filter(o => {
+      if (activeTab !== 'All' && o.status !== activeTab) return false;
+      if (
+        searchQuery &&
+        !o.bookingRef.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+        return false;
 
-    if (fromDate.length === 10 || toDate.length === 10) {
-      const orderD = new Date(o.datePlaced).getTime();
+      if (fromDate.length === 10 || toDate.length === 10) {
+        const orderD = new Date(o.datePlaced).getTime();
 
-      if (fromDate.length === 10) {
-        const [fm, fd, fy] = fromDate.split('/');
-        const fromD = new Date(
-          parseInt(fy, 10),
-          parseInt(fm, 10) - 1,
-          parseInt(fd, 10),
-        ).getTime();
-        if (orderD < fromD) return false;
+        if (fromDate.length === 10) {
+          const [fm, fd, fy] = fromDate.split('/');
+          const fromD = new Date(
+            parseInt(fy, 10),
+            parseInt(fm, 10) - 1,
+            parseInt(fd, 10),
+          ).getTime();
+          if (orderD < fromD) return false;
+        }
+
+        if (toDate.length === 10) {
+          const [tm, td, ty] = toDate.split('/');
+          const toD = new Date(
+            parseInt(ty, 10),
+            parseInt(tm, 10) - 1,
+            parseInt(td, 10),
+            23,
+            59,
+            59,
+          ).getTime();
+          if (orderD > toD) return false;
+        }
       }
-
-      if (toDate.length === 10) {
-        const [tm, td, ty] = toDate.split('/');
-        // End of the target day
-        const toD = new Date(
-          parseInt(ty, 10),
-          parseInt(tm, 10) - 1,
-          parseInt(td, 10),
-          23,
-          59,
-          59,
-        ).getTime();
-        if (orderD > toD) return false;
-      }
-    }
-
-    return true;
-  });
+      return true;
+    });
+  }, [orders, activeTab, searchQuery, fromDate, toDate]);
 
   const handleDateSelect = (d: Date) => {
     const formatted = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(
@@ -108,133 +236,20 @@ export default function OrdersScreen({ navigation }: any) {
     setActiveDatePicker(null);
   };
 
-  const formatDate = (isoString: string) => {
-    const d = new Date(isoString);
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return `${d.getDate().toString().padStart(2, '0')} ${
-      months[d.getMonth()]
-    } ${d.getFullYear()}`;
-  };
+  const handlePressDetails = React.useCallback((id: string) => {
+    setSelectedOrderId(id);
+    setShowDetailsModal(true);
+  }, []);
 
-  const renderStatusBadge = (status: string) => {
-    let bgColor = Colors.lightGray;
-    let textColor = Colors.textMuted;
-    if (status === 'Booking Initiated' || status === 'Pending') {
-      bgColor = Colors.statusPendingBg;
-      textColor = Colors.statusPendingText;
-    } else if (status === 'Completed') {
-      bgColor = Colors.statusSuccessBg;
-      textColor = Colors.statusSuccessText;
-    } else if (status === 'Cancelled' || status === 'Partial Cancelled') {
-      bgColor = Colors.tagRed;
-      textColor = Colors.red;
-    } else if (status === 'Upcoming' || status === 'Rescheduled') {
-      bgColor = Colors.statusWarningBg;
-      textColor = Colors.statusWarningText;
-    }
-
-    return (
-      <View style={[styles.badge, { backgroundColor: bgColor }]}>
-        <Text style={[styles.badgeText, { color: textColor }]}>{status}</Text>
-      </View>
-    );
-  };
-
-  const renderOrderCard = ({ item }: { item: Order }) => {
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View>
-            <Text style={styles.cardLabel}>
-              {isBn ? 'বুকিং রেফারেন্স' : 'BOOKING REFERENCE'}
-            </Text>
-            <Text style={styles.cardRef}>{item.bookingRef}</Text>
-            <Text style={styles.cardDate}>
-              📅 {formatDate(item.datePlaced)}
-            </Text>
-          </View>
-          {renderStatusBadge(item.status)}
-        </View>
-
-        <View style={styles.cardBody}>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>{isBn ? 'স্ট্যাটাস' : 'Status'}</Text>
-            {renderStatusBadge(item.status)}
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
-            <Text
-              style={[
-                styles.paymentText,
-                item.paymentStatus === 'PAID'
-                  ? styles.paymentGreen
-                  : styles.paymentOrange,
-              ]}
-            >
-              {item.paymentStatus}
-            </Text>
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>
-              {isBn ? 'মোট পরিমাণ' : 'Total Amount'}
-            </Text>
-            <Text style={styles.amountText}>
-              ₹{item.totalAmount.toLocaleString('en-IN')}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <TouchableOpacity
-            style={styles.actionBtnOutline}
-            onPress={() => {
-              setSelectedOrderId(item.id);
-              setShowDetailsModal(true);
-            }}
-          >
-            <Text style={styles.actionBtnOutlineText}>
-              🎯 {isBn ? 'বিস্তারিত দেখুন' : 'See Details'}
-            </Text>
-          </TouchableOpacity>
-
-          {(item.status === 'Upcoming' ||
-            item.status === 'Booking Initiated' ||
-            item.status === 'Pending') && (
-            <TouchableOpacity
-              style={styles.actionBtnDanger}
-              onPress={() => {
-                setSelectedOrderId(item.id);
-                setShowCancelModal(true);
-              }}
-            >
-              <Text style={styles.actionBtnDangerText}>
-                ✖ {isBn ? 'বাতিল করুন' : 'Cancel'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
-  };
+  const handlePressCancel = React.useCallback((id: string) => {
+    setSelectedOrderId(id);
+    setShowCancelModal(true);
+  }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor={BRAND_BG} barStyle="dark-content" />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -249,7 +264,6 @@ export default function OrdersScreen({ navigation }: any) {
           </Text>
         </View>
 
-        {/* Tabs */}
         <View style={styles.tabsWrapper}>
           <ScrollView
             horizontal
@@ -278,7 +292,6 @@ export default function OrdersScreen({ navigation }: any) {
           </ScrollView>
         </View>
 
-        {/* Filters */}
         <View style={styles.filtersWrapper}>
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>
@@ -359,9 +372,20 @@ export default function OrdersScreen({ navigation }: any) {
         <FlatList
           data={filteredOrders}
           keyExtractor={item => item.id}
-          renderItem={renderOrderCard}
+          renderItem={({ item }) => (
+            <OrderCard
+              item={item}
+              isBn={isBn}
+              onPressDetails={handlePressDetails}
+              onPressCancel={handlePressCancel}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={5}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews={Platform.OS === 'android'}
           ListEmptyComponent={
             <NoDataFound
               message={isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
@@ -544,7 +568,7 @@ const styles = StyleSheet.create({
   paymentText: { fontSize: 14, fontWeight: 'bold' },
   amountText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
   paymentGreen: { color: Colors.successGreen },
-  paymentOrange: { color: Colors.primary },
+  paymentOrange: { color: BRAND_PRIMARY },
 
   cardFooter: {
     flexDirection: 'row',

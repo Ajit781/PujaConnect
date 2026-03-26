@@ -22,7 +22,7 @@ import { pujaApi } from './api/pujaApi';
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'wishlist', 'cart', 'address', 'order'], // Persist auth, wishlist, cart, addresses, and orders
+  whitelist: ['auth'], // Only persist authentication data
 };
 
 const rootReducer = combineReducers({

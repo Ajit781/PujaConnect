@@ -92,7 +92,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const pujaApi = createApi({
   reducerPath: 'pujaApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails'],
+  tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails', 'Addresses'],
   endpoints: builder => ({
     getPujaTags: builder.query<PujaTag[], void>({
       query: () => ({
@@ -437,6 +437,126 @@ export const pujaApi = createApi({
       },
       invalidatesTags: ['UserDetails'],
     }),
+    saveAddress: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string }
+    >({
+      query: ({ data }) => {
+        console.log('--- API: saveAddress PAYLOAD ---', data);
+        return {
+          url: ENDPOINTS.saveAddress,
+          method: 'POST',
+          body: data,
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: saveAddress RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Addresses'],
+    }),
+    getAddresses: builder.query<
+      any[],
+      {
+        userId: string | number;
+        relationTypeId?: number;
+        pageNo: number;
+        pageSize: number;
+      }
+    >({
+      query: ({ userId, relationTypeId = 0, pageNo = 1, pageSize = 10 }) => {
+        const payload = {
+          enc_data: JSON.stringify({
+            ctzn_id: userId.toString(),
+            relation_type_id: relationTypeId.toString(),
+            page_no: pageNo.toString(),
+            page_size: pageSize.toString(),
+          }),
+        };
+        console.log(
+          '--- API: getAddresses PAYLOAD ---',
+          JSON.stringify(payload, null, 2),
+        );
+        return {
+          url: ENDPOINTS.getAddresses,
+          method: 'POST',
+          body: payload,
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: getAddresses RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return Array.isArray(data) ? data : [];
+        }
+        return [];
+      },
+      providesTags: ['Addresses'],
+    }),
+    saveDefaultAddress: builder.mutation<
+      { status: number; message: string; data: any },
+      { userId: string | number; addressId: string | number }
+    >({
+      query: ({ userId, addressId }) => {
+        const payload = {
+          enc_data: JSON.stringify({
+            ctzn_id: Number(userId),
+            ctzn_address_id: Number(addressId),
+          }),
+        };
+        console.log(
+          '--- API: saveDefaultAddress PAYLOAD ---',
+          JSON.stringify(payload, null, 2),
+        );
+        return {
+          url: ENDPOINTS.saveDefaultAddress,
+          method: 'POST',
+          body: payload,
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: saveDefaultAddress RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Addresses'],
+    }),
+    bookPuja: builder.mutation<
+      { status: number; message: string; data: any },
+      {
+        in_booking_id: number;
+        ctzn_id: number;
+        cart_id: number;
+        payment_mode: number;
+        payment_status: number;
+        payable_amount: number;
+        total_amount: number;
+        ctzn_address_id?: number;
+      }
+    >({
+      query: payloadObj => {
+        const payload = {
+          enc_data: JSON.stringify(payloadObj),
+        };
+        console.log(
+          '--- API: bookPuja PAYLOAD ---',
+          JSON.stringify(payload, null, 2),
+        );
+        return {
+          url: ENDPOINTS.bookPuja,
+          method: 'POST',
+          body: payload,
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: bookPuja RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Cart'],
+    }),
   }),
 });
 
@@ -451,8 +571,12 @@ export const {
   useGetPujaCartInfoQuery,
   useManagePujaCartMutation,
   useSavePujaTagMutation,
-  useGetUserDetailsQuery,
   useSaveRelativeDetailsMutation,
   useDeleteRelativeDetailsMutation,
   useSaveUserProfileMutation,
+  useGetUserDetailsQuery,
+  useSaveAddressMutation,
+  useGetAddressesQuery,
+  useSaveDefaultAddressMutation,
+  useBookPujaMutation,
 } = pujaApi;

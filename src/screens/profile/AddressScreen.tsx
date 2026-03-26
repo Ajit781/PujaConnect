@@ -1,10 +1,9 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   StatusBar,
@@ -12,7 +11,12 @@ import {
   Modal,
   KeyboardAvoidingView,
   Switch,
+  ActivityIndicator,
+  FlatList,
+  ScrollView,
+  PermissionsAndroid,
 } from 'react-native';
+import Geolocation from 'react-native-geolocation-service';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
@@ -23,15 +27,20 @@ import {
   addAddress,
   updateAddress,
   deleteAddress,
-  setDefaultAddress,
 } from '../../store/slices/addressSlice';
 import NoDataFound from '../../components/common/NoDataFound';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { Colors } from '../../constants/Colors';
+import {
+  useSaveAddressMutation,
+  useGetAddressesQuery,
+  useSaveDefaultAddressMutation,
+} from '../../store/api/pujaApi';
 
 const ERROR_COLOR = Colors.red;
 
 const SOCIAL_RELATIONS = [
+  { id: 18, name: 'Self' },
   { id: 1, name: 'Father' },
   { id: 2, name: 'Mother' },
   { id: 3, name: 'Brother' },
@@ -86,12 +95,133 @@ const Field = ({
   </View>
 );
 
+const AddressCard = React.memo(
+  ({ addr, isBn, onEdit, onSetDefault, onDelete }: any) => {
+    const typeIcon = (t: string) =>
+      t === 'Home' ? '🏠' : t === 'Work' ? '💼' : t === 'Temple' ? '🛕' : '📍';
+
+    return (
+      <View style={[styles.addrCard, addr.isDefault && styles.addrCardDef]}>
+        {addr.isDefault && (
+          <View style={styles.defBadge}>
+            <Text style={styles.defBadgeTxt}>
+              ★ {isBn ? 'ডিফল্ট' : 'DEFAULT'}
+            </Text>
+          </View>
+        )}
+        <View style={styles.addrTop}>
+          <View
+            style={[
+              styles.addrTypeBox,
+              addr.isDefault && { backgroundColor: Colors.lightOrange },
+            ]}
+          >
+            <Text style={{ fontSize: 18 }}>{typeIcon(addr.type)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            {addr.label ? (
+              <View style={styles.labelChip}>
+                <Text style={styles.labelChipTxt}>🏷 {addr.label}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.addrName}>
+              {addr.contactName}{' '}
+              {addr.relationType ? (
+                <Text style={styles.relTag}>({addr.relationType})</Text>
+              ) : null}
+            </Text>
+            <Text style={styles.addrPhone}>📞 {addr.contactNumber}</Text>
+          </View>
+        </View>
+        <View style={styles.addrBody}>
+          <Text style={styles.addrMain}>{addr.addressLine1}</Text>
+          <Text style={styles.addrSub}>
+            {[
+              addr.streetArea,
+              addr.landmark,
+              addr.city,
+              addr.state,
+              addr.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ')}
+          </Text>
+          {addr.latitude || addr.longitude ? (
+            <Text style={styles.coords}>
+              📌 {addr.latitude ? `Lat: ${addr.latitude}` : ''}
+              {addr.latitude && addr.longitude ? ', ' : ''}
+              {addr.longitude ? `Lng: ${addr.longitude}` : ''}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.addrFooter}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.acBtn} onPress={() => onEdit(addr)}>
+              <Text style={styles.acBtnTxt}>
+                📝 {isBn ? 'সম্পাদনা' : 'Edit'}
+              </Text>
+            </TouchableOpacity>
+            {!addr.isDefault && (
+              <TouchableOpacity
+                style={styles.acBtn}
+                onPress={() => onSetDefault(addr.id)}
+              >
+                <Text style={styles.acBtnTxt}>
+                  ★ {isBn ? 'ডিফল্ট' : 'Set Default'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.acBtn, styles.acBtnRed]}
+              onPress={() => onDelete(addr.id)}
+            >
+              <Text style={[styles.acBtnTxt, { color: Colors.white }]}>
+                🗑 {isBn ? 'মুছুন' : 'Delete'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  },
+);
+
 export default function AddressScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
   const { showAlert } = useAlert();
+  const user = useSelector((state: RootState) => state.auth.user);
   const addresses = useSelector((state: RootState) => state.address.addresses);
+
+  const [saveAddressMutation] = useSaveAddressMutation();
+  const [saveDefaultAddressMutation] = useSaveDefaultAddressMutation();
+  const [pageNo] = useState(1);
+  const pageSize = 10;
+  const {
+    data: serverAddresses,
+    refetch: refetchAddresses,
+    isFetching: isFetchingAddresses,
+  } = useGetAddressesQuery(
+    { userId: user?.user_id || 0, pageNo, pageSize },
+    { skip: !user?.user_id },
+  );
+
+  useEffect(() => {
+    console.log(
+      '--- AddressScreen: user from state ---',
+      JSON.stringify(user, null, 2),
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (serverAddresses) {
+      console.log(
+        '--- AddressScreen: serverAddresses from API ---',
+        JSON.stringify(serverAddresses, null, 2),
+      );
+    }
+  }, [serverAddresses, pageNo]);
 
   const [addressTypes, setAddressTypes] = useState<
     { id: number; type: string }[]
@@ -139,26 +269,49 @@ export default function AddressScreen({ navigation }: any) {
     setShowModal(true);
   };
 
-  const handleUseMyLocation = () => {
-    // Attempt to use navigator.geolocation which is polyfilled in many RN environments
-    // or provide instructions if it fails.
-    const nav = navigator as any;
-    if (!nav?.geolocation) {
-      showAlert({
-        title: isBn ? 'সতর্কতা' : 'Warning',
-        message: isBn
-          ? 'আপনার ডিভাইসে জিপিএস উপলব্ধ নেই'
-          : 'Geolocation is not supported on this device',
-      });
-      return;
+  const handleUseMyLocation = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: isBn ? 'অবস্থান অনুমতি' : 'Location Permission',
+            message: isBn
+              ? 'আপনার সঠিক অবস্থান পেতে এই অ্যাপটির অবস্থানের অনুমতি প্রয়োজন'
+              : 'This app needs location permission to get your precise address.',
+            buttonNeutral: isBn ? 'পরে' : 'Ask Me Later',
+            buttonNegative: isBn ? 'বাতিল' : 'Cancel',
+            buttonPositive: isBn ? 'ঠিক আছে' : 'OK',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          showAlert({
+            title: isBn ? 'অনুমতি অস্বীকার করা হয়েছে' : 'Permission Denied',
+            message: isBn
+              ? 'অবস্থান অনুমতি ছাড়া ঠিকানা পাওয়া সম্ভব নয়'
+              : 'Location permission is required to fetch your position.',
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn(err);
+      }
     }
 
     dispatch(showLoader());
-    nav.geolocation.getCurrentPosition(
+    Geolocation.getCurrentPosition(
       (position: any) => {
-        setLatitude(position.coords.latitude.toString());
-        setLongitude(position.coords.longitude.toString());
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLatitude(lat.toFixed(6));
+        setLongitude(lng.toFixed(6));
         dispatch(hideLoader());
+        showAlert({
+          title: isBn ? 'লোকেসন পাওয়া গেছে' : 'Location Found',
+          message: isBn
+            ? `অক্ষাংশ: ${lat.toFixed(6)}, দ্রাঘিমাংশ: ${lng.toFixed(6)}`
+            : `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
+        });
       },
       (error: any) => {
         dispatch(hideLoader());
@@ -166,16 +319,15 @@ export default function AddressScreen({ navigation }: any) {
         showAlert({
           title: isBn ? 'ত্রুটি' : 'Error',
           message: isBn
-            ? 'আপনার অবস্থান পাওয়া যায়নি'
-            : 'Could not fetch your location. Please ensure GPS is on.',
+            ? 'আপনার অবস্থান পাওয়া যায়নি। GPS চালু আছে কিনা নিশ্চিত করুন।'
+            : 'Could not get your location. Please ensure GPS is enabled.',
         });
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
   };
 
-  // Fetch Address Types on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchTypes = async () => {
       setIsLoadingTypes(true);
       try {
@@ -196,7 +348,28 @@ export default function AddressScreen({ navigation }: any) {
     fetchTypes();
   }, []);
 
-  const openEdit = (addr: Address) => {
+  const displayAddresses = useMemo(() => {
+    if (!serverAddresses || !Array.isArray(serverAddresses)) return [];
+    return serverAddresses.map((a: any) => ({
+      id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
+      type: a.address_type || a.address_type_name || 'Home',
+      label: a.label || '',
+      contactName: a.full_name || a.name || '',
+      contactNumber: a.phone || a.contact_no || '',
+      relationType: a.relation_type || a.relation_type_name || '',
+      addressLine1: a.address || '',
+      streetArea: a.street || '',
+      landmark: a.landmark || '',
+      city: a.city || '',
+      state: a.state || '',
+      pincode: a.pincode || '',
+      latitude: a.latitude?.toString() || '',
+      longitude: a.longitude?.toString() || '',
+      isDefault: a.is_default === 1 || a.is_default === true,
+    }));
+  }, [serverAddresses]);
+
+  const openEdit = useCallback((addr: Address) => {
     setType(addr.type);
     setLabel(addr.label);
     setContactName(addr.contactName);
@@ -210,10 +383,11 @@ export default function AddressScreen({ navigation }: any) {
     setPincode(addr.pincode);
     setLatitude(addr.latitude || '');
     setLongitude(addr.longitude || '');
+    setIsDefaultState(addr.isDefault || false);
     setEditingId(addr.id);
     setErrors({});
     setShowModal(true);
-  };
+  }, []);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -236,62 +410,220 @@ export default function AddressScreen({ navigation }: any) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validate()) return;
-    dispatch(showLoader());
-    setTimeout(() => {
-      const addrData: Address = {
-        id: editingId || Date.now().toString(),
-        type,
-        label,
-        contactName,
-        contactNumber,
-        relationType,
-        addressLine1,
-        streetArea,
-        landmark,
-        city,
+
+    try {
+      dispatch(showLoader());
+      const relId =
+        SOCIAL_RELATIONS.find(r => r.name === relationType)?.id || 0;
+      const typeId = addressTypes.find(t => t.type === type)?.id || 1;
+
+      const payload = {
+        in_ctzn_address_id: editingId ? parseInt(editingId, 10) : 0,
+        ctzn_id: user?.user_id || 0,
+        relation_type_id: relId,
+        address_type_id: typeId,
+        label: label,
+        name: contactName,
+        contact_no: contactNumber,
+        address: addressLine1,
+        street: streetArea,
+        landmark: landmark,
+        city: city,
         state: stateName,
-        pincode,
-        latitude,
-        longitude,
-        isDefault: isDefault,
+        pincode: pincode,
+        is_default: isDefault ? 1 : addresses.length === 0 ? 1 : 0,
+        latitude: latitude ? parseFloat(latitude) : 0,
+        longitude: longitude ? parseFloat(longitude) : 0,
       };
-      if (editingId) {
-        // Honor the switch, but if it was already default, keep it default
-        const old = addresses.find(a => a.id === editingId);
-        if (old?.isDefault) addrData.isDefault = true;
-        dispatch(updateAddress(addrData));
-      } else {
-        // First address is always default, or if the switch was toggled
-        if (addresses.length === 0) addrData.isDefault = true;
-        dispatch(addAddress(addrData));
-      }
+
+      const result = await saveAddressMutation({
+        data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
+      }).unwrap();
+
       dispatch(hideLoader());
-      setShowModal(false);
-      clearForm();
-    }, 600);
+
+      if (result.status === 0) {
+        showAlert({
+          title: isBn ? 'সফল' : 'Success',
+          message:
+            result.message ||
+            (isBn ? 'ঠিকানা সংরক্ষিত হয়েছে' : 'Address saved successfully'),
+        });
+
+        const addrData: Address = {
+          id:
+            result.data?.ctzn_address_id?.toString() ||
+            editingId ||
+            Date.now().toString(),
+          type,
+          label,
+          contactName,
+          contactNumber,
+          relationType,
+          addressLine1,
+          streetArea,
+          landmark,
+          city,
+          state: stateName,
+          pincode,
+          latitude,
+          longitude,
+          isDefault: payload.is_default === 1,
+        };
+
+        if (editingId) {
+          dispatch(updateAddress(addrData));
+        } else {
+          dispatch(addAddress(addrData));
+        }
+
+        setShowModal(false);
+        clearForm();
+        refetchAddresses();
+      } else {
+        showAlert({
+          title: isBn ? 'ত্রুটি' : 'Error',
+          message:
+            result.message || (isBn ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Save failed'),
+        });
+      }
+    } catch (err: any) {
+      dispatch(hideLoader());
+      console.error('Save Address Error:', err);
+      showAlert({
+        title: isBn ? 'সতর্কতা' : 'Warning',
+        message:
+          err?.data?.message ||
+          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+      });
+    }
   };
 
-  const handleDelete = (id: string) => {
-    showAlert({
-      title: isBn ? 'মুছে ফেলুন' : 'Delete Address',
-      message: isBn
-        ? 'এই ঠিকানাটি মুছে ফেলতে চান?'
-        : 'Are you sure you want to delete this address?',
-      buttons: [
-        { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
-        {
-          text: isBn ? 'মুছুন' : 'Delete',
-          onPress: () => dispatch(deleteAddress(id)),
-          style: 'destructive',
-        },
-      ],
-    });
-  };
+  const handleSetDefault = useCallback(
+    async (addrId: string) => {
+      try {
+        dispatch(showLoader());
+        const result = await saveDefaultAddressMutation({
+          userId: user?.user_id || 0,
+          addressId: parseInt(addrId, 10),
+        }).unwrap();
 
-  const typeIcon = (t: string) =>
-    t === 'Home' ? '🏠' : t === 'Work' ? '💼' : t === 'Temple' ? '🛕' : '📍';
+        dispatch(hideLoader());
+        if (result.status === 0) {
+          showAlert({
+            title: isBn ? 'সফল' : 'Success',
+            message:
+              result.message ||
+              (isBn
+                ? 'ডিফল্ট ঠিকানা সেট করা হয়েছে'
+                : 'Default address set successfully'),
+          });
+          refetchAddresses();
+        } else {
+          showAlert({
+            title: isBn ? 'ত্রুটি' : 'Error',
+            message:
+              result.message ||
+              (isBn ? 'ব্যর্থ হয়েছে' : 'Failed to set default'),
+          });
+        }
+      } catch (err: any) {
+        dispatch(hideLoader());
+        console.error('Save Default Address Error:', err);
+        showAlert({
+          title: isBn ? 'সতর্কতা' : 'Warning',
+          message:
+            err?.data?.message ||
+            (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+        });
+      }
+    },
+    [
+      dispatch,
+      user,
+      isBn,
+      saveDefaultAddressMutation,
+      showAlert,
+      refetchAddresses,
+    ],
+  );
+
+  const handleDeleteAddr = useCallback(
+    (id: string) => {
+      showAlert({
+        title: isBn ? 'মুছে ফেলুন' : 'Delete Address',
+        message: isBn
+          ? 'এই ঠিকানাটি মুছে ফেলতে চান?'
+          : 'Are you sure you want to delete this address?',
+        buttons: [
+          { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
+          {
+            text: isBn ? 'মুছুন' : 'Delete',
+            onPress: () => dispatch(deleteAddress(id)),
+            style: 'destructive',
+          },
+        ],
+      });
+    },
+    [dispatch, isBn, showAlert],
+  );
+
+  const renderHeader = () => (
+    <View>
+      <View style={styles.hero}>
+        <View style={styles.heroInner}>
+          <View style={styles.heroIcon}>
+            <Text style={{ fontSize: 22 }}>📍</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroTitle}>
+              {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
+            </Text>
+            <Text style={styles.heroSub} numberOfLines={1}>
+              {isBn
+                ? 'পূজা লোকেশন পরিচালনা করুন'
+                : 'Manage your puja locations'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.deco1} />
+        <View style={styles.deco2} />
+      </View>
+
+      <View style={styles.listHead}>
+        <Text style={styles.listTitle}>
+          {isBn ? 'আপনার ঠিকানা' : 'Your Addresses'}{' '}
+          <Text style={styles.listCount}>({displayAddresses.length})</Text>
+        </Text>
+        <TouchableOpacity style={styles.addNewBtn} onPress={openAdd}>
+          <Text style={styles.addNewBtnTxt}>+ {isBn ? 'নতুন' : 'Add New'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isFetchingAddresses && pageNo === 1 && (
+        <ActivityIndicator
+          size="small"
+          color={Colors.primary}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View>
+      {displayAddresses.length > 0 && (
+        <TouchableOpacity style={styles.addMoreBtn} onPress={openAdd}>
+          <Text style={styles.addMoreBtnTxt}>
+            + {isBn ? 'আরও ঠিকানা যোগ করুন' : 'Add More Address'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      <View style={{ height: 40 }} />
+    </View>
+  );
 
   return (
     <View style={styles.root}>
@@ -301,7 +633,6 @@ export default function AddressScreen({ navigation }: any) {
         translucent={false}
       />
 
-      {/* Sticky top header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.navBtn}
@@ -321,186 +652,42 @@ export default function AddressScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Scrollable page body */}
-      <ScrollView
+      <FlatList
         style={styles.body}
-        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.bodyContent}
-      >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroInner}>
-            <View style={styles.heroIcon}>
-              <Text style={{ fontSize: 22 }}>📍</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>
-                {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
+        data={displayAddresses}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <AddressCard
+            addr={item}
+            isBn={isBn}
+            onEdit={openEdit}
+            onSetDefault={handleSetDefault}
+            onDelete={handleDeleteAddr}
+          />
+        )}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={
+          <NoDataFound
+            message={isBn ? 'এখনও কোনো ঠিকানা নেই' : 'No addresses saved yet'}
+            containerHeight={350}
+          >
+            <TouchableOpacity style={styles.addFirstBtn} onPress={openAdd}>
+              <Text style={styles.addFirstBtnTxt}>
+                + {isBn ? 'প্রথম ঠিকানা যোগ করুন' : 'Add First Address'}
               </Text>
-              <Text style={styles.heroSub} numberOfLines={1}>
-                {isBn
-                  ? 'পূজা লোকেশন পরিচালনা করুন'
-                  : 'Manage your puja locations'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.deco1} />
-          <View style={styles.deco2} />
-        </View>
+            </TouchableOpacity>
+          </NoDataFound>
+        }
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={5}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={Platform.OS === 'android'}
+      />
 
-        {/* Card */}
-        <View style={styles.card}>
-          {addresses.length === 0 ? (
-            <NoDataFound
-              message={isBn ? 'এখনও কোনো ঠিকানা নেই' : 'No addresses saved yet'}
-              containerHeight={350}
-            >
-              <TouchableOpacity style={styles.addFirstBtn} onPress={openAdd}>
-                <Text style={styles.addFirstBtnTxt}>
-                  + {isBn ? 'প্রথম ঠিকানা যোগ করুন' : 'Add First Address'}
-                </Text>
-              </TouchableOpacity>
-            </NoDataFound>
-          ) : (
-            <>
-              <View style={styles.listHead}>
-                <Text style={styles.listTitle}>
-                  {isBn ? 'আপনার ঠিকানা' : 'Your Addresses'}{' '}
-                  <Text style={styles.listCount}>({addresses.length})</Text>
-                </Text>
-                <TouchableOpacity style={styles.addNewBtn} onPress={openAdd}>
-                  <Text style={styles.addNewBtnTxt}>
-                    + {isBn ? 'নতুন' : 'Add New'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {addresses.map(addr => (
-                <View
-                  key={addr.id}
-                  style={[
-                    styles.addrCard,
-                    addr.isDefault && styles.addrCardDef,
-                  ]}
-                >
-                  {addr.isDefault && (
-                    <View style={styles.defBadge}>
-                      <Text style={styles.defBadgeTxt}>
-                        ★ {isBn ? 'ডিফল্ট' : 'DEFAULT'}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.addrTop}>
-                    <View
-                      style={[
-                        styles.addrTypeBox,
-                        addr.isDefault && {
-                          backgroundColor: Colors.lightOrange,
-                        },
-                      ]}
-                    >
-                      <Text style={{ fontSize: 18 }}>
-                        {typeIcon(addr.type)}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      {addr.label ? (
-                        <View style={styles.labelChip}>
-                          <Text style={styles.labelChipTxt}>
-                            🏷 {addr.label}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <Text style={styles.addrName}>
-                        {addr.contactName}{' '}
-                        {addr.relationType ? (
-                          <Text style={styles.relTag}>
-                            ({addr.relationType})
-                          </Text>
-                        ) : null}
-                      </Text>
-                      <Text style={styles.addrPhone}>
-                        📞 {addr.contactNumber}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.addrBody}>
-                    <Text style={styles.addrMain}>{addr.addressLine1}</Text>
-                    <Text style={styles.addrSub}>
-                      {[
-                        addr.streetArea,
-                        addr.landmark,
-                        addr.city,
-                        addr.state,
-                        addr.pincode,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </Text>
-                    {addr.latitude || addr.longitude ? (
-                      <Text style={styles.coords}>
-                        📌 {addr.latitude ? `Lat: ${addr.latitude}` : ''}
-                        {addr.latitude && addr.longitude ? '  ' : ''}
-                        {addr.longitude ? `Lng: ${addr.longitude}` : ''}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View style={styles.addrFooter}>
-                    <TouchableOpacity
-                      style={[
-                        styles.defBtn,
-                        addr.isDefault && styles.defBtnActive,
-                      ]}
-                      onPress={() => dispatch(setDefaultAddress(addr.id))}
-                      disabled={addr.isDefault}
-                    >
-                      <Text
-                        style={[
-                          styles.defBtnTxt,
-                          addr.isDefault && {
-                            color: Colors.primary,
-                            fontWeight: '700',
-                          },
-                        ]}
-                      >
-                        {addr.isDefault ? '★ Default' : '☆ Set Default'}
-                      </Text>
-                    </TouchableOpacity>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity
-                        style={styles.acBtn}
-                        onPress={() => openEdit(addr)}
-                      >
-                        <Text>✏️</Text>
-                        <Text style={styles.acBtnTxt}>
-                          {isBn ? 'সম্পাদনা' : 'Edit'}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.acBtn, styles.acBtnRed]}
-                        onPress={() => handleDelete(addr.id)}
-                      >
-                        <Text>🗑</Text>
-                        <Text style={[styles.acBtnTxt, { color: Colors.red }]}>
-                          {isBn ? 'মুছুন' : 'Delete'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ))}
-
-              <TouchableOpacity style={styles.addMoreBtn} onPress={openAdd}>
-                <Text style={styles.addMoreBtnTxt}>
-                  + {isBn ? 'আরেকটি ঠিকানা যোগ করুন' : 'Add Another Address'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Modal — uses flex layout so footer is always visible */}
+      {/* Modal for Add/Edit Address */}
       <Modal
         visible={showModal}
         transparent
@@ -508,238 +695,250 @@ export default function AddressScreen({ navigation }: any) {
         onRequestClose={() => setShowModal(false)}
       >
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBg}
         >
-          <View style={styles.modalBg}>
-            {/* Sheet: flex column, constrained height */}
-            <View style={styles.sheet}>
-              {/* Fixed header */}
-              <View style={styles.sheetHead}>
-                <View style={styles.sheetHeadIcon}>
-                  <Text style={{ fontSize: 18 }}>📝</Text>
-                </View>
-                <Text style={styles.sheetHeadTitle}>
-                  {editingId
-                    ? isBn
-                      ? 'ঠিকানা আপডেট'
-                      : 'Edit Address'
-                    : isBn
-                    ? 'নতুন ঠিকানা'
-                    : 'New Address'}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowModal(false)}
-                  style={styles.sheetClose}
-                >
-                  <Text style={styles.sheetCloseTxt}>✕</Text>
-                </TouchableOpacity>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <View style={styles.sheetHeadIcon}>
+                <Text>🏠</Text>
               </View>
-
-              {/* Scrollable form — flex:1 keeps it inside the sheet */}
-              <ScrollView
-                style={styles.sheetScroll}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.sheetForm}
-                keyboardShouldPersistTaps="handled"
+              <Text style={styles.sheetHeadTitle}>
+                {editingId
+                  ? isBn
+                    ? 'ঠিকানা সম্পাদনা'
+                    : 'Edit Address'
+                  : isBn
+                  ? 'নতুন ঠিকানা'
+                  : 'New Address'}
+              </Text>
+              <TouchableOpacity
+                style={styles.sheetClose}
+                onPress={() => setShowModal(false)}
               >
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.sheetScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.sheetForm}>
                 <Text style={styles.secHead}>
-                  {isBn ? '📋 ঠিকানার ধরন ও লেবেল' : '📋 ADDRESS TYPE & LABEL'}
+                  {isBn ? 'ঠিকানার ধরন' : 'ADDRESS TYPE'}
                 </Text>
-                <View style={styles.row}>
-                  <View style={styles.fieldWrap}>
-                    <Dropdown
-                      label={isBn ? 'ঠিকানার ধরন' : 'ADDRESS TYPE'}
-                      required
-                      placeholder={isBn ? 'ধরন নির্বাচন করুন' : 'Select type'}
-                      options={addressTypes.map(t => ({
-                        id: t.type,
-                        name: t.type,
-                      }))}
-                      value={type}
-                      onSelect={v => setType(v)}
-                      error={errors.type}
-                    />
-                  </View>
-                  <Field
-                    lab={isBn ? 'লেবেল (ঐচ্ছিক)' : 'LABEL (OPTIONAL)'}
-                    val={label}
-                    setVal={setLabel}
-                    place="e.g. My Home, Office..."
-                  />
+                <View style={styles.typeRow}>
+                  {addressTypes.map(t => (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[
+                        styles.typeChip,
+                        type === t.type && styles.typeChipOn,
+                      ]}
+                      onPress={() => setType(t.type)}
+                    >
+                      <Text
+                        style={[
+                          styles.typeChipTxt,
+                          type === t.type && styles.typeChipTxtOn,
+                        ]}
+                      >
+                        {t.type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
 
-                <View style={styles.div} />
+                <Field
+                  lab={
+                    isBn
+                      ? 'লেবেল (যেমন: হোম, অফিস)'
+                      : 'Label (e.g. Home, Office)'
+                  }
+                  val={label}
+                  setVal={setLabel}
+                  place="Home / Office"
+                />
+
                 <Text style={styles.secHead}>
-                  {isBn ? '👤 যোগাযোগের তথ্য' : '👤 CONTACT INFORMATION'}
+                  {isBn ? 'যোগাযোগের তথ্য' : 'CONTACT INFO'}
                 </Text>
                 <Field
-                  lab={isBn ? 'পুরো নাম' : 'FULL NAME'}
+                  lab={isBn ? 'পুরো নাম' : 'Full Name'}
                   req
                   val={contactName}
                   setVal={setContactName}
-                  place="e.g. Ramesh"
+                  place="John Doe"
                   err={errors.contactName}
+                  setErrors={setErrors}
                 />
-                <View style={styles.row}>
-                  <Field
-                    lab={isBn ? 'মোবাইল' : 'MOBILE'}
-                    req
-                    val={contactNumber}
-                    setVal={setContactNumber}
-                    place="10-digit mobile"
-                    kbd="number-pad"
-                    maxLength={10}
-                    err={errors.contactNumber}
-                  />
-                  <View style={styles.fieldWrap}>
-                    <Dropdown
-                      label={isBn ? 'সম্পর্ক' : 'RELATION TYPE'}
-                      placeholder={
-                        isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select relation'
-                      }
-                      options={SOCIAL_RELATIONS}
-                      value={relationType}
-                      onSelect={v => setRelationType(v)}
-                      error={errors.relationType}
-                    />
-                  </View>
-                </View>
+                <Field
+                  lab={isBn ? 'ফোন নম্বর' : 'Phone Number'}
+                  req
+                  val={contactNumber}
+                  setVal={setContactNumber}
+                  place="1234567890"
+                  kbd="phone-pad"
+                  maxLength={10}
+                  err={errors.contactNumber}
+                  setErrors={setErrors}
+                />
+
+                <Text style={styles.fieldLabel}>
+                  {isBn ? 'সম্পর্ক' : 'RELATION'}
+                </Text>
+                <Dropdown
+                  options={SOCIAL_RELATIONS}
+                  value={
+                    SOCIAL_RELATIONS.find(r => r.name === relationType)?.id ||
+                    null
+                  }
+                  onSelect={id => {
+                    const name =
+                      SOCIAL_RELATIONS.find(r => r.id === id)?.name || '';
+                    setRelationType(name);
+                    setErrors(prev => ({ ...prev, relationType: '' }));
+                  }}
+                  placeholder={
+                    isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select Relation'
+                  }
+                />
 
                 <View style={styles.div} />
+
                 <Text style={styles.secHead}>
-                  {isBn ? '🏘 ঠিকানার বিস্তারিত' : '🏘 ADDRESS DETAILS'}
+                  {isBn ? 'ঠিকানার বিবরণ' : 'ADDRESS DETAILS'}
                 </Text>
                 <Field
-                  lab={isBn ? 'ঠিকানা লাইন' : 'ADDRESS LINE'}
+                  lab={isBn ? 'ঠিকানা (লাইন ১)' : 'Address line 1'}
                   req
                   val={addressLine1}
                   setVal={setAddressLine1}
-                  place="Flat / House no, Building name"
+                  place="House No, Building"
                   err={errors.addressLine1}
+                  setErrors={setErrors}
                 />
+                <Field
+                  lab={isBn ? 'রাস্তা / এলাকা' : 'Street / Area'}
+                  val={streetArea}
+                  setVal={setStreetArea}
+                  place="Near mall, park"
+                />
+                <Field
+                  lab={isBn ? 'ল্যান্ডমার্ক' : 'Landmark'}
+                  val={landmark}
+                  setVal={setLandmark}
+                  place="Near hospital"
+                />
+
                 <View style={styles.row}>
                   <Field
-                    lab={isBn ? 'রাস্তা / এরিয়া' : 'STREET / AREA'}
-                    val={streetArea}
-                    setVal={setStreetArea}
-                    place="Street or locality"
-                  />
-                  <Field
-                    lab={isBn ? 'ল্যান্ডমার্ক' : 'LANDMARK'}
-                    val={landmark}
-                    setVal={setLandmark}
-                    place="Near temple, park..."
-                  />
-                </View>
-                <View style={styles.row}>
-                  <Field
-                    lab={isBn ? 'শহর' : 'CITY'}
+                    lab={isBn ? 'শহর' : 'City'}
                     req
                     val={city}
                     setVal={setCity}
-                    place="city"
+                    place="Kolkata"
                     err={errors.city}
+                    setErrors={setErrors}
                   />
                   <Field
-                    lab={isBn ? 'রাজ্য' : 'STATE'}
+                    lab={isBn ? 'রাজ্য' : 'State'}
                     val={stateName}
                     setVal={setStateName}
-                    place="state"
-                  />
-                  <Field
-                    lab={isBn ? 'পিনকোড' : 'PINCODE'}
-                    req
-                    val={pincode}
-                    setVal={setPincode}
-                    place="pincode"
-                    kbd="number-pad"
-                    maxLength={6}
-                    err={errors.pincode}
+                    place="West Bengal"
                   />
                 </View>
 
-                <View style={styles.div} />
-                <Text style={styles.secHead}>
-                  {isBn ? '🗺 অবস্থান স্থানাঙ্ক' : '🗺 LOCATION COORDINATES'}
-                </Text>
-
-                <View style={styles.row}>
-                  <Field
-                    lab={isBn ? 'অক্ষাংশ (Latitude)' : 'LATITUDE'}
-                    val={latitude}
-                    setVal={setLatitude}
-                    place="e.g. 22.5726"
-                    kbd="decimal-pad"
-                    err={errors.latitude}
-                  />
-                  <Field
-                    lab={isBn ? 'দ্রাঘিমাংশ (Longitude)' : 'LONGITUDE'}
-                    val={longitude}
-                    setVal={setLongitude}
-                    place="e.g. 88.3639"
-                    kbd="decimal-pad"
-                    err={errors.longitude}
-                  />
-                </View>
+                <Field
+                  lab={isBn ? 'পিনকোড' : 'Pincode'}
+                  req
+                  val={pincode}
+                  setVal={setPincode}
+                  place="700001"
+                  kbd="number-pad"
+                  maxLength={6}
+                  err={errors.pincode}
+                  setErrors={setErrors}
+                />
 
                 <TouchableOpacity
                   style={styles.useLocBtn}
                   onPress={handleUseMyLocation}
                 >
-                  <Text style={styles.useLocBtnIcon}>🧭</Text>
+                  <Text style={styles.useLocBtnIcon}>📍</Text>
                   <Text style={styles.useLocBtnText}>
-                    {isBn ? 'আমার অবস্থান ব্যবহার করুন' : 'Use My Location'}
+                    {isBn
+                      ? 'আমার বর্তমান অবস্থান ব্যবহার করুন'
+                      : 'Use My Location'}
                   </Text>
                 </TouchableOpacity>
 
-                <View style={styles.div} />
+                <View style={styles.row}>
+                  <Field
+                    lab={isBn ? 'অক্ষাংশ' : 'Latitude'}
+                    val={latitude}
+                    setVal={setLatitude}
+                    place="e.g. 22.5726"
+                    kbd="numeric"
+                    err={errors.latitude}
+                    setErrors={setErrors}
+                  />
+                  <Field
+                    lab={isBn ? 'দ্রাঘিমাংশ' : 'Longitude'}
+                    val={longitude}
+                    setVal={setLongitude}
+                    place="e.g. 88.3639"
+                    kbd="numeric"
+                    err={errors.longitude}
+                    setErrors={setErrors}
+                  />
+                </View>
+
                 <View style={styles.defaultRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.defaultTitle}>
-                      {isBn
-                        ? 'ডিফল্ট হিসেবে সেট করুন'
-                        : 'Set as Default Address'}
+                      {isBn ? 'ডিফল্ট হিসেবে সেট করুন' : 'Set as Default'}
                     </Text>
                     <Text style={styles.defaultSub}>
                       {isBn
-                        ? 'সব পূজা বুকিং এর জন্য ডিফল্ট হিসেবে ব্যবহার করা হবে'
-                        : 'Used by default for all puja bookings'}
+                        ? 'এটি আপনার প্রধান পূজা লোকেশন হবে'
+                        : 'This will be your primary puja location'}
                     </Text>
                   </View>
                   <Switch
                     value={isDefault}
                     onValueChange={setIsDefaultState}
-                    trackColor={{ false: Colors.divider, true: Colors.primary }}
+                    trackColor={{
+                      false: Colors.disabled,
+                      true: Colors.primary,
+                    }}
                     thumbColor={Colors.white}
                   />
                 </View>
-
-                <View style={{ height: 24 }} />
-              </ScrollView>
-
-              {/* Footer — always at bottom of the sheet because sheet is flex column */}
-              <View style={styles.sheetFooter}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setShowModal(false)}
-                >
-                  <Text style={styles.cancelTxt}>
-                    {isBn ? 'বাতিল' : 'Cancel'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveTxt}>
-                    {editingId
-                      ? isBn
-                        ? '✓ আপডেট'
-                        : '✓ Update'
-                      : isBn
-                      ? '✓ সংরক্ষণ'
-                      : '✓ Save Address'}
-                  </Text>
-                </TouchableOpacity>
               </View>
+            </ScrollView>
+
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setShowModal(false)}
+              >
+                <Text style={styles.cancelTxt}>
+                  {isBn ? 'বাতিল' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveTxt}>
+                  {editingId
+                    ? isBn
+                      ? 'আপডেট করুন'
+                      : 'Update'
+                    : isBn
+                    ? 'সংরক্ষণ করুন'
+                    : 'Save'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -750,168 +949,120 @@ export default function AddressScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-
   header: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop:
-      Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
-    paddingBottom: 10,
-    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightOrange,
+    borderBottomColor: Colors.lightGray,
   },
   navBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.disabled,
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  navBtnIcon: { fontSize: 14, color: Colors.textMuted },
+  navBtnIcon: { fontSize: 16, color: Colors.textMain },
   navBtnTxt: { fontSize: 13, fontWeight: '700', color: Colors.textMain },
 
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
+  bodyContent: { padding: 20, paddingBottom: 40 },
 
   hero: {
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.disabled,
     overflow: 'hidden',
     position: 'relative',
   },
-  heroInner: { flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 2 },
+  heroInner: { flexDirection: 'row', alignItems: 'center', gap: 16, zIndex: 5 },
   heroIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.white,
-    marginBottom: 2,
-  },
-  heroSub: { fontSize: 11, color: 'rgba(255,255,255,0.88)' },
-  deco1: {
-    position: 'absolute',
-    right: -28,
-    top: -24,
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  deco2: {
-    position: 'absolute',
-    right: 20,
-    bottom: -32,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-  },
-
-  card: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    overflow: 'visible',
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-
-  emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     backgroundColor: Colors.lightOrange,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.textMain,
-    marginBottom: 8,
+  heroTitle: { fontSize: 24, fontWeight: '900', color: Colors.textMain },
+  heroSub: { fontSize: 14, color: Colors.textMuted, marginTop: 4 },
+  deco1: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.warningBackground,
+    bottom: -40,
+    right: -20,
+    opacity: 0.6,
   },
-  emptySub: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 16,
-    marginBottom: 24,
+  deco2: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.lightOrange,
+    bottom: 20,
+    right: 40,
+    opacity: 0.3,
   },
-  addFirstBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  addFirstBtnTxt: { color: Colors.white, fontSize: 14, fontWeight: '700' },
 
   listHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  listTitle: { fontSize: 15, fontWeight: '800', color: Colors.textMain },
-  listCount: { fontSize: 13, color: Colors.gray },
+  listTitle: { fontSize: 18, fontWeight: '800', color: Colors.textMain },
+  listCount: { color: Colors.gray, fontWeight: '600' },
   addNewBtn: {
-    backgroundColor: Colors.lightOrange,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
-  addNewBtnTxt: { color: Colors.primary, fontSize: 12, fontWeight: '700' },
+  addNewBtnTxt: { color: Colors.white, fontSize: 13, fontWeight: '700' },
 
   addrCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 18,
     borderWidth: 1,
     borderColor: Colors.disabled,
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 14,
-    backgroundColor: Colors.ultraLightGray,
+    marginBottom: 16,
     position: 'relative',
   },
   addrCardDef: {
-    borderColor: Colors.border,
+    borderColor: Colors.primary,
     backgroundColor: Colors.warningBackground,
   },
   defBadge: {
     position: 'absolute',
-    right: 14,
-    top: -11,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    top: -12,
+    right: 20,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  defBadgeTxt: { fontSize: 10, color: Colors.primary, fontWeight: '800' },
-
-  addrTop: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  defBadgeTxt: { fontSize: 10, color: Colors.white, fontWeight: '800' },
+  addrTop: { flexDirection: 'row', gap: 14, marginBottom: 14 },
   addrTypeBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: Colors.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
@@ -925,16 +1076,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   labelChipTxt: { fontSize: 10, color: Colors.textMuted, fontWeight: '700' },
-  addrName: { fontSize: 15, fontWeight: '800', color: Colors.textMain },
-  addrPhone: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  relTag: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
-
-  addrBody: { paddingLeft: 54, marginBottom: 14 },
+  addrName: { fontSize: 16, fontWeight: '800', color: Colors.textMain },
+  relTag: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+  addrPhone: { fontSize: 13, color: Colors.textMuted, marginTop: 2 },
+  addrBody: { marginBottom: 16 },
   addrMain: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
     color: Colors.textMain,
-    fontWeight: '500',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   addrSub: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
   coords: {
@@ -943,110 +1093,91 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontStyle: 'italic',
   },
-
   addrFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: Colors.lightGray,
-    paddingTop: 12,
+    paddingTop: 14,
   },
-  defBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  defBtnActive: { backgroundColor: Colors.lightOrange },
-  defBtnTxt: { fontSize: 12, color: Colors.gray, fontWeight: '600' },
   acBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
     backgroundColor: Colors.inputBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   acBtnRed: { backgroundColor: Colors.tagRed },
-  acBtnTxt: { fontSize: 11, fontWeight: '700', color: Colors.textMain },
+  acBtnTxt: { fontSize: 12, fontWeight: '700', color: Colors.textMain },
 
   addMoreBtn: {
     borderWidth: 1,
     borderColor: Colors.primary,
     borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
-    backgroundColor: Colors.warningBackground,
-    marginTop: 4,
+    backgroundColor: Colors.white,
   },
-  addMoreBtnTxt: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
+  addMoreBtnTxt: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
 
-  // Modal
+  addFirstBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  addFirstBtnTxt: { color: Colors.white, fontSize: 14, fontWeight: '700' },
+
   modalBg: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.52)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
-
-  // Sheet: fixed height so flex:1 on the inner ScrollView has a parent height to work within.
-  // maxHeight alone doesn't give the ScrollView a bounded height — it collapses the fields.
   sheet: {
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: '85%',
-    flexDirection: 'column',
+    height: '90%',
   },
-
   sheetHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
+    gap: 12,
   },
   sheetHeadIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     backgroundColor: Colors.lightOrange,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sheetHeadTitle: {
-    flex: 1,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
     color: Colors.textMain,
+    flex: 1,
   },
   sheetClose: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: Colors.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sheetCloseTxt: { fontSize: 13, color: Colors.textMuted, fontWeight: 'bold' },
-
-  // flex:1 on ScrollView means it expands to fill sheet height but won't push out the sticky footer
+  sheetCloseTxt: { fontSize: 16, fontWeight: 'bold', color: Colors.textMuted },
   sheetScroll: { flex: 1 },
-  sheetForm: { padding: 20, paddingBottom: 8 },
-
+  sheetForm: { padding: 20 },
   secHead: {
     fontSize: 11,
     fontWeight: '800',
     color: Colors.textMuted,
-    marginBottom: 14,
-    letterSpacing: 0.4,
+    marginBottom: 16,
+    letterSpacing: 0.5,
   },
-  div: { height: 1, backgroundColor: Colors.lightGray, marginVertical: 20 },
-
   typeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1054,109 +1185,127 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.disabled,
-    backgroundColor: Colors.ultraLightGray,
   },
   typeChipOn: {
-    borderColor: Colors.primary,
     backgroundColor: Colors.lightOrange,
+    borderColor: Colors.primary,
   },
-  typeChipTxt: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
+  typeChipTxt: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
   typeChipTxtOn: { color: Colors.primary, fontWeight: '700' },
-
-  row: { flexDirection: 'row', gap: 10 },
-  fieldWrap: { flex: 1, marginBottom: 14 },
+  fieldWrap: { flex: 1, marginBottom: 16 },
   fieldLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: Colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    borderWidth: 1,
-    borderColor: Colors.divider,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 48,
+    backgroundColor: Colors.inputBg,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 50,
     fontSize: 14,
     color: Colors.textMain,
-    backgroundColor: Colors.ultraLightGray,
-  },
-  inputErr: { borderColor: ERROR_COLOR, backgroundColor: Colors.tagRed },
-  errTxt: { fontSize: 11, color: ERROR_COLOR, marginTop: 4, fontWeight: '500' },
-
-  locInfo: {
-    backgroundColor: Colors.warningBackground,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
+    borderColor: Colors.transparent,
   },
-  locInfoTxt: { fontSize: 12, color: Colors.warningText, lineHeight: 18 },
-
-  sheetFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    backgroundColor: Colors.white,
-    // Extra padding at bottom for devices with home indicator
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.disabled,
-    alignItems: 'center',
-  },
-  cancelTxt: { fontSize: 14, fontWeight: '700', color: Colors.textMuted },
-  saveBtn: {
-    flex: 2,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-  },
-  saveTxt: { fontSize: 14, fontWeight: '800', color: Colors.white },
-
+  inputErr: { borderColor: Colors.red, backgroundColor: Colors.tagRed },
+  errTxt: { fontSize: 11, color: Colors.red, marginTop: 4 },
+  row: { flexDirection: 'row', gap: 12 },
+  div: { height: 1, backgroundColor: Colors.lightGray, marginVertical: 20 },
   useLocBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 12,
-    marginTop: 10,
+    marginBottom: 16,
   },
   useLocBtnIcon: { fontSize: 16 },
-  useLocBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  useLocBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
 
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.lightGray,
+    gap: 12,
+  },
+  mapBack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapBackIcon: { fontSize: 20, color: Colors.textMain },
+  mapTitle: { fontSize: 16, fontWeight: '800', color: Colors.textMain },
+  mapSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  mapFooter: {
+    padding: 20,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.lightGray,
+  },
+  confirmMapBtn: {
+    backgroundColor: Colors.primary,
+    height: 54,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: Colors.black,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  confirmMapBtnTxt: { color: Colors.white, fontSize: 16, fontWeight: '800' },
   defaultRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.warningBackground,
+    backgroundColor: Colors.inputBg,
     padding: 16,
     borderRadius: 12,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginTop: 8,
   },
-  defaultTitle: { fontSize: 14, fontWeight: '800', color: Colors.textMain },
+  defaultTitle: { fontSize: 14, fontWeight: '700', color: Colors.textMain },
   defaultSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  sheetFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.lightGray,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.disabled,
+  },
+  cancelTxt: { fontSize: 14, fontWeight: '700', color: Colors.textMuted },
+  saveBtn: {
+    flex: 2,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveTxt: { fontSize: 14, fontWeight: '800', color: Colors.white },
 });

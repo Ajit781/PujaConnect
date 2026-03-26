@@ -33,15 +33,21 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Auto-close the alert after each button press
-  const resolvedButtons: AlertButton[] | undefined = alertConfig.buttons?.map(
-    btn => ({
-      ...btn,
-      onPress: () => {
-        hideAlert();
-        btn.onPress?.();
-      },
-    }),
-  );
+  const resolvedButtons: AlertButton[] =
+    alertConfig.buttons && alertConfig.buttons.length > 0
+      ? alertConfig.buttons.map(btn => ({
+          ...btn,
+          onPress: () => {
+            hideAlert();
+            btn.onPress?.();
+          },
+        }))
+      : [
+          {
+            text: 'OK',
+            onPress: () => hideAlert(),
+          },
+        ];
 
   return (
     <AlertContext.Provider value={{ showAlert, hideAlert }}>

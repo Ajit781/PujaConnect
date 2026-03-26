@@ -13,6 +13,7 @@ import {
   FlatList,
   TouchableWithoutFeedback,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -36,6 +37,7 @@ import {
   useGetPujaCartInfoQuery,
   useGetTagPujasQuery,
   useSavePujaTagMutation,
+  useGetUserDetailsQuery,
 } from '../../store/api/pujaApi';
 import appLogo from '../../assets/images/Logo.png';
 import NoDataFound from '../../components/common/NoDataFound';
@@ -108,6 +110,30 @@ const NAV_ITEMS = [
   },
 ];
 
+const BannerItem = React.memo(({ item, isBn, navigation }: any) => (
+  <View style={styles.bannerWrapper}>
+    <View style={[styles.banner, styles.bannerZeroMargin]}>
+      <View style={styles.bannerContent}>
+        <Text style={styles.bannerTitle}>
+          {isBn ? item.titleBn : item.titleEn}
+        </Text>
+        <Text style={styles.bannerSub}>{isBn ? item.subBn : item.subEn}</Text>
+        <TouchableOpacity
+          style={styles.bannerBtn}
+          onPress={() => navigation.navigate('AllPujas')}
+        >
+          <Text style={styles.bannerBtnText}>
+            {isBn ? item.btnBn : item.btnEn}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.bannerDecor}>
+        <Text style={styles.bannerIcon}>{item.icon}</Text>
+      </View>
+    </View>
+  </View>
+));
+
 export default function DashboardScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const { showAlert } = useAlert();
@@ -131,6 +157,12 @@ export default function DashboardScreen({ navigation }: any) {
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
   const flatListRef = React.useRef<FlatList>(null);
+
+  // Fetch user profile for full name in popover
+  const { data: userDetails } = useGetUserDetailsQuery(user?.user_id || 0, {
+    skip: !user?.user_id,
+    skipGlobalLoader: true,
+  } as any);
 
   // Sync cart from server
   const { data: serverCartItems } = useGetPujaCartInfoQuery(
@@ -206,7 +238,7 @@ export default function DashboardScreen({ navigation }: any) {
   };
 
   // Build a large repeated array so we can scroll forward forever with no snap-back
-  const REPEAT_COUNT = 100;
+  const REPEAT_COUNT = 20;
   const CAROUSEL_DATA = React.useMemo(() => {
     const arr: typeof DASHBOARD_BANNERS = [];
     for (let i = 0; i < REPEAT_COUNT; i++) {
@@ -478,30 +510,17 @@ export default function DashboardScreen({ navigation }: any) {
               index,
             })}
             renderItem={({ item }) => (
-              <View style={styles.bannerWrapper}>
-                <View style={[styles.banner, styles.bannerZeroMargin]}>
-                  <View style={styles.bannerContent}>
-                    <Text style={styles.bannerTitle}>
-                      {isBn ? item.titleBn : item.titleEn}
-                    </Text>
-                    <Text style={styles.bannerSub}>
-                      {isBn ? item.subBn : item.subEn}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.bannerBtn}
-                      onPress={() => navigation.navigate('AllPujas')}
-                    >
-                      <Text style={styles.bannerBtnText}>
-                        {isBn ? item.btnBn : item.btnEn}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.bannerDecor}>
-                    <Text style={styles.bannerIcon}>{item.icon}</Text>
-                  </View>
-                </View>
-              </View>
+              <BannerItem
+                item={item}
+                isBn={isBn}
+                width={width}
+                navigation={navigation}
+              />
             )}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            windowSize={3}
+            removeClippedSubviews={Platform.OS === 'android'}
             onScrollBeginDrag={() => setIsPaused(true)}
             onScrollEndDrag={() => setIsPaused(false)}
             onMomentumScrollEnd={e => {
@@ -764,10 +783,10 @@ export default function DashboardScreen({ navigation }: any) {
                 <View style={styles.popoverBox}>
                   <View style={styles.popoverHeader}>
                     <Text style={styles.popoverUserName}>
-                      {user?.user_name || 'User'}
+                      {userDetails?.ctnz_full_name || user?.user_name || 'User'}
                     </Text>
                     <Text style={styles.popoverUserPhone}>
-                      {user?.mobile || '7003372763'}
+                      {user?.user_name || ''}
                     </Text>
                   </View>
                   <View style={styles.popoverDivider} />
