@@ -9,6 +9,7 @@ import { AuthNavigator } from './src/navigation/AuthNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 import { MainNavigator } from './src/navigation/MainNavigator';
 import { AlertProvider, useAlert } from './src/context/AlertContext';
+import { ToastProvider } from './src/context/ToastContext';
 import { initApiErrorHandler } from './src/service/api/apiErrorHandler';
 import { performLogout } from './src/utils/authUtils';
 import GlobalLoader from './src/components/common/GlobalLoader';
@@ -16,11 +17,11 @@ import './src/i18n';
 
 // Registers showAlert + logout into the Axios error handler once providers are ready
 function AppInitializer() {
-  const { showAlert } = useAlert();
+  const { showAlert, showErrorAlert } = useAlert();
 
   React.useEffect(() => {
-    initApiErrorHandler(showAlert, performLogout);
-  }, [showAlert]);
+    initApiErrorHandler(showAlert, showErrorAlert, performLogout);
+  }, [showAlert, showErrorAlert]);
 
   return null;
 }
@@ -61,9 +62,11 @@ function App() {
             translucent
           />
           <AlertProvider>
-            <AppInitializer />
-            <RootNavigator />
-            <GlobalLoaderWrapper />
+            <ToastProvider>
+              <AppInitializer />
+              <RootNavigator />
+              <GlobalLoaderWrapper />
+            </ToastProvider>
           </AlertProvider>
         </SafeAreaProvider>
       </PersistGate>

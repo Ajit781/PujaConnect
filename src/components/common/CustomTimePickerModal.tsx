@@ -29,13 +29,14 @@ export default function CustomTimePickerModal({
   initialTime = '12:00 PM',
 }: Props) {
   // Parse initial time
-  const [hour, setHour] = useState(initialTime.split(':')[0] || '12');
-  const [minute, setMinute] = useState(
-    initialTime.split(':')[1]?.split(' ')[0] || '00',
-  );
-  const [period, setPeriod] = useState(
-    initialTime.includes('AM') ? 'AM' : 'PM',
-  );
+  // Remove leading zero for hours like "07" to "7" for clock face matching
+  const initialHour = initialTime.split(':')[0]?.replace(/^0/, '') || '12';
+  const initialMinute = initialTime.split(':')[1]?.split(' ')[0] || '00';
+  const initialPeriod = initialTime.includes('AM') ? 'AM' : 'PM';
+
+  const [hour, setHour] = useState(initialHour);
+  const [minute, setMinute] = useState(initialMinute);
+  const [period, setPeriod] = useState(initialPeriod);
   const [viewMode, setViewMode] = useState<'hour' | 'minute'>('hour');
 
   const hours = useMemo(

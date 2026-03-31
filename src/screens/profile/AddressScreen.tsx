@@ -16,6 +16,7 @@ import {
   ScrollView,
   PermissionsAndroid,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Geolocation from 'react-native-geolocation-service';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,7 @@ import {
   useSaveAddressMutation,
   useGetAddressesQuery,
   useSaveDefaultAddressMutation,
+  useDeleteAddressMutation,
 } from '../../store/api/pujaApi';
 
 const ERROR_COLOR = Colors.red;
@@ -187,15 +189,17 @@ const AddressCard = React.memo(
 );
 
 export default function AddressScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
-  const { showAlert } = useAlert();
+  const { showAlert, showErrorAlert } = useAlert();
   const user = useSelector((state: RootState) => state.auth.user);
   const addresses = useSelector((state: RootState) => state.address.addresses);
 
   const [saveAddressMutation] = useSaveAddressMutation();
   const [saveDefaultAddressMutation] = useSaveDefaultAddressMutation();
+  const [deleteAddressMutation] = useDeleteAddressMutation();
   const [pageNo] = useState(1);
   const pageSize = 10;
   const {
@@ -285,12 +289,11 @@ export default function AddressScreen({ navigation }: any) {
           },
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          showAlert({
-            title: isBn ? 'অনুমতি অস্বীকার করা হয়েছে' : 'Permission Denied',
-            message: isBn
+          showErrorAlert(
+            isBn
               ? 'অবস্থান অনুমতি ছাড়া ঠিকানা পাওয়া সম্ভব নয়'
               : 'Location permission is required to fetch your position.',
-          });
+          );
           return;
         }
       } catch (err) {
@@ -316,12 +319,11 @@ export default function AddressScreen({ navigation }: any) {
       (error: any) => {
         dispatch(hideLoader());
         console.error('Location Error:', error);
-        showAlert({
-          title: isBn ? 'ত্রুটি' : 'Error',
-          message: isBn
+        showErrorAlert(
+          isBn
             ? 'আপনার অবস্থান পাওয়া যায়নি। GPS চালু আছে কিনা নিশ্চিত করুন।'
             : 'Could not get your location. Please ensure GPS is enabled.',
-        });
+        );
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
@@ -483,21 +485,17 @@ export default function AddressScreen({ navigation }: any) {
         clearForm();
         refetchAddresses();
       } else {
-        showAlert({
-          title: isBn ? 'ত্রুটি' : 'Error',
-          message:
-            result.message || (isBn ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Save failed'),
-        });
+        showErrorAlert(
+          result.message || (isBn ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Save failed'),
+        );
       }
     } catch (err: any) {
       dispatch(hideLoader());
       console.error('Save Address Error:', err);
-      showAlert({
-        title: isBn ? 'সতর্কতা' : 'Warning',
-        message:
-          err?.data?.message ||
+      showErrorAlert(
+        err?.data?.message ||
           (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
-      });
+      );
     }
   };
 
@@ -522,22 +520,18 @@ export default function AddressScreen({ navigation }: any) {
           });
           refetchAddresses();
         } else {
-          showAlert({
-            title: isBn ? 'ত্রুটি' : 'Error',
-            message:
-              result.message ||
+          showErrorAlert(
+            result.message ||
               (isBn ? 'ব্যর্থ হয়েছে' : 'Failed to set default'),
-          });
+          );
         }
       } catch (err: any) {
         dispatch(hideLoader());
         console.error('Save Default Address Error:', err);
-        showAlert({
-          title: isBn ? 'সতর্কতা' : 'Warning',
-          message:
-            err?.data?.message ||
+        showErrorAlert(
+          err?.data?.message ||
             (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
-        });
+        );
       }
     },
     [
@@ -546,6 +540,7 @@ export default function AddressScreen({ navigation }: any) {
       isBn,
       saveDefaultAddressMutation,
       showAlert,
+      showErrorAlert,
       refetchAddresses,
     ],
   );
@@ -561,13 +556,63 @@ export default function AddressScreen({ navigation }: any) {
           { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
           {
             text: isBn ? 'মুছুন' : 'Delete',
-            onPress: () => dispatch(deleteAddress(id)),
+            onPress: async () => {
+              dispatch(showLoader());
+              try {
+                const payload = {
+                  enc_data: JSON.stringify({
+                    ctzn_address_id: parseInt(id, 10),
+                    ctzn_id: user?.user_id || 0,
+                  }),
+                };
+                const result = await deleteAddressMutation({
+                  data: JSON.stringify(payload),
+                }).unwrap();
+
+                dispatch(hideLoader());
+                if (result.status === 0) {
+                  showAlert({
+                    title: isBn ? 'সফল' : 'Success',
+                    message:
+                      result.message ||
+                      (isBn
+                        ? 'ঠিকানাটি মুছে ফেলা হয়েছে'
+                        : 'Address deleted successfully'),
+                    buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
+                  });
+                  dispatch(deleteAddress(id));
+                  refetchAddresses();
+                } else {
+                  showErrorAlert(
+                    result.message ||
+                      (isBn
+                        ? 'ঠিকানা মুছতে ব্যর্থ হয়েছে'
+                        : 'Failed to delete address'),
+                  );
+                }
+              } catch (err: any) {
+                dispatch(hideLoader());
+                console.error('Delete Address Error:', err);
+                showErrorAlert(
+                  err?.data?.message ||
+                    (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+                );
+              }
+            },
             style: 'destructive',
           },
         ],
       });
     },
-    [dispatch, isBn, showAlert],
+    [
+      dispatch,
+      isBn,
+      showAlert,
+      showErrorAlert,
+      deleteAddressMutation,
+      user,
+      refetchAddresses,
+    ],
   );
 
   const renderHeader = () => (
@@ -630,10 +675,15 @@ export default function AddressScreen({ navigation }: any) {
       <StatusBar
         backgroundColor={Colors.background}
         barStyle="dark-content"
-        translucent={false}
+        translucent={true}
       />
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 12, paddingBottom: 14 },
+        ]}
+      >
         <TouchableOpacity
           style={styles.navBtn}
           onPress={() => navigation.goBack()}
@@ -768,7 +818,7 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'পুরো নাম' : 'Full Name'}
                   req
                   val={contactName}
-                  setVal={setContactName}
+                  setVal={t => setContactName(t.replace(/[^a-zA-Z\s.-]/g, ''))}
                   place="John Doe"
                   err={errors.contactName}
                   setErrors={setErrors}
@@ -777,7 +827,7 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'ফোন নম্বর' : 'Phone Number'}
                   req
                   val={contactNumber}
-                  setVal={setContactNumber}
+                  setVal={t => setContactNumber(t.replace(/[^0-9]/g, ''))}
                   place="1234567890"
                   kbd="phone-pad"
                   maxLength={10}
@@ -814,7 +864,9 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'ঠিকানা (লাইন ১)' : 'Address line 1'}
                   req
                   val={addressLine1}
-                  setVal={setAddressLine1}
+                  setVal={t =>
+                    setAddressLine1(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  }
                   place="House No, Building"
                   err={errors.addressLine1}
                   setErrors={setErrors}
@@ -822,13 +874,17 @@ export default function AddressScreen({ navigation }: any) {
                 <Field
                   lab={isBn ? 'রাস্তা / এলাকা' : 'Street / Area'}
                   val={streetArea}
-                  setVal={setStreetArea}
+                  setVal={t =>
+                    setStreetArea(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  }
                   place="Near mall, park"
                 />
                 <Field
                   lab={isBn ? 'ল্যান্ডমার্ক' : 'Landmark'}
                   val={landmark}
-                  setVal={setLandmark}
+                  setVal={t =>
+                    setLandmark(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  }
                   place="Near hospital"
                 />
 
@@ -837,7 +893,7 @@ export default function AddressScreen({ navigation }: any) {
                     lab={isBn ? 'শহর' : 'City'}
                     req
                     val={city}
-                    setVal={setCity}
+                    setVal={t => setCity(t.replace(/[^a-zA-Z\s.-]/g, ''))}
                     place="Kolkata"
                     err={errors.city}
                     setErrors={setErrors}
@@ -845,7 +901,7 @@ export default function AddressScreen({ navigation }: any) {
                   <Field
                     lab={isBn ? 'রাজ্য' : 'State'}
                     val={stateName}
-                    setVal={setStateName}
+                    setVal={t => setStateName(t.replace(/[^a-zA-Z\s.-]/g, ''))}
                     place="West Bengal"
                   />
                 </View>
@@ -854,7 +910,7 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'পিনকোড' : 'Pincode'}
                   req
                   val={pincode}
-                  setVal={setPincode}
+                  setVal={t => setPincode(t.replace(/[^0-9]/g, ''))}
                   place="700001"
                   kbd="number-pad"
                   maxLength={6}
@@ -953,8 +1009,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    // paddingVertical removed to allow insets in component
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
@@ -962,12 +1018,12 @@ const styles = StyleSheet.create({
   navBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.disabled,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
   navBtnIcon: { fontSize: 16, color: Colors.textMain },
   navBtnTxt: { fontSize: 13, fontWeight: '700', color: Colors.textMain },
@@ -1104,7 +1160,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
-  acBtnRed: { backgroundColor: Colors.tagRed },
+  acBtnRed: { backgroundColor: Colors.red },
   acBtnTxt: { fontSize: 12, fontWeight: '700', color: Colors.textMain },
 
   addMoreBtn: {

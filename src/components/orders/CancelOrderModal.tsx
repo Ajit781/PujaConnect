@@ -7,8 +7,10 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { cancelOrder, cancelOrderItem } from '../../store/slices/orderSlice';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { useCancelBookingMutation } from '../../store/api/pujaApi';
+import { useAlert } from '../../context/AlertContext';
 import { Colors } from '../../constants/Colors';
 
 const BRAND_TEXT = Colors.textMain;
@@ -31,18 +33,38 @@ export default function CancelOrderModal({
   onClose,
   onSuccess,
 }: Props) {
-  const dispatch = useDispatch();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const { showAlert, showErrorAlert } = useAlert();
+  const [cancelBookingApi, { isLoading }] = useCancelBookingMutation();
 
   const [reason, setReason] = useState('');
 
-  const handleConfirmCancel = () => {
-    if (itemId) {
-      dispatch(cancelOrderItem({ orderId, itemId, reason }));
-    } else {
-      dispatch(cancelOrder({ orderId, reason }));
+  const handleConfirmCancel = async () => {
+    try {
+      const payload = {
+        booking_id: orderId,
+        package_id: itemId || 0,
+        ctzn_id: user?.user_id || 0,
+        reason: reason,
+      };
+
+      const res = await cancelBookingApi(payload).unwrap();
+      console.log('Cancel Booking Response: ', res);
+
+      if (res && (res.status === 0 || res.status === '0')) {
+        showAlert({
+          title: 'Success',
+          message: res.message || 'Cancelled successfully',
+        });
+        if (onSuccess) onSuccess();
+        onClose();
+      } else {
+        showErrorAlert(res?.message || 'Could not cancel booking');
+      }
+    } catch (e: any) {
+      console.log('Cancel Booking Error: ', e);
+      showErrorAlert(e?.data?.message || 'Server error occurred');
     }
-    if (onSuccess) onSuccess();
-    onClose();
   };
 
   return (
@@ -96,12 +118,14 @@ export default function CancelOrderModal({
             <TouchableOpacity
               style={[
                 styles.confirmCancelBtn,
-                !reason.trim() && styles.disabledOpac,
+                (!reason.trim() || isLoading) && styles.disabledOpac,
               ]}
-              disabled={!reason.trim()}
+              disabled={!reason.trim() || isLoading}
               onPress={handleConfirmCancel}
             >
-              <Text style={styles.confirmCancelBtnText}>Confirm Cancel</Text>
+              <Text style={styles.confirmCancelBtnText}>
+                {isLoading ? 'Cancelling...' : 'Confirm Cancel'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

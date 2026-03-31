@@ -9,7 +9,12 @@ import {
   Dimensions,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Order, OrderItem } from '../../store/slices/orderSlice';
+import {
+  BookingSummary,
+  BookingDetail,
+} from '../../service/api/dashboardService';
+import { useGetBookingDetailsQuery } from '../../store/api/pujaApi';
+import { OrderItem } from '../../store/slices/orderSlice';
 import RescheduleOrderModal from './RescheduleOrderModal';
 import RescheduleSuccessModal from './RescheduleSuccessModal';
 import CancelOrderModal from './CancelOrderModal';
@@ -18,6 +23,7 @@ import CancelSuccessModal from './CancelSuccessModal';
 const { height } = Dimensions.get('window');
 
 import { Colors } from '../../constants/Colors';
+import { formatTo12Hr } from '../../utils/timeUtils';
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -25,7 +31,7 @@ const BRAND_MUTED = Colors.textMuted;
 
 interface Props {
   visible: boolean;
-  order: Order;
+  order: BookingSummary;
   onClose: () => void;
 }
 
@@ -67,6 +73,15 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     }
   };
 
+  // Fetch booking details (puja items)
+  const {
+    data: pujaItems = [],
+    isLoading,
+    refetch,
+  } = useGetBookingDetailsQuery(order.booking_id, {
+    skip: !visible,
+  });
+
   const handleReschedule = (item: OrderItem) => {
     setActiveRescheduleItem(item);
   };
@@ -75,88 +90,104 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     setActiveCancelItem(item);
   };
 
-  const renderPujaItem = (item: OrderItem, index: number) => {
+  const renderPujaItemDetail = (item: BookingDetail, index: number) => {
     return (
-      <View style={styles.itemBox} key={item.id}>
+      <View style={styles.itemBox} key={index}>
         <View style={styles.itemHeader}>
           <View style={styles.itemTitleRow}>
             <View style={styles.itemIndexBox}>
               <Text style={styles.itemIndexText}>{index + 1}</Text>
             </View>
-            <View>
-              <Text style={styles.itemTitle}>
-                {isBn ? item.titleBn : item.titleEn}
+            <View style={styles.itemTitleContainer}>
+              <Text style={styles.itemTitle} numberOfLines={2}>
+                {item.puja_name}
               </Text>
-              <Text style={styles.itemSubTitle}>Basic Package Details</Text>
+              <Text style={styles.itemSubTitle} numberOfLines={1}>
+                {item.package_name}
+              </Text>
             </View>
           </View>
-          <Text style={styles.itemPriceText}>
-            ₹{item.price.toLocaleString('en-IN')}
-          </Text>
+          <View style={styles.priceContainer}>
+            <Text style={styles.itemPriceText}>
+              ₹{item.package_total_amount.toLocaleString('en-IN')}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <Text style={styles.statIcon}>👥</Text>
             <Text style={styles.statLabel}>PANDITS</Text>
-            <Text style={styles.statValue}>{item.pandits}</Text>
+            <Text style={styles.statValue}>{item.pandit_count}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statIcon}>🕒</Text>
             <Text style={styles.statLabel}>DURATION</Text>
-            <Text style={styles.statValue}>{item.duration}</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statIcon}>₹</Text>
-            <Text style={styles.statLabel}>AMOUNT</Text>
-            <Text style={styles.statValue}>
-              ₹{item.price.toLocaleString('en-IN')}
-            </Text>
+            <Text style={styles.statValue}>{item.duration_hours}h</Text>
           </View>
         </View>
 
         <View style={styles.descBox}>
-          <Text style={styles.descIcon}>📦</Text>
-          <Text style={styles.descText}>
-            Puja performed at home with essential rituals.
-          </Text>
+          <Text style={styles.descIcon}>📖</Text>
+          <Text style={styles.descText}>{item.package_description}</Text>
         </View>
 
         <View style={styles.sessionsBox}>
-          <Text style={styles.sessionsHeader}>📅 SCHEDULED SESSIONS</Text>
+          <Text style={styles.sessionsHeader}>📅 SCHEDULED SESSION</Text>
           <View style={styles.sessionRow}>
             <View style={styles.sessionIndex}>
               <Text style={styles.itemIndexText}>1</Text>
             </View>
-            <View>
-              <Text style={styles.sessionDate}>
-                {formatDate(item.scheduledDate)}
+            <View style={styles.flexOne}>
+              <Text style={styles.sessionDate}>{item.preferred_date}</Text>
+              <Text style={styles.sessionTime}>
+                {formatTo12Hr(item.preferred_time)}
               </Text>
-              <Text style={styles.sessionTime}>{item.scheduledTime}</Text>
             </View>
-            <View style={styles.flexOne} />
-            <Text style={{ ...styles.statLabel, color: BRAND_PRIMARY }}>
-              {item.status}
+            <Text style={[styles.statLabel, styles.statusWeight]}>
+              {item.puja_item_booking_status}
             </Text>
           </View>
         </View>
 
-        {(item.status === 'Upcoming' || item.status === 'Rescheduled') && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.rescheduleBtn}
-              onPress={() => handleReschedule(item)}
-            >
-              <Text style={styles.rescheduleBtnText}>🔄 Reschedule</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => handleCancelItem(item)}
-            >
-              <Text style={styles.cancelBtnText}>✖ Cancel This Puja</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Action Buttons for every item */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.rescheduleBtn}
+            onPress={() => {
+              // Convert BookingDetail to OrderItem-like structure for the existing modal logic
+              const legacyItem: any = {
+                id: item.puja_id.toString(),
+                titleEn: item.puja_name,
+                titleBn: item.puja_name,
+                price: item.package_total_amount,
+                scheduledDate: item.preferred_date,
+                scheduledTime: item.preferred_time,
+                status: item.puja_item_booking_status,
+                pandits: item.pandit_count,
+                duration: `${item.duration_hours}h`,
+                bookingId: item.booking_id,
+                packageId: item.package_id,
+              };
+              handleReschedule(legacyItem);
+            }}
+          >
+            <Text style={styles.rescheduleBtnText}>🔄 Reschedule</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => {
+              const legacyItem: any = {
+                id: item.puja_id.toString(),
+                titleEn: item.puja_name,
+                titleBn: item.puja_name,
+              };
+              handleCancelItem(legacyItem);
+            }}
+          >
+            <Text style={styles.cancelBtnText}>✖ Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -181,13 +212,13 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
                   <Text style={styles.modalTitleLabel}>BOOKING DETAILS</Text>
                   <View style={styles.badgeSm}>
                     <Text style={styles.badgeSmText}>
-                      ✨ {order.items.length} Pujas
+                      ✨ {order.booking_status}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.modalTitleRef}>{order.bookingRef}</Text>
+                <Text style={styles.modalTitleRef}>{order.booking_no}</Text>
                 <Text style={styles.modalSubRef}>
-                  Booked on {formatDate(order.datePlaced)}
+                  Booked on {formatDate(order.booking_create_date)}
                 </Text>
               </View>
             </View>
@@ -200,7 +231,19 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
             style={styles.scrollBody}
             contentContainerStyle={styles.scrollContent}
           >
-            {order.items.map((item, idx) => renderPujaItem(item, idx))}
+            {isLoading ? (
+              <View style={styles.loadingBox}>
+                <Text style={styles.loadingText}>Fetching items...</Text>
+              </View>
+            ) : pujaItems.length > 0 ? (
+              pujaItems.map((item, idx) => renderPujaItemDetail(item, idx))
+            ) : (
+              <View style={styles.noItemsBox}>
+                <Text style={styles.noItemsText}>
+                  No puja items found for this booking.
+                </Text>
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.footer}>
@@ -214,12 +257,13 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
       {activeRescheduleItem && (
         <RescheduleOrderModal
           visible={!!activeRescheduleItem}
-          orderId={order.id}
+          orderId={order.booking_id.toString()}
           item={activeRescheduleItem}
           onClose={() => setActiveRescheduleItem(null)}
-          onSuccess={updatedItem => {
+          onSuccess={updated => {
             setActiveRescheduleItem(null);
-            setRescheduledItem(updatedItem);
+            setRescheduledItem(updated);
+            refetch(); // Refresh the list to show new date/time
           }}
         />
       )}
@@ -235,7 +279,7 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
       {activeCancelItem && (
         <CancelOrderModal
           visible={!!activeCancelItem}
-          orderId={order.id}
+          orderId={order.booking_id.toString()}
           itemId={activeCancelItem.id}
           itemTitle={isBn ? activeCancelItem.titleBn : activeCancelItem.titleEn}
           onClose={() => setActiveCancelItem(null)}
@@ -341,19 +385,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  itemTitleRow: { flexDirection: 'row', gap: 12 },
+  itemTitleRow: { flex: 1, flexDirection: 'row', gap: 12 },
+  itemTitleContainer: { flex: 1, paddingRight: 8 },
+  priceContainer: { alignItems: 'flex-end', justifyContent: 'flex-start' },
   itemIndexBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: BRAND_PRIMARY,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 2,
   },
-  itemIndexText: { color: Colors.white, fontWeight: 'bold', fontSize: 14 },
-  itemTitle: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
-  itemSubTitle: { fontSize: 12, color: BRAND_PRIMARY, marginTop: 2 },
-  itemPriceText: { fontSize: 16, fontWeight: 'bold', color: Colors.red },
+  itemIndexText: { color: Colors.white, fontWeight: 'bold', fontSize: 12 },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: BRAND_TEXT,
+    lineHeight: 20,
+  },
+  itemSubTitle: {
+    fontSize: 11,
+    color: BRAND_PRIMARY,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  itemPriceText: { fontSize: 15, fontWeight: 'bold', color: Colors.red },
 
   statsRow: {
     flexDirection: 'row',
@@ -457,4 +514,25 @@ const styles = StyleSheet.create({
   footerBtnText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
   flexOne: { flex: 1 },
   scrollContent: { padding: 20 },
+  loadingBox: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: BRAND_MUTED,
+    fontWeight: '600',
+  },
+  noItemsBox: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: BRAND_MUTED,
+    textAlign: 'center',
+  },
+  statusWeight: { color: BRAND_PRIMARY, fontWeight: '800' },
 });

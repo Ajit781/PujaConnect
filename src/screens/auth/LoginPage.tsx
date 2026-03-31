@@ -25,6 +25,8 @@ import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
 import { login } from '../../store/slices/authSlice';
 import SmsRetriever from 'react-native-sms-retriever';
+import RNOtpVerify from 'react-native-otp-verify';
+import DeviceInfo from 'react-native-device-info';
 import { VALIDATION } from '../../config/apiConfig';
 import appLogo from '../../assets/images/Logo.png';
 import { Colors } from '../../constants/Colors';
@@ -35,11 +37,10 @@ const HEADER_HEIGHT = Math.max(height * 0.42, 300);
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
-
 export default function LoginPage({ navigation: _navigation }: Props) {
   const { t, i18n } = useTranslation();
   const dispatch = useDispatch();
-  const { showAlert } = useAlert();
+  const { showErrorAlert } = useAlert();
 
   // Step 1 state
   const [mobile, setMobile] = useState('');
@@ -55,6 +56,22 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      RNOtpVerify.getHash()
+        .then(hash => {
+          console.log('==== SMS RETRIEVER HASH FOR BACKEND ====', hash);
+        })
+        .catch(err => console.log('==== SMS HASH ERROR ====', err));
+    }
+
+    return () => {
+      if (Platform.OS === 'android') {
+        RNOtpVerify.removeListener();
+      }
+    };
+  }, []);
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const headerHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
@@ -101,25 +118,16 @@ export default function LoginPage({ navigation: _navigation }: Props) {
   // Phone History state
   const [phoneHistory, setPhoneHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const hintShown = useRef(false);
+
   const mobileInputRef = useRef<any>(null);
 
   // Auto-fill logic (removed AsyncStorage history as per user request)
 
-  // Phone Hint Retriever on Mount
-  useEffect(() => {
-    // Immediate dismiss and blur to fight any auto-focus
-    Keyboard.dismiss();
-    if (mobileInputRef.current) {
-      mobileInputRef.current.blur();
-    }
+  const [hasDismissedHint, setHasDismissedHint] = useState(false);
 
-    const showPhoneHint = async () => {
+  const showPhoneHint = () => {
+    setTimeout(async () => {
       try {
-        Keyboard.dismiss();
-        if (mobileInputRef.current) {
-          mobileInputRef.current.blur();
-        }
         const phoneNumber = await SmsRetriever.requestPhoneNumber();
         if (phoneNumber) {
           // Clean non-digits
@@ -128,27 +136,23 @@ export default function LoginPage({ navigation: _navigation }: Props) {
           const tenDigits = cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
           setMobile(tenDigits);
           setMobileError('');
-          Keyboard.dismiss();
-          if (mobileInputRef.current) {
-            mobileInputRef.current.blur();
-          }
           setCanShowKeyboard(false); // Prevent autofocus if number already filled
         } else {
+          setHasDismissedHint(true);
           setCanShowKeyboard(true);
+          // Let the keyboard appear by refocusing
+          mobileInputRef.current?.blur();
+          setTimeout(() => mobileInputRef.current?.focus(), 50);
         }
       } catch (err) {
         console.log('--- SMS Hint Cancelled or Failed ---', err);
+        setHasDismissedHint(true);
         setCanShowKeyboard(true);
+        mobileInputRef.current?.blur();
+        setTimeout(() => mobileInputRef.current?.focus(), 50);
       }
-    };
-
-    if (!otpSent && !hintShown.current) {
-      hintShown.current = true;
-      // Delay slightly to ensure screen is rendered and avoids racing with keyboard
-      const timer = setTimeout(showPhoneHint, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [otpSent]);
+    }, 100);
+  };
 
   const saveToHistory = async (num: string) => {
     // Disabled AsyncStorage saving as per user request
@@ -165,9 +169,6 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     }
     setCanShowKeyboard(false);
   };
-
-  const toggleLanguage = () =>
-    i18n.changeLanguage(i18n.language === 'en' ? 'bn' : 'en');
 
   // Countdown timer for resend
   useEffect(() => {
@@ -215,33 +216,31 @@ export default function LoginPage({ navigation: _navigation }: Props) {
         saveToHistory(mobile);
         setOtpSent(true);
         setResendCountdown(30);
-        // SmsRetriever logic omitted for brevity in restoration if needed, but adding back
+        // Start listening to SMS
         try {
-          const registered = await SmsRetriever.startSmsRetriever();
-          if (registered) {
-            SmsRetriever.addSmsListener(event => {
-              if (event && event.message) {
-                const otpMatch = event.message.match(/\d{6}/);
+          if (Platform.OS === 'android') {
+            await RNOtpVerify.getOtp();
+            RNOtpVerify.addListener(message => {
+              if (message && message !== 'Timeout Error.') {
+                const otpMatch = message.match(/\d{6}/);
                 if (otpMatch) {
                   const extractedOtp = otpMatch[0];
                   setOtp(extractedOtp.split(''));
-                  SmsRetriever.removeSmsListener();
-                  handleVerify(extractedOtp);
+                  RNOtpVerify.removeListener();
                 }
               }
             });
           }
         } catch (e) {
-          console.log('SmsRetriever error:', e);
+          console.log('RNOtpVerify listener error:', e);
         }
         setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
       }
     } catch (error: any) {
-      showAlert({
-        title: isBn ? 'সংযোগ ত্রুটি' : 'Connection Error',
-        message: error.message || (isBn ? 'ত্রুটি' : 'Error'),
-        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
-      });
+      showErrorAlert(
+        error.message ||
+          (isBn ? 'দয়া করে আবার চেষ্টা করুন' : 'Please try again'),
+      );
     } finally {
       setIsGettingOtp(false);
     }
@@ -263,11 +262,10 @@ export default function LoginPage({ navigation: _navigation }: Props) {
         dispatch(login({ user: result, token: 'session_active' }));
       }
     } catch (err: any) {
-      showAlert({
-        title: isBn ? 'যাচাইকরণ ব্যর্থ হয়েছে' : 'Verification Failed',
-        message: err.message || (isBn ? 'ত্রুটি' : 'Error'),
-        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
-      });
+      showErrorAlert(
+        err.message ||
+          (isBn ? 'দয়া করে আবার চেষ্টা করুন' : 'Please try again'),
+      );
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
     } finally {
       setIsVerifying(false);
@@ -289,11 +287,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
       setResendCountdown(30);
       setOtp(Array(VALIDATION.OTP_LENGTH).fill(''));
     } catch (err: any) {
-      showAlert({
-        title: isBn ? 'ত্রুটি' : 'Error',
-        message: err.message || (isBn ? 'ত্রুটি' : 'Error'),
-        buttons: [{ text: isBn ? 'ঠিক আছে' : 'OK' }],
-      });
+      showErrorAlert(err.message || (isBn ? 'সতর্কতা' : 'Alert'));
     } finally {
       setIsResending(false);
     }
@@ -318,14 +312,15 @@ export default function LoginPage({ navigation: _navigation }: Props) {
           {/* ── Animated Header ── */}
           <Animated.View style={[styles.header, { height: headerHeight }]}>
             <View style={styles.headerTopRow}>
-              <TouchableOpacity
+              <Text style={styles.versionText}>v{DeviceInfo.getVersion()}</Text>
+              {/* <TouchableOpacity
                 style={styles.langPill}
                 onPress={toggleLanguage} // Restore original function
               >
                 <Text style={styles.langText}>
                   {i18n.language === 'en' ? 'বাংলা' : 'English'}
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
 
             <View style={styles.logoWrap}>
@@ -372,6 +367,11 @@ export default function LoginPage({ navigation: _navigation }: Props) {
                       maxLength={VALIDATION.MOBILE_LENGTH}
                       value={mobile}
                       onFocus={() => {
+                        if (!mobile && !hasDismissedHint) {
+                          showPhoneHint();
+                        } else {
+                          setCanShowKeyboard(true);
+                        }
                         if (phoneHistory.length > 0) setShowHistory(true);
                       }}
                       onChangeText={text => {
@@ -486,7 +486,18 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.splashBg },
   flex1: { flex: 1 },
   header: { height: HEADER_HEIGHT, paddingHorizontal: 24, paddingTop: 8 },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  versionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
   langPill: {
     backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 14,

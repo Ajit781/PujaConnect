@@ -8,6 +8,8 @@ import {
   PujaMaterial,
   PujaFullDetails,
   PujaCartItem,
+  BookingSummary,
+  BookingDetail,
 } from '../../service/api/dashboardService';
 import {
   getSystemToken,
@@ -92,7 +94,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const pujaApi = createApi({
   reducerPath: 'pujaApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails', 'Addresses'],
+  tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails', 'Addresses', 'Orders'],
   endpoints: builder => ({
     getPujaTags: builder.query<PujaTag[], void>({
       query: () => ({
@@ -307,6 +309,37 @@ export const pujaApi = createApi({
       },
       providesTags: ['Cart'],
     }),
+    getPujaCartSummary: builder.query<
+      {
+        cart_value: number;
+        platform_charges: number;
+        platform_charges_gst: number;
+        total_booking_amount: number;
+        total_payable_amount: number;
+      } | null,
+      number | string
+    >({
+      query: userId => ({
+        url: ENDPOINTS.getPujaCartSummary,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            ctzn_id: Number(userId),
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return data || null;
+        }
+        return null;
+      },
+      providesTags: ['Cart'],
+    }),
     managePujaCart: builder.mutation<
       { status: number; message: string; data: any },
       { ctzn_id: number; cart_item_id: number; action: number }
@@ -422,14 +455,21 @@ export const pujaApi = createApi({
       query: ({ data, file }) => {
         const formData = new FormData();
         formData.append('data', data);
+        console.log('--- API: saveUserProfile PAYLOAD ---', data);
+        console.log('--- API: saveUserProfile FILE ---', file);
         if (file) {
           formData.append('file', file);
+        } else {
+          formData.append('file', {
+            uri: 'file://empty',
+            name: 'empty.txt',
+            type: 'text/plain',
+          });
         }
         return {
           url: ENDPOINTS.saveUserProfile,
           method: 'POST',
           body: formData,
-          // Content-Type is set automatically by browser/RN for FormData
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -452,6 +492,25 @@ export const pujaApi = createApi({
       },
       transformResponse: (response: any) => {
         console.log('--- API: saveAddress RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Addresses'],
+    }),
+    deleteAddress: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string }
+    >({
+      query: ({ data }) => {
+        console.log('--- API: deleteAddress PAYLOAD ---', data);
+        return {
+          url: ENDPOINTS.deleteAddress,
+          method: 'POST',
+          body: data,
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: deleteAddress RESPONSE ---', response);
         return response;
       },
       invalidatesTags: ['Addresses'],
@@ -535,6 +594,11 @@ export const pujaApi = createApi({
         payable_amount: number;
         total_amount: number;
         ctzn_address_id?: number;
+        puja_schedule_list: {
+          package_id: number;
+          preferred_date: string;
+          preferred_time: string;
+        }[];
       }
     >({
       query: payloadObj => {
@@ -557,6 +621,117 @@ export const pujaApi = createApi({
       },
       invalidatesTags: ['Cart'],
     }),
+    getBookingSummary: builder.query<
+      BookingSummary[],
+      {
+        userId: number;
+        status: number;
+        paymentStatus: number;
+        pageNo: number;
+        pageSize: number;
+        fromDate: string | null;
+        toDate: string | null;
+      }
+    >({
+      query: ({
+        userId,
+        status,
+        paymentStatus,
+        pageNo,
+        pageSize,
+        fromDate,
+        toDate,
+      }) => ({
+        url: ENDPOINTS.getBookingSummary,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            ctzn_id: userId,
+            status,
+            payment_status: paymentStatus,
+            page_no: pageNo,
+            page_size: pageSize,
+            from_date: fromDate,
+            to_date: toDate,
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getBookingSummary RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return Array.isArray(data) ? data : [];
+        }
+      },
+      providesTags: ['Orders'],
+    }),
+    getBookingDetails: builder.query<BookingDetail[], number | string>({
+      query: bookingId => ({
+        url: ENDPOINTS.getBookingDetails,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            booking_id: Number(bookingId),
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getBookingDetails RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return Array.isArray(data) ? data : [];
+        }
+      },
+      providesTags: ['Orders'],
+    }),
+    reschedulePuja: builder.mutation<
+      any,
+      {
+        bookingId: number | string;
+        ctznId: number | string;
+        packageId: number | string;
+        newDate: string; // YYYY-MM-DD
+        newTime: string; // HH:mm
+      }
+    >({
+      query: ({ bookingId, ctznId, packageId, newDate, newTime }) => ({
+        url: ENDPOINTS.reschedulePuja,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            booking_id: Number(bookingId),
+            ctzn_id: Number(ctznId),
+            package_id: Number(packageId),
+            new_preferred_date: newDate,
+            new_preferred_time: newTime,
+          }),
+        },
+      }),
+    }),
+    cancelBooking: builder.mutation<
+      any,
+      {
+        booking_id: number | string;
+        package_id: number | string;
+        reason: string;
+        ctzn_id: number | string;
+      }
+    >({
+      query: payload => ({
+        url: ENDPOINTS.cancelBooking,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify(payload),
+        },
+      }),
+      invalidatesTags: ['Orders'],
+    }),
   }),
 });
 
@@ -569,6 +744,7 @@ export const {
   useGetPujaFullDetailsQuery,
   useAddPujaToCartMutation,
   useGetPujaCartInfoQuery,
+  useGetPujaCartSummaryQuery,
   useManagePujaCartMutation,
   useSavePujaTagMutation,
   useSaveRelativeDetailsMutation,
@@ -578,5 +754,10 @@ export const {
   useSaveAddressMutation,
   useGetAddressesQuery,
   useSaveDefaultAddressMutation,
+  useDeleteAddressMutation,
   useBookPujaMutation,
+  useGetBookingSummaryQuery,
+  useGetBookingDetailsQuery,
+  useReschedulePujaMutation,
+  useCancelBookingMutation,
 } = pujaApi;

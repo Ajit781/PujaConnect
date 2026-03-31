@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   TouchableWithoutFeedback,
+  Modal,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 
@@ -33,62 +34,70 @@ export function CustomAlert({
   if (!visible) return null;
 
   return (
-    <View
-      style={[StyleSheet.absoluteFill, { zIndex: 999999, elevation: 999999 }]}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={buttons && buttons.length ? undefined : onDismiss}
     >
-      {/* Dimmed overlay — blocks interaction with the screen behind */}
-      <TouchableWithoutFeedback onPress={undefined}>
-        <View style={styles.overlay}>
-          <View style={styles.card}>
-            {/* Title */}
-            <Text style={styles.title}>{title}</Text>
+      <View
+        style={[StyleSheet.absoluteFill, { zIndex: 999999, elevation: 999999 }]}
+      >
+        {/* Dimmed overlay — blocks interaction with the screen behind */}
+        <TouchableWithoutFeedback onPress={undefined}>
+          <View style={styles.overlay}>
+            <View style={styles.card}>
+              {/* Title */}
+              <Text style={styles.title}>{title}</Text>
 
-            {/* Message */}
-            {message ? <Text style={styles.message}>{message}</Text> : null}
+              {/* Message */}
+              {message ? <Text style={styles.message}>{message}</Text> : null}
 
-            {/* Buttons — only rendered when caller provides them */}
-            {buttons && buttons.length > 0 && (
-              <>
-                <View style={styles.divider} />
-                <View
-                  style={[
-                    styles.buttonRow,
-                    buttons.length > 2 && styles.buttonCol,
-                  ]}
-                >
-                  {buttons.map((btn, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      activeOpacity={0.7}
-                      onPress={btn.onPress ?? onDismiss}
-                      style={[
-                        styles.button,
-                        btn.style === 'cancel' && styles.buttonCancel,
-                        btn.style === 'destructive' && styles.buttonDestructive,
-                        buttons.length === 1 && styles.buttonFull,
-                        buttons.length > 2 && styles.buttonFullCol,
-                        index > 0 && buttons.length <= 2 && styles.buttonLeft,
-                      ]}
-                    >
-                      <Text
+              {/* Buttons — only rendered when caller provides them */}
+              {buttons && buttons.length > 0 && (
+                <>
+                  <View style={styles.divider} />
+                  <View
+                    style={[
+                      styles.buttonRow,
+                      buttons.length > 2 && styles.buttonCol,
+                    ]}
+                  >
+                    {buttons.map((btn, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        activeOpacity={0.7}
+                        onPress={btn.onPress ?? onDismiss}
                         style={[
-                          styles.buttonText,
-                          btn.style === 'cancel' && styles.buttonTextCancel,
+                          styles.button,
+                          btn.style === 'cancel' && styles.buttonCancel,
                           btn.style === 'destructive' &&
-                            styles.buttonTextDestructive,
+                            styles.buttonDestructive,
+                          buttons.length === 1 && styles.buttonFull,
+                          buttons.length > 2 && styles.buttonFullCol,
+                          index > 0 && buttons.length <= 2 && styles.buttonLeft,
                         ]}
                       >
-                        {btn.text}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
+                        <Text
+                          style={[
+                            styles.buttonText,
+                            btn.style === 'cancel' && styles.buttonTextCancel,
+                            btn.style === 'destructive' &&
+                              styles.buttonTextDestructive,
+                          ]}
+                        >
+                          {btn.text}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </TouchableWithoutFeedback>
-    </View>
+        </TouchableWithoutFeedback>
+      </View>
+    </Modal>
   );
 }
 

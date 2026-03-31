@@ -8,11 +8,10 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Platform,
   Modal,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -169,9 +168,10 @@ const SOCIAL_RELATIONS = [
 ];
 
 export default function EditProfileScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
-  const { showAlert } = useAlert();
+  const { showAlert, showErrorAlert } = useAlert();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -211,6 +211,10 @@ export default function EditProfileScreen({ navigation }: any) {
 
   React.useEffect(() => {
     if (userDetailsRaw) {
+      console.log(
+        '--- EDIT PROFILE: FETCHED USER DETAILS ---',
+        JSON.stringify(userDetailsRaw, null, 2),
+      );
       if (userDetailsRaw.ctnz_profile_image) {
         setProfileImageUri(userDetailsRaw.ctnz_profile_image);
       }
@@ -425,11 +429,9 @@ export default function EditProfileScreen({ navigation }: any) {
 
       if (result.didCancel) return;
       if (result.errorCode) {
-        showAlert({
-          title: isBn ? 'সতর্কতা' : 'Alert',
-          message: isBn ? 'ছবি নির্বাচন করা যায়নি' : 'Could not select image',
-          buttons: [{ text: 'OK' }],
-        });
+        showErrorAlert(
+          isBn ? 'ছবি নির্বাচন করা যায়নি' : 'Could not select image',
+        );
         return;
       }
 
@@ -443,8 +445,45 @@ export default function EditProfileScreen({ navigation }: any) {
         });
       }
     } catch (error) {
-      console.log('Image picker exception:', error);
+      console.log('Error selecting image:', error);
     }
+  };
+
+  const handleAvatarPress = () => {
+    const buttons: any[] = [
+      {
+        text: isBn ? 'গ্যালারি থেকে বেছে নিন' : 'Choose from Gallery',
+        onPress: () => {
+          handleSelectImage();
+        },
+      },
+    ];
+
+    if (profileImageUri) {
+      buttons.push({
+        text: isBn ? 'ছবি সরান' : 'Remove Photo',
+        style: 'destructive',
+        onPress: () => {
+          handleRemoveImage();
+        },
+      });
+    }
+
+    buttons.push({
+      text: isBn ? 'বাতিল' : 'Cancel',
+      style: 'cancel',
+    });
+
+    showAlert({
+      title: isBn ? 'প্রোফাইল ছবি' : 'Profile Photo',
+      message: isBn ? 'একটি বিকল্প বেছে নিন' : 'Choose an option',
+      buttons,
+    });
+  };
+
+  const handleRemoveImage = () => {
+    setProfileImageUri(null);
+    setProfileImageFile(null);
   };
 
   const handleSaveProfile = async () => {
@@ -462,6 +501,8 @@ export default function EditProfileScreen({ navigation }: any) {
         entry_user_id: user?.user_id || 0,
         ctz_address: address,
         social_relation_id: 18, // 18 is 'Self'
+        // Only send blank string if NO new image is selected, otherwise let the file part handle it
+        ctnz_profile_image: profileImageFile ? undefined : '',
       };
 
       const fileData = profileImageFile || undefined;
@@ -481,13 +522,10 @@ export default function EditProfileScreen({ navigation }: any) {
         });
       }
     } catch (err: any) {
-      showAlert({
-        title: isBn ? 'সতর্কতা' : 'Alert',
-        message:
-          err?.data?.message ||
+      showErrorAlert(
+        err?.data?.message ||
           (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
-        buttons: [{ text: 'OK' }],
-      });
+      );
     } finally {
       dispatch(hideLoader());
     }
@@ -552,13 +590,10 @@ export default function EditProfileScreen({ navigation }: any) {
                 });
               }
             } catch (err: any) {
-              showAlert({
-                title: isBn ? 'সতর্কতা' : 'Alert',
-                message:
-                  err?.data?.message ||
+              showErrorAlert(
+                err?.data?.message ||
                   (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
-                buttons: [{ text: 'OK' }],
-              });
+              );
             } finally {
               dispatch(hideLoader());
             }
@@ -710,13 +745,10 @@ export default function EditProfileScreen({ navigation }: any) {
       }
     } catch (err: any) {
       console.log('Save Relative Error:', err);
-      showAlert({
-        title: isBn ? 'সতর্কতা' : 'Alert',
-        message:
-          err?.data?.message ||
+      showErrorAlert(
+        err?.data?.message ||
           (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
-        buttons: [{ text: 'OK' }],
-      });
+      );
     } finally {
       dispatch(hideLoader());
     }
@@ -738,9 +770,18 @@ export default function EditProfileScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
-      <SafeAreaView>
-        <View style={styles.headerBar}>
+      <StatusBar
+        backgroundColor={Colors.primary}
+        barStyle="light-content"
+        translucent={true}
+      />
+      <View>
+        <View
+          style={[
+            styles.headerBar,
+            { paddingTop: insets.top + 12, paddingBottom: 14 },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.headerBackBtn}
@@ -750,7 +791,7 @@ export default function EditProfileScreen({ navigation }: any) {
             </Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
 
       <ScrollView
         style={styles.body}
@@ -760,7 +801,7 @@ export default function EditProfileScreen({ navigation }: any) {
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <TouchableOpacity
-            onPress={handleSelectImage}
+            onPress={handleAvatarPress}
             style={styles.avatarOuter}
           >
             {profileImageUri ? (
@@ -782,6 +823,7 @@ export default function EditProfileScreen({ navigation }: any) {
               <Text style={styles.cameraIcon}>📷</Text>
             </View>
           </TouchableOpacity>
+
           <Text style={styles.avatarName}>{user?.user_name || 'User'}</Text>
           <Text style={styles.avatarPhone}>{user?.mobile || ''}</Text>
         </View>
@@ -798,7 +840,7 @@ export default function EditProfileScreen({ navigation }: any) {
               required
               value={firstName}
               onChange={v => {
-                setFirstName(v);
+                setFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
                 if (profileErrors.firstName)
                   setProfileErrors(p => ({ ...p, firstName: undefined }));
               }}
@@ -810,7 +852,7 @@ export default function EditProfileScreen({ navigation }: any) {
               required
               value={lastName}
               onChange={v => {
-                setLastName(v);
+                setLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
                 if (profileErrors.lastName)
                   setProfileErrors(p => ({ ...p, lastName: undefined }));
               }}
@@ -860,7 +902,7 @@ export default function EditProfileScreen({ navigation }: any) {
               required
               value={birthPlace}
               onChange={v => {
-                setBirthPlace(v);
+                setBirthPlace(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
                 if (profileErrors.birthPlace)
                   setProfileErrors(p => ({ ...p, birthPlace: undefined }));
               }}
@@ -872,7 +914,7 @@ export default function EditProfileScreen({ navigation }: any) {
               required
               value={gotro}
               onChange={v => {
-                setGotro(v);
+                setGotro(v.replace(/[^a-zA-Z\s.-]/g, ''));
                 if (profileErrors.gotro)
                   setProfileErrors(p => ({ ...p, gotro: undefined }));
               }}
@@ -887,7 +929,7 @@ export default function EditProfileScreen({ navigation }: any) {
             multiline
             value={address}
             onChange={v => {
-              setAddress(v);
+              setAddress(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
               if (profileErrors.address)
                 setProfileErrors(p => ({ ...p, address: undefined }));
             }}
@@ -947,7 +989,7 @@ export default function EditProfileScreen({ navigation }: any) {
               }}
             >
               <Text style={styles.addRelBtnText}>
-                + {isBn ? 'সম্পর্ক যোগ' : 'Add Relation'}
+                + {isBn ? 'সম্পর্ক যোগ' : 'Add Relative'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1052,7 +1094,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relFirstName}
                   onChange={v => {
-                    setRelFirstName(v);
+                    setRelFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
                     if (relErrors.firstName)
                       setRelErrors(p => ({ ...p, firstName: undefined }));
                   }}
@@ -1064,7 +1106,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relLastName}
                   onChange={v => {
-                    setRelLastName(v);
+                    setRelLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
                     if (relErrors.lastName)
                       setRelErrors(p => ({ ...p, lastName: undefined }));
                   }}
@@ -1108,7 +1150,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relPlaceOfBirth}
                   onChange={v => {
-                    setRelPlaceOfBirth(v);
+                    setRelPlaceOfBirth(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
                     if (relErrors.placeOfBirth)
                       setRelErrors(p => ({ ...p, placeOfBirth: undefined }));
                   }}
@@ -1120,7 +1162,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relGotram}
                   onChange={v => {
-                    setRelGotram(v);
+                    setRelGotram(v.replace(/[^a-zA-Z\s.-]/g, ''));
                     if (relErrors.gotram)
                       setRelErrors(p => ({ ...p, gotram: undefined }));
                   }}
@@ -1178,9 +1220,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerBar: {
     backgroundColor: BRAND_ORANGE,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    paddingTop: Platform.OS === 'android' ? 36 : 14,
+    // paddingTop removed to allow insets in component
   },
   headerBackBtn: { flexDirection: 'row', alignItems: 'center' },
   headerBackText: { color: Colors.white, fontSize: 14, fontWeight: '600' },
@@ -1199,7 +1241,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     backgroundColor: Colors.splashBg,
     borderWidth: 3,
-    borderColor: Colors.white,
+    borderColor: Colors.primary, // Changed from white to primary to remove white gap appearance
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1218,7 +1260,27 @@ const styles = StyleSheet.create({
     borderColor: Colors.disabled,
   },
   cameraIcon: { fontSize: 13 },
-  avatarName: { color: Colors.white, fontSize: 18, fontWeight: '800' },
+  trashBtn: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF4D4D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+    elevation: 4,
+  },
+  trashIcon: { fontSize: 13 },
+  avatarName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#333',
+    marginTop: 10,
+  },
   avatarPhone: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 2 },
 
   card: {

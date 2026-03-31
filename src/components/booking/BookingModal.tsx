@@ -43,10 +43,10 @@ export default function BookingModal({
   const user = useSelector((state: RootState) => state.auth.user);
   const [addPujaToCart] = useAddPujaToCartMutation();
   const [step, setStep] = useState<'DATETIME' | 'CONFIRM' | 'SUCCESS'>(
-    'DATETIME',
+    'CONFIRM',
   );
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedTime, setSelectedTime] = useState<string | null>('12:00 PM');
   const [showCalendar, setShowCalendar] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -105,20 +105,15 @@ export default function BookingModal({
     return `${dayName}, ${d.getDate()} ${monthName} ${d.getFullYear()}`;
   };
 
-  const formatShortDate = (d: Date | null) => {
-    if (!d) return '';
-    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-  };
-
   const getMonthYearText = (d: Date) => {
     const m = isBn ? MONTHS_BN[d.getMonth()] : MONTHS_EN[d.getMonth()];
     return `${m} ${d.getFullYear()}`;
   };
 
   const clearState = () => {
-    setStep('DATETIME');
-    setSelectedDate(null);
-    setSelectedTime(null);
+    setStep('CONFIRM');
+    setSelectedDate(new Date());
+    setSelectedTime('12:00 PM');
     setShowCalendar(false);
     setShowTimePicker(false);
     setCurrentMonth(new Date());
@@ -500,20 +495,7 @@ export default function BookingModal({
                   </Text>
                   <Text style={styles.tableValue}>{pPackageNameEn}</Text>
                 </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>
-                    📅 {isBn ? 'তারিখ' : 'Date'}
-                  </Text>
-                  <Text style={styles.tableValue}>
-                    {formatDate(selectedDate)}
-                  </Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>
-                    🕒 {isBn ? 'সময়' : 'Time'}
-                  </Text>
-                  <Text style={styles.tableValue}>{selectedTime}</Text>
-                </View>
+
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>
                     🧘 {isBn ? 'পুরোহিত' : 'Pandits'}
@@ -563,7 +545,7 @@ export default function BookingModal({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.btnSecondary, styles.flex1]}
-                  onPress={() => setStep('DATETIME')}
+                  onPress={handleClose}
                 >
                   <Text style={styles.btnSecondaryText}>
                     {isBn ? 'বাতিল করুন' : 'Cancel'}
@@ -603,9 +585,6 @@ export default function BookingModal({
                 <Text style={styles.scTitle}>{isBn ? pTitleBn : pTitleEn}</Text>
                 <Text style={styles.scDesc}>
                   {pPackageNameEn} {isBn ? 'প্যাকেজ' : 'Package'}
-                </Text>
-                <Text style={styles.scDesc}>
-                  {formatShortDate(selectedDate)} • {selectedTime}
                 </Text>
                 <View style={styles.scDivider} />
                 <View style={styles.scTotalRow}>

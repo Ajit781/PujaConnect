@@ -10,7 +10,7 @@ import {
   FlatList,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +24,7 @@ import {
 } from '../../store/api/pujaApi';
 
 export default function WishlistScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
@@ -213,25 +214,27 @@ export default function WishlistScreen({ navigation }: any) {
     </>
   );
 
+  const headerStyle = [
+    styles.header,
+    styles.headerPadding,
+    { paddingTop: insets.top + 12 },
+  ];
+
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backBtnText}>
-              ← {isBn ? 'ফিরে যান' : 'Back'}
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isBn ? 'পছন্দের পূজা' : 'Wishlist'}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </SafeAreaView>
+      <View style={headerStyle}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backBtnText}>← {isBn ? 'ফিরে যান' : 'Back'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {isBn ? 'পছন্দের পূজা' : 'Wishlist'}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
       <FlatList
         style={styles.body}
@@ -281,9 +284,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    height: 60,
+    paddingHorizontal: 12,
   },
+  headerPadding: { paddingBottom: 14 },
   backBtn: { paddingVertical: 10, paddingRight: 20 },
   backBtnText: { fontSize: 16, fontWeight: '700', color: BRAND_PRIMARY },
   headerTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
@@ -367,15 +370,6 @@ const styles = StyleSheet.create({
   pageBtnDisabled: { backgroundColor: Colors.textMuted },
   pageBtnText: { color: Colors.white, fontWeight: 'bold' },
   pageText: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
-
-  safeArea: {
-    backgroundColor: Colors.white,
-    elevation: 2,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    zIndex: 10,
-  },
   headerSpacer: { width: 60 },
   pujaImgText: { fontSize: 50 },
   heartIconText: { fontSize: 16 },

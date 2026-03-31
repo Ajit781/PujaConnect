@@ -107,6 +107,34 @@ export interface PujaCartItem {
   preferred_puja_time: string;
 }
 
+export interface BookingSummary {
+  booking_id: number;
+  booking_no: string;
+  booking_create_date: string;
+  total_amount: number;
+  total_amount_paid: number;
+  payment_status: string;
+  booking_status: string;
+}
+
+export interface BookingDetail {
+  booking_id: number;
+  booking_no: string;
+  booking_create_date: string;
+  puja_id: number;
+  package_id: number;
+  puja_name: string;
+  puja_description: string;
+  package_name: string;
+  package_description: string;
+  pandit_count: number;
+  duration_hours: number;
+  preferred_date: string;
+  preferred_time: string;
+  package_total_amount: number;
+  puja_item_booking_status: string;
+}
+
 /**
  * Fetches all puja types from the master API.
  * @param userId The ID of the logged-in user.

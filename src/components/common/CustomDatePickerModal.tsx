@@ -15,6 +15,8 @@ interface Props {
   visible: boolean;
   mode: 'date' | 'datetime' | 'time';
   initialDate?: Date;
+  minimumDate?: Date;
+  maximumDate?: Date;
   onSelect: (date: Date, time?: string) => void;
   onClose: () => void;
 }
@@ -72,6 +74,8 @@ export default function CustomDatePickerModal({
   visible,
   mode,
   initialDate,
+  minimumDate,
+  maximumDate,
   onSelect,
   onClose,
 }: Props) {
@@ -186,6 +190,20 @@ export default function CustomDatePickerModal({
             <View key={`blank-${i}`} style={styles.cell} />
           ))}
           {days.map(d => {
+            const currentCellDate = new Date(currentYear, currentMonthIdx, d);
+            let isDisabled = false;
+
+            if (minimumDate) {
+              const minObj = new Date(minimumDate);
+              minObj.setHours(0, 0, 0, 0);
+              if (currentCellDate < minObj) isDisabled = true;
+            }
+            if (maximumDate) {
+              const maxObj = new Date(maximumDate);
+              maxObj.setHours(23, 59, 59, 999);
+              if (currentCellDate > maxObj) isDisabled = true;
+            }
+
             const isSelected =
               selectedDate &&
               selectedDate.getDate() === d &&
@@ -195,13 +213,19 @@ export default function CustomDatePickerModal({
             return (
               <TouchableOpacity
                 key={d}
-                style={[styles.cell, isSelected && styles.cellSelected]}
+                disabled={isDisabled}
+                style={[
+                  styles.cell,
+                  isSelected && styles.cellSelected,
+                  isDisabled && styles.cellDisabled,
+                ]}
                 onPress={() => handleDaySelect(d)}
               >
                 <Text
                   style={[
                     styles.cellText,
                     isSelected && styles.cellTextSelected,
+                    isDisabled && styles.cellTextDisabled,
                   ]}
                 >
                   {d}
@@ -441,7 +465,9 @@ const styles = StyleSheet.create({
   },
   cellText: { fontSize: 14, color: Colors.textMain },
   cellSelected: { backgroundColor: Colors.primary, borderRadius: 20 },
-  cellTextSelected: { color: Colors.white, fontWeight: 'bold' },
+  cellTextSelected: { color: '#fff', fontWeight: 'bold' },
+  cellDisabled: { opacity: 0.3 },
+  cellTextDisabled: { color: '#999' },
 
   titleRow: {
     flexDirection: 'row',

@@ -4,17 +4,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   TextInput,
   StatusBar,
   FlatList,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import { Order } from '../../store/slices/orderSlice';
+import { useGetBookingSummaryQuery } from '../../store/api/pujaApi';
+import { BookingSummary } from '../../service/api/dashboardService';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
@@ -22,7 +22,6 @@ import NoDataFound from '../../components/common/NoDataFound';
 import { Colors } from '../../constants/Colors';
 
 const BRAND_PRIMARY = Colors.primary;
-const BRAND_BG = Colors.background;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
@@ -47,28 +46,36 @@ const formatDate = (isoString: string) => {
   } ${d.getFullYear()}`;
 };
 
-const StatusBadge = React.memo(({ status }: { status: string }) => {
-  let bgColor = Colors.lightGray;
-  let textColor = Colors.textMuted;
-  if (status === 'Booking Initiated' || status === 'Pending') {
-    bgColor = Colors.statusPendingBg;
-    textColor = Colors.statusPendingText;
-  } else if (status === 'Completed') {
-    bgColor = Colors.statusSuccessBg;
-    textColor = Colors.statusSuccessText;
-  } else if (status === 'Cancelled' || status === 'Partial Cancelled') {
-    bgColor = Colors.tagRed;
-    textColor = Colors.red;
-  } else if (status === 'Upcoming' || status === 'Rescheduled') {
-    bgColor = Colors.statusWarningBg;
-    textColor = Colors.statusWarningText;
-  }
+const STATUS_CONFIG: Record<
+  string,
+  { bg: string; text: string; icon: string }
+> = {
+  'Booking Initiated': { bg: '#FFF7ED', text: '#D97706', icon: '⏳' },
+  Pending: { bg: '#FFF7ED', text: '#D97706', icon: '⏳' },
+  Upcoming: { bg: '#EFF6FF', text: '#2563EB', icon: '📅' },
+  Rescheduled: { bg: '#F0FDF4', text: '#16A34A', icon: '🔄' },
+  Completed: { bg: '#F0FDF4', text: '#16A34A', icon: '✅' },
+  Cancelled: { bg: '#FEF2F2', text: '#DC2626', icon: '✖' },
+  'Partial Cancelled': { bg: '#FEF2F2', text: '#DC2626', icon: '⚠️' },
+};
 
+const StatusBadge = React.memo(({ status }: { status: string }) => {
+  const cfg = STATUS_CONFIG[status] || {
+    bg: Colors.lightGray,
+    text: BRAND_MUTED,
+    icon: '•',
+  };
   return (
-    <View style={[styles.badge, { backgroundColor: bgColor }]}>
-      <Text style={[styles.badgeText, { color: textColor }]}>{status}</Text>
+    <View style={[sBadge.badge, { backgroundColor: cfg.bg }]}>
+      <Text style={[sBadge.text, { color: cfg.text }]}>
+        {cfg.icon} {status}
+      </Text>
     </View>
   );
+});
+const sBadge = StyleSheet.create({
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  text: { fontSize: 11, fontWeight: '700' },
 });
 
 const OrderCard = React.memo(
@@ -78,73 +85,84 @@ const OrderCard = React.memo(
     onPressDetails,
     onPressCancel,
   }: {
-    item: Order;
+    item: BookingSummary;
     isBn: boolean;
     onPressDetails: (id: string) => void;
     onPressCancel: (id: string) => void;
   }) => {
+    const canCancel = ['Upcoming', 'Booking Initiated', 'Pending'].includes(
+      item.booking_status,
+    );
     return (
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View>
-            <Text style={styles.cardLabel}>
-              {isBn ? 'বুকিং রেফারেন্স' : 'BOOKING REFERENCE'}
-            </Text>
-            <Text style={styles.cardRef}>{item.bookingRef}</Text>
-            <Text style={styles.cardDate}>
-              📅 {formatDate(item.datePlaced)}
-            </Text>
+        <View style={styles.cardTop}>
+          <View style={styles.cardTopLeft}>
+            <View style={styles.pujaIcon}>
+              <Text style={styles.pujaIconText}>🛕</Text>
+            </View>
+            <View style={styles.cardTopInfo}>
+              <Text style={styles.cardRef} numberOfLines={1}>
+                {item.booking_no}
+              </Text>
+              <Text style={styles.cardDate}>
+                📅 {formatDate(item.booking_create_date)}
+              </Text>
+            </View>
           </View>
-          <StatusBadge status={item.status} />
+          <StatusBadge status={item.booking_status} />
         </View>
 
-        <View style={styles.cardBody}>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>{isBn ? 'স্ট্যাটাস' : 'Status'}</Text>
-            <StatusBadge status={item.status} />
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
+        <View style={styles.divider} />
+
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
             <Text
               style={[
-                styles.paymentText,
-                item.paymentStatus === 'PAID'
-                  ? styles.paymentGreen
-                  : styles.paymentOrange,
+                styles.statValue,
+                {
+                  color:
+                    item.payment_status === 'PAID'
+                      ? Colors.successGreen
+                      : BRAND_PRIMARY,
+                },
               ]}
             >
-              {item.paymentStatus}
+              {item.payment_status}
             </Text>
           </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>
-              {isBn ? 'মোট পরিমাণ' : 'Total Amount'}
+          <View style={styles.statDiv} />
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>{isBn ? 'মোট' : 'Amount'}</Text>
+            <Text style={[styles.statValue, { color: BRAND_TEXT }]}>
+              ₹{item.total_amount.toLocaleString('en-IN')}
             </Text>
-            <Text style={styles.amountText}>
-              ₹{item.totalAmount.toLocaleString('en-IN')}
+          </View>
+          <View style={styles.statDiv} />
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>{isBn ? 'প্রদত্ত' : 'Paid'}</Text>
+            <Text style={[styles.statValue, { color: Colors.successGreen }]}>
+              ₹{item.total_amount_paid.toLocaleString('en-IN')}
             </Text>
           </View>
         </View>
 
         <View style={styles.cardFooter}>
           <TouchableOpacity
-            style={styles.actionBtnOutline}
-            onPress={() => onPressDetails(item.id)}
+            style={styles.btnDetails}
+            onPress={() => onPressDetails(item.booking_id.toString())}
           >
-            <Text style={styles.actionBtnOutlineText}>
-              🎯 {isBn ? 'বিস্তারিত দেখুন' : 'See Details'}
+            <Text style={styles.btnDetailsText}>
+              {isBn ? 'বিস্তারিত' : 'View Details'}
             </Text>
           </TouchableOpacity>
-
-          {(item.status === 'Upcoming' ||
-            item.status === 'Booking Initiated' ||
-            item.status === 'Pending') && (
+          {canCancel && (
             <TouchableOpacity
-              style={styles.actionBtnDanger}
-              onPress={() => onPressCancel(item.id)}
+              style={styles.btnCancel}
+              onPress={() => onPressCancel(item.booking_id.toString())}
             >
-              <Text style={styles.actionBtnDangerText}>
-                ✖ {isBn ? 'বাতিল করুন' : 'Cancel'}
+              <Text style={styles.btnCancelText}>
+                {isBn ? 'বাতিল' : 'Cancel'}
               </Text>
             </TouchableOpacity>
           )}
@@ -155,84 +173,89 @@ const OrderCard = React.memo(
 );
 
 export default function OrdersScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const user = useSelector((state: RootState) => state.auth.user);
 
-  const orders = useSelector((state: RootState) => state.order.orders);
+  const STATUS_TABS = [
+    { label: 'All', value: 7 },
+    { label: 'Upcoming', value: 1 },
+    { label: 'Completed', value: 2 },
+    { label: 'Pending', value: 5 },
+    { label: 'Partial Cancelled', value: 8 },
+    { label: 'Cancelled', value: 9 },
+    { label: 'Rescheduled', value: 10 },
+  ] as const;
 
-  const [activeTab, setActiveTab] = useState('All');
+  const [activeTab, setActiveTab] = useState<(typeof STATUS_TABS)[number]>(
+    STATUS_TABS[0],
+  );
   const [searchQuery, setSearchQuery] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [fromDate, setFromDate] = useState<string | null>(null);
+  const [toDate, setToDate] = useState<string | null>(null);
 
+  const PAYMENT_OPTIONS = [
+    { label: 'All Payments', value: 7 },
+    { label: 'Paid', value: 1 },
+    { label: 'Not Paid', value: 2 },
+  ] as const;
+
+  const [paymentFilter, setPaymentFilter] = useState<
+    (typeof PAYMENT_OPTIONS)[number]
+  >(PAYMENT_OPTIONS[0]);
+  const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const selectedOrder = orders.find(o => o.id === selectedOrderId) || null;
-
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-
   const [activeDatePicker, setActiveDatePicker] = useState<
     'from' | 'to' | null
   >(null);
+  const [pageNo, setPageNo] = useState(1);
+  const PAGE_SIZE = 10;
 
-  const TABS = [
-    'All',
-    'Upcoming',
-    'Completed',
-    'Pending',
-    'Partial Cancelled',
-    'Cancelled',
-    'Rescheduled',
-  ];
+  // Fetch from Dynamic API
+  const { data: bookings = [], isLoading } = useGetBookingSummaryQuery(
+    {
+      userId: user?.user_id || 0,
+      status: activeTab.value,
+      paymentStatus: paymentFilter.value,
+      pageNo: pageNo,
+      pageSize: PAGE_SIZE,
+      fromDate: fromDate,
+      toDate: toDate,
+    },
+    { skip: !user?.user_id },
+  );
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setPageNo(1);
+  }, [activeTab, paymentFilter, fromDate, toDate, searchQuery]);
 
   const filteredOrders = React.useMemo(() => {
-    return orders.filter(o => {
-      if (activeTab !== 'All' && o.status !== activeTab) return false;
-      if (
-        searchQuery &&
-        !o.bookingRef.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-        return false;
+    if (!searchQuery) return bookings;
+    return bookings.filter(o =>
+      o.booking_no.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [bookings, searchQuery]);
 
-      if (fromDate.length === 10 || toDate.length === 10) {
-        const orderD = new Date(o.datePlaced).getTime();
+  // Pagination Logic
+  const showPagination = bookings.length >= PAGE_SIZE || pageNo > 1;
+  const isNextDisabled = bookings.length < PAGE_SIZE;
+  const isPrevDisabled = pageNo === 1;
 
-        if (fromDate.length === 10) {
-          const [fm, fd, fy] = fromDate.split('/');
-          const fromD = new Date(
-            parseInt(fy, 10),
-            parseInt(fm, 10) - 1,
-            parseInt(fd, 10),
-          ).getTime();
-          if (orderD < fromD) return false;
-        }
-
-        if (toDate.length === 10) {
-          const [tm, td, ty] = toDate.split('/');
-          const toD = new Date(
-            parseInt(ty, 10),
-            parseInt(tm, 10) - 1,
-            parseInt(td, 10),
-            23,
-            59,
-            59,
-          ).getTime();
-          if (orderD > toD) return false;
-        }
-      }
-      return true;
-    });
-  }, [orders, activeTab, searchQuery, fromDate, toDate]);
+  const selectedOrder =
+    bookings.find(o => o.booking_id.toString() === selectedOrderId) || null;
 
   const handleDateSelect = (d: Date) => {
-    const formatted = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(
-      d.getDate(),
-    ).padStart(2, '0')}/${d.getFullYear()}`;
-    if (activeDatePicker === 'from') {
-      setFromDate(formatted);
-    } else if (activeDatePicker === 'to') {
-      setToDate(formatted);
-    }
+    // API expects YYYY-MM-DD
+    const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(d.getDate()).padStart(2, '0')}`;
+    if (activeDatePicker === 'from') setFromDate(f);
+    else if (activeDatePicker === 'to') setToDate(f);
     setActiveDatePicker(null);
   };
 
@@ -248,152 +271,227 @@ export default function OrdersScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={BRAND_BG} barStyle="dark-content" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.navigate('Dashboard')}
-          >
-            <Text style={styles.backBtnText}>
-              ← {isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
-            </Text>
-          </TouchableOpacity>
+      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backBtnText}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
-            {isBn ? 'আপনার অর্ডার' : 'Your Orders'}
+            {isBn ? 'আমার অর্ডার' : 'My Orders'}
+          </Text>
+          <Text style={styles.headerSub}>
+            {bookings.length} {isBn ? 'টি বুকিং' : 'total bookings'}
           </Text>
         </View>
+        <View style={styles.headerRight} />
+      </View>
 
-        <View style={styles.tabsWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContent}
-          >
-            {TABS.map(tab => (
-              <TouchableOpacity
-                key={tab}
+      {/* Tabs */}
+      <View style={styles.tabsBar}>
+        <FlatList
+          data={STATUS_TABS}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={t => t.value.toString()}
+          contentContainerStyle={styles.tabsContent}
+          renderItem={({ item: tab }) => (
+            <TouchableOpacity
+              style={[
+                styles.tabBtn,
+                activeTab.value === tab.value && styles.tabBtnActive,
+              ]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text
                 style={[
-                  styles.tabBtn,
-                  activeTab === tab && styles.tabBtnActive,
+                  styles.tabText,
+                  activeTab.value === tab.value && styles.tabTextActive,
                 ]}
-                onPress={() => setActiveTab(tab)}
               >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}
-                >
-                  {tab}
-                </Text>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+
+      {/* Filter Bar — beautifully designed */}
+      <View style={styles.filterCard}>
+        {/* Top Control Row */}
+        <View style={styles.filterControlsRow}>
+          {/* Search Box */}
+          <View style={styles.searchBox}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder={isBn ? 'বুকিং নং খুঁজুন...' : 'Search booking no...'}
+              placeholderTextColor={BRAND_MUTED}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.clearIconWrap}
+              >
+                <Text style={styles.clearBtn}>✕</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            )}
+          </View>
+
+          {/* Payment Filter Dropdown */}
+          <TouchableOpacity
+            style={styles.filterDropdown}
+            onPress={() => setShowPaymentDropdown(true)}
+          >
+            <Text style={styles.filterDropdownText} numberOfLines={1}>
+              {paymentFilter.label}
+            </Text>
+            <Text style={styles.dropdownArrow}>▼</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.filtersWrapper}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {isBn ? 'পেমেন্ট' : 'Payment'}
-            </Text>
-            <View style={styles.filterInputBox}>
-              <Text style={styles.filterInputText}>💳 All Payments</Text>
-            </View>
-          </View>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {isBn ? 'তারিখ থেকে' : 'From date'}
+        {/* Date Filters Row */}
+        <View style={styles.dateFiltersRow}>
+          <View style={styles.dateControlWrap}>
+            <Text style={styles.dateControlLabel}>
+              {isBn ? 'তারিখ থেকে' : 'From Date'}
             </Text>
             <TouchableOpacity
-              style={styles.filterInputBox}
+              style={styles.dateBox}
               onPress={() => setActiveDatePicker('from')}
             >
+              <Text style={styles.dateIcon}>📅</Text>
               <Text
-                style={[
-                  styles.filterInputText,
-                  !fromDate && styles.placeholderText,
-                ]}
+                style={[styles.dateValue, !fromDate && styles.datePlaceholder]}
               >
-                {fromDate || 'MM/DD/YYYY'}
+                {fromDate || 'Select Date'}
               </Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {isBn ? 'তারিখ পর্যন্ত' : 'To date'}
+
+          <View style={styles.dateControlWrap}>
+            <Text style={styles.dateControlLabel}>
+              {isBn ? 'তারিখ পর্যন্ত' : 'To Date'}
             </Text>
             <TouchableOpacity
-              style={styles.filterInputBox}
+              style={styles.dateBox}
               onPress={() => setActiveDatePicker('to')}
             >
+              <Text style={styles.dateIcon}>📅</Text>
               <Text
-                style={[
-                  styles.filterInputText,
-                  !toDate && styles.placeholderText,
-                ]}
+                style={[styles.dateValue, !toDate && styles.datePlaceholder]}
               >
-                {toDate || 'MM/DD/YYYY'}
+                {toDate || 'Select Date'}
               </Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {isBn ? 'অনুসন্ধান' : 'Search'}
-            </Text>
-            <View style={styles.filterInputBox}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Booking no, status..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <Text style={styles.statsText}>
-            Showing 1-{filteredOrders.length} of {filteredOrders.length}{' '}
-            bookings
+        {/* Results + Clear */}
+        <View style={styles.resultsRow}>
+          <Text style={styles.resultsText}>
+            {filteredOrders.length}{' '}
+            {isBn ? 'টি বুকিং পাওয়া গেছে' : 'bookings found'}
           </Text>
-          <Text style={styles.statsText}>Page 1 of 1</Text>
-        </View>
-
-        <View style={styles.listHeader}>
-          <Text style={styles.listHeaderTitle}>
-            {isBn ? 'আগের অর্ডার' : 'Previous Orders'}
-          </Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{filteredOrders.length}</Text>
-          </View>
-        </View>
-
-        <FlatList
-          data={filteredOrders}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <OrderCard
-              item={item}
-              isBn={isBn}
-              onPressDetails={handlePressDetails}
-              onPressCancel={handlePressCancel}
-            />
+          {(fromDate ||
+            toDate ||
+            searchQuery ||
+            paymentFilter.value !== 7 ||
+            activeTab.value !== 7) && (
+            <TouchableOpacity
+              onPress={() => {
+                setFromDate(null);
+                setToDate(null);
+                setSearchQuery('');
+                setPaymentFilter(PAYMENT_OPTIONS[0]);
+                setActiveTab(STATUS_TABS[0]);
+              }}
+              style={styles.clearAllBtn}
+            >
+              <Text style={styles.clearFilters}>
+                {isBn ? 'ফিল্টার মুছুন' : 'Clear Filters'}
+              </Text>
+            </TouchableOpacity>
           )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={5}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          ListEmptyComponent={
+        </View>
+      </View>
+
+      {/* List */}
+      <FlatList
+        data={filteredOrders}
+        keyExtractor={item => item.booking_id.toString()}
+        renderItem={({ item }) => (
+          <OrderCard
+            item={item}
+            isBn={isBn}
+            onPressDetails={handlePressDetails}
+            onPressCancel={handlePressCancel}
+          />
+        )}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={6}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={Platform.OS === 'android'}
+        ListEmptyComponent={
+          !isLoading ? (
             <NoDataFound
               message={isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
-              containerHeight={300}
+              containerHeight={280}
             />
-          }
-        />
-      </SafeAreaView>
+          ) : null
+        }
+        ListFooterComponent={
+          showPagination ? (
+            <View style={styles.paginationRow}>
+              <TouchableOpacity
+                style={[
+                  styles.pageBtn,
+                  isPrevDisabled && styles.pageBtnDisabled,
+                ]}
+                onPress={() => !isPrevDisabled && setPageNo(p => p - 1)}
+                disabled={isPrevDisabled}
+              >
+                <Text style={styles.pageBtnText}>
+                  {isBn ? 'পূর্ববর্তী' : 'Previous'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.pageIndicator}>
+                <Text style={styles.pageIndicatorText}>
+                  {isBn ? 'পৃষ্ঠা' : 'Page'} {pageNo}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.pageBtn,
+                  isNextDisabled && styles.pageBtnDisabled,
+                ]}
+                onPress={() => !isNextDisabled && setPageNo(p => p + 1)}
+                disabled={isNextDisabled}
+              >
+                <Text style={styles.pageBtnText}>
+                  {isBn ? 'পরবর্তী' : 'Next'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.bottomSpace} />
+          )
+        }
+      />
 
       {showDetailsModal && selectedOrder && (
         <OrderDetailsModal
@@ -402,212 +500,454 @@ export default function OrdersScreen({ navigation }: any) {
           onClose={() => setShowDetailsModal(false)}
         />
       )}
-
       {showCancelModal && selectedOrder && (
         <CancelOrderModal
           visible={showCancelModal}
-          orderId={selectedOrder.id}
-          itemTitle={selectedOrder.items[0]?.titleEn || 'Booking'}
+          orderId={selectedOrder.booking_id.toString()}
+          itemTitle={selectedOrder.booking_no}
           onClose={() => setShowCancelModal(false)}
         />
       )}
-
       {activeDatePicker && (
         <CustomDatePickerModal
           visible={!!activeDatePicker}
           mode="date"
+          initialDate={
+            activeDatePicker === 'from' && fromDate
+              ? new Date(fromDate)
+              : activeDatePicker === 'to' && toDate
+              ? new Date(toDate)
+              : activeDatePicker === 'to' && fromDate
+              ? new Date(fromDate)
+              : activeDatePicker === 'from' && toDate
+              ? new Date(toDate)
+              : undefined
+          }
+          minimumDate={
+            activeDatePicker === 'to' && fromDate
+              ? new Date(fromDate)
+              : undefined
+          }
+          maximumDate={
+            activeDatePicker === 'from' && toDate ? new Date(toDate) : undefined
+          }
           onClose={() => setActiveDatePicker(null)}
           onSelect={handleDateSelect}
         />
+      )}
+
+      {/* Payment Filter Popover Menu */}
+      {showPaymentDropdown && (
+        <View style={[StyleSheet.absoluteFill, styles.popoverWrapper]}>
+          <TouchableOpacity
+            style={styles.popoverOverlay}
+            activeOpacity={1}
+            onPress={() => setShowPaymentDropdown(false)}
+          >
+            <TouchableOpacity activeOpacity={1}>
+              <View style={styles.popoverBox}>
+                <View style={styles.popoverHeader}>
+                  <Text style={styles.popoverTitle}>
+                    {isBn ? 'পেমেন্ট স্ট্যাটাস' : 'Payment Status'}
+                  </Text>
+                </View>
+                <View style={styles.popoverDivider} />
+
+                {PAYMENT_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setPaymentFilter(opt);
+                      setShowPaymentDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.popoverItemText,
+                        paymentFilter.value === opt.value &&
+                          styles.popoverItemTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    {paymentFilter.value === opt.value && (
+                      <Text style={styles.checkMark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BRAND_BG },
-  safeArea: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#F2F3F7' },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
   },
   backBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.disabled,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F2F3F7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backBtnText: { color: BRAND_TEXT, fontSize: 14, fontWeight: 'bold' },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: BRAND_TEXT },
+  backBtnText: { fontSize: 18, color: BRAND_TEXT, fontWeight: 'bold' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
+  headerSub: { fontSize: 12, color: BRAND_MUTED, marginTop: 1 },
+  headerRight: { width: 36 },
 
-  tabsWrapper: {
+  // Tabs
+  tabsBar: {
     backgroundColor: Colors.white,
-    paddingVertical: 12,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   tabsContent: {
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
   },
   tabBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 25,
     borderWidth: 1,
-    borderColor: Colors.disabled,
-    backgroundColor: Colors.white,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FAFAFA',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
   },
   tabBtnActive: {
     backgroundColor: BRAND_PRIMARY,
     borderColor: BRAND_PRIMARY,
+    elevation: 4,
+    shadowOpacity: 0.15,
   },
-  tabText: { color: BRAND_MUTED, fontSize: 14, fontWeight: '500' },
-  tabTextActive: { color: Colors.white, fontWeight: 'bold' },
+  tabText: { color: BRAND_MUTED, fontSize: 13, fontWeight: '700' },
+  tabTextActive: { color: Colors.white, fontWeight: '900', letterSpacing: 0.3 },
 
-  filtersWrapper: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // Filter Bar — beautifully designed
+  filterCard: {
     backgroundColor: Colors.white,
-    padding: 16,
-    paddingTop: 0,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    elevation: 8,
+    zIndex: 10,
   },
-  filterGroup: { flex: 1, minWidth: '45%' },
-  filterLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
-  filterInputBox: {
-    borderWidth: 1,
-    borderColor: Colors.disabled,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 40,
-    justifyContent: 'center',
-  },
-  placeholderText: {
-    color: Colors.gray,
-  },
-  filterInputText: { fontSize: 14, color: BRAND_TEXT },
-  searchInput: { padding: 0, fontSize: 14, color: BRAND_TEXT },
-
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  statsText: { fontSize: 12, color: Colors.textMuted },
-
-  listHeader: {
+  filterControlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 16,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+    color: BRAND_MUTED,
+    opacity: 0.7,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: BRAND_TEXT,
+    padding: 0,
+    fontWeight: '500',
+  },
+  clearIconWrap: { padding: 4 },
+  clearBtn: { fontSize: 14, color: BRAND_MUTED, fontWeight: 'bold' },
+
+  filterDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFD8A8',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 48,
+    minWidth: 130,
+    justifyContent: 'space-between',
     gap: 8,
   },
-  listHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: BRAND_TEXT },
-  countBadge: {
-    backgroundColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  filterDropdownText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D9480F',
+    flexShrink: 1,
   },
-  countBadgeText: { fontSize: 12, color: BRAND_TEXT, fontWeight: 'bold' },
-
-  listContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 16 },
-
-  card: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  cardLabel: {
+  dropdownArrow: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: Colors.gray,
+    color: '#D9480F',
+    opacity: 0.8,
+  },
+
+  dateFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateControlWrap: {
+    flex: 1,
+  },
+  dateControlLabel: {
+    fontSize: 11,
+    color: BRAND_MUTED,
+    fontWeight: '800',
+    marginBottom: 6,
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  cardRef: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: BRAND_TEXT,
-    marginVertical: 4,
-  },
-  cardDate: { fontSize: 13, color: BRAND_MUTED },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  dateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  badgeText: { fontSize: 12, fontWeight: 'bold' },
+  dateIcon: { fontSize: 14, opacity: 0.7 },
+  dateValue: { fontSize: 13, color: BRAND_TEXT, fontWeight: '600' },
+  datePlaceholder: { color: BRAND_MUTED, fontWeight: '400', opacity: 0.6 },
 
-  cardBody: {
+  resultsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: Colors.cardBg,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-  col: { gap: 4 },
-  colLabel: { fontSize: 11, color: Colors.textMuted },
-  paymentText: { fontSize: 14, fontWeight: 'bold' },
-  amountText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
-  paymentGreen: { color: Colors.successGreen },
-  paymentOrange: { color: BRAND_PRIMARY },
+  resultsText: { fontSize: 12, color: BRAND_MUTED, fontWeight: '700' },
+  clearAllBtn: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  clearFilters: { fontSize: 11, color: '#DC2626', fontWeight: '800' },
 
+  // Popover Menu
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  popoverBox: {
+    width: '85%',
+    backgroundColor: Colors.white,
+    borderRadius: 28,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 20,
+    elevation: 20,
+    overflow: 'hidden',
+  },
+  popoverHeader: { paddingHorizontal: 24, paddingBottom: 16 },
+  popoverTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+    textAlign: 'center',
+  },
+  popoverDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 4,
+  },
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  popoverItemText: {
+    fontSize: 16,
+    color: BRAND_TEXT,
+    fontWeight: '600',
+  },
+
+  // List
+  listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
+
+  // Card
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  cardTopLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  pujaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF3EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  pujaIconText: { fontSize: 20 },
+  cardTopInfo: { flex: 1 },
+  cardRef: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
+  cardDate: { fontSize: 12, color: BRAND_MUTED, marginTop: 2 },
+  divider: { height: 1, backgroundColor: '#F2F3F7', marginHorizontal: 14 },
+  statsRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#FAFAFA',
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 3 },
+  statLabel: { fontSize: 11, color: BRAND_MUTED, fontWeight: '600' },
+  statValue: { fontSize: 14, fontWeight: '800' },
+  statDiv: { width: 1, backgroundColor: '#EBEBEB' },
   cardFooter: {
     flexDirection: 'row',
-    padding: 16,
-    gap: 12,
+    padding: 12,
+    gap: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
+    borderTopColor: '#F2F3F7',
   },
-  actionBtnOutline: {
-    flexDirection: 'row',
+  btnDetails: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    backgroundColor: '#FFF3EC',
+    borderWidth: 1,
+    borderColor: '#FFD4B0',
+  },
+  btnDetailsText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '700' },
+  btnCancel: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  btnCancelText: { color: '#DC2626', fontSize: 13, fontWeight: '700' },
+
+  // Pagination
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 16,
+  },
+  pageBtn: {
+    backgroundColor: Colors.white,
     paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    backgroundColor: Colors.lightOrange,
+    borderColor: '#E5E7EB',
+    minWidth: 100,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
   },
-  actionBtnOutlineText: {
+  pageBtnDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#F3F4F6',
+    opacity: 0.5,
+  },
+  pageBtnText: {
     color: BRAND_PRIMARY,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
-  actionBtnDanger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.redLight,
-    backgroundColor: Colors.tagRed,
+  pageIndicator: {
+    paddingHorizontal: 12,
   },
-  actionBtnDangerText: {
-    color: Colors.dangerRed,
+  pageIndicatorText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    color: BRAND_TEXT,
   },
-
-  emptyBox: { padding: 40, alignItems: 'center' },
-  emptyText: { color: BRAND_MUTED, fontSize: 16 },
+  popoverItemTextActive: { color: BRAND_PRIMARY, fontWeight: '800' },
+  checkMark: { color: BRAND_PRIMARY, fontWeight: 'bold' },
+  bottomSpace: { height: 20 },
+  popoverWrapper: { zIndex: 99999, elevation: 99999 },
 });

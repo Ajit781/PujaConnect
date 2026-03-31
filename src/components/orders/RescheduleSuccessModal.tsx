@@ -10,10 +10,7 @@ interface Props {
 }
 
 import { Colors } from '../../constants/Colors';
-
-const BRAND_PRIMARY = Colors.primary;
-const BRAND_TEXT = Colors.textMain;
-const BRAND_MUTED = Colors.textMuted;
+import { formatTo12Hr } from '../../utils/timeUtils';
 
 export default function RescheduleSuccessModal({
   visible,
@@ -26,7 +23,13 @@ export default function RescheduleSuccessModal({
   const formatDateWithDay = (dateString: string) => {
     if (!dateString) return '';
     try {
-      const d = new Date(dateString);
+      // Handle both YYYY-MM-DD and other formats
+      const d = dateString.includes('-')
+        ? new Date(dateString)
+        : new Date(dateString);
+
+      if (isNaN(d.getTime())) return dateString;
+
       const days = [
         'Sunday',
         'Monday',
@@ -50,6 +53,7 @@ export default function RescheduleSuccessModal({
         'November',
         'December',
       ];
+
       return `${days[d.getDay()]}, ${d.getDate()} ${
         months[d.getMonth()]
       } ${d.getFullYear()}`;
@@ -67,12 +71,14 @@ export default function RescheduleSuccessModal({
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          <View style={styles.iconContainer}>
-            <View style={styles.iconBg}>
-              <Text style={styles.iconEmoji}>📅</Text>
-              <View style={styles.checkBadge}>
-                <Text style={styles.checkText}>✓</Text>
-              </View>
+          {/* Top Logo / Icon */}
+          <View style={styles.logoWrapper}>
+            <View style={styles.calendarGraphic}>
+              <View style={styles.calendarHinge} />
+              <Text style={styles.calendarDateText}>31</Text>
+            </View>
+            <View style={styles.successBadge}>
+              <Text style={styles.successCheck}>✓</Text>
             </View>
           </View>
 
@@ -86,16 +92,22 @@ export default function RescheduleSuccessModal({
           </Text>
 
           <View style={styles.ticketBox}>
-            <View style={styles.ticketHeader}>
-              <Text style={styles.ticketTitle}>
-                🙏 {isBn ? item.titleBn : item.titleEn}
+            <View style={styles.ticketRow}>
+              <Text style={styles.pujaIcon}>🙏</Text>
+              <Text style={styles.pujaName}>
+                {isBn ? item.titleBn : item.titleEn}
               </Text>
             </View>
-            <View style={styles.ticketBody}>
-              <Text style={styles.ticketDate}>
+
+            <View style={styles.divider} />
+
+            <View style={styles.detailsRow}>
+              <Text style={styles.detailText}>
                 📅 {formatDateWithDay(item.scheduledDate)}
               </Text>
-              <Text style={styles.ticketTime}>🕒 {item.scheduledTime}</Text>
+              <Text style={styles.detailText}>
+                🕒 {formatTo12Hr(item.scheduledTime)}
+              </Text>
             </View>
           </View>
 
@@ -117,97 +129,131 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: '#FFFCF5', // Warm light background from image
+    borderRadius: 24,
+    padding: 32,
     alignItems: 'center',
     shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  iconContainer: {
-    marginBottom: 16,
-  },
-  iconBg: {
-    width: 64,
-    height: 64,
-    backgroundColor: Colors.lightGray,
-    borderRadius: 12,
+  logoWrapper: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
   },
-  iconEmoji: { fontSize: 32 },
-  checkBadge: {
+  calendarGraphic: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#1E40AF', // Blue color from image
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  calendarHinge: {
     position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.warningBorder,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 12,
+    backgroundColor: '#3B82F6',
+  },
+  calendarDateText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.white,
+    marginTop: 10,
+  },
+  successBadge: {
+    position: 'absolute',
+    top: 15,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FDBA74', // Light orange
     borderWidth: 2,
     borderColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 5,
+  },
+  successCheck: {
+    fontSize: 16,
+    color: '#D946EF', // Pinkish/Purple check from image
+    fontWeight: 'bold',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: BRAND_PRIMARY,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#EA580C', // Deep orange title
     marginBottom: 8,
+    textTransform: 'capitalize',
   },
   subtitle: {
-    fontSize: 14,
-    color: Colors.gray,
+    fontSize: 13,
+    color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+    lineHeight: 18,
   },
   ticketBox: {
     width: '100%',
     backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 24,
-    overflow: 'hidden',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    padding: 20,
+    marginBottom: 32,
   },
-  ticketHeader: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightOrange, // Adjusted to lightOrange
-  },
-  ticketTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: BRAND_PRIMARY,
-  },
-  ticketBody: {
-    padding: 12,
+  ticketRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    marginBottom: 12,
   },
-  ticketDate: {
-    fontSize: 14,
+  pujaIcon: { fontSize: 16 },
+  pujaName: {
+    fontSize: 15,
     fontWeight: 'bold',
-    color: BRAND_TEXT,
+    color: '#EA580C',
   },
-  ticketTime: {
-    fontSize: 12,
-    color: BRAND_MUTED,
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 16,
+  },
+  detailsRow: {
+    gap: 12,
+  },
+  detailText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
   doneBtn: {
-    backgroundColor: BRAND_PRIMARY,
+    backgroundColor: '#F97316', // Bright orange button
     width: '100%',
-    paddingVertical: 14,
-    borderRadius: 8,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#F97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   doneBtnText: {
     color: Colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
-  checkText: { fontSize: 16, color: BRAND_PRIMARY, fontWeight: 'bold' },
 });

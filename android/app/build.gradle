@@ -105,6 +105,38 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
+     splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk true
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            // Get app name and version
+            def appName = "Dissha"
+            def versionName = variant.versionName
+            def versionCode = variant.versionCode
+            def buildType = variant.buildType.name
+
+            // Custom file name to include ABI information
+            def abiFilter = output.getFilter(com.android.build.OutputFile.ABI)
+            def newApkName = "${appName}_v${versionName}_b${versionCode}_${buildType}"
+            if (abiFilter != null) {
+                newApkName += "_${abiFilter}" // Append ABI (e.g., _armeabi-v7a or _arm64-v8a)
+            }
+            newApkName += ".apk"
+
+            // Apply the custom file name
+            outputFileName = newApkName
+        }
+    }
+
+    
 }
 
 dependencies {

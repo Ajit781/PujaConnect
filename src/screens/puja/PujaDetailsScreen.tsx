@@ -8,8 +8,12 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { FEATURED_PUJAS } from '../../data/dummyData';
 import BookingModal from '../../components/booking/BookingModal';
@@ -23,6 +27,7 @@ import {
 } from '../../store/api/pujaApi';
 
 export default function PujaDetailsScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const { pujaId, pujaData } = route.params;
@@ -59,6 +64,21 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
     useGetPujaFullDetailsQuery(pujaId.toString(), {
       skipGlobalLoader: true,
     } as any);
+
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
+      setKeyboardVisible(true),
+    );
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardVisible(false),
+    );
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // Auto-select first package when loaded
   useEffect(() => {
@@ -146,24 +166,36 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtnWrapper}
-          >
-            <Text style={styles.backBtnText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{title}</Text>
-          <View style={styles.ratingBox}>
-            <Text style={styles.starIconMarginRight}>⭐</Text>
-            <Text style={styles.ratingText}>{rating}</Text>
-          </View>
+      <StatusBar
+        backgroundColor={Colors.background}
+        barStyle="dark-content"
+        translucent={true}
+      />
+      <View
+        style={[
+          styles.header,
+          styles.headerPadding,
+          { paddingTop: insets.top + 8 },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtnWrapper}
+        >
+          <Text style={styles.backBtnText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.ratingBox}>
+          <Text style={styles.starIconMarginRight}>⭐</Text>
+          <Text style={styles.ratingText}>{rating}</Text>
         </View>
-      </SafeAreaView>
+      </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
+      >
         {/* Banner Area */}
         <View style={styles.bannerWrapper}>
           {isLoadingImages ? (
@@ -646,7 +678,16 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
       </ScrollView>
 
       {/* Sticky Footer */}
-      <View style={styles.stickyFooter}>
+      <View
+        style={[
+          styles.stickyFooter,
+          styles.footerPaddingTop,
+          {
+            paddingBottom: Math.max(20, insets.bottom + 15),
+            marginBottom: isKeyboardVisible ? 20 : 0,
+          } as any,
+        ]}
+      >
         <View>
           <Text style={styles.footerLabel}>
             {isBn
@@ -703,8 +744,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 60,
+    backgroundColor: Colors.background,
   },
+  headerPadding: { paddingBottom: 10 },
+  footerPaddingTop: { paddingTop: 16 },
   backBtnWrapper: {
     width: 40,
     height: 40,
@@ -899,7 +942,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    // paddingVertical removed to allow insets in component
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     shadowColor: Colors.shadow,

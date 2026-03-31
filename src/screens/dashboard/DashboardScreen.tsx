@@ -15,13 +15,14 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useAlert } from '../../context/AlertContext';
+import { useToast } from '../../context/ToastContext';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { setCartItems } from '../../store/slices/cartSlice';
 import { setFavorites } from '../../store/slices/wishlistSlice';
@@ -135,16 +136,14 @@ const BannerItem = React.memo(({ item, isBn, navigation }: any) => (
 ));
 
 export default function DashboardScreen({ navigation }: any) {
-  const { i18n } = useTranslation();
-  const { showAlert } = useAlert();
-  const user = useSelector((state: RootState) => state.auth.user);
-  const { favorites, hasUnseenItems: hasUnseenWishlistItems } = useSelector(
-    (state: RootState) => state.wishlist,
-  );
-  const { items: cartItems, hasUnseenItems: hasUnseenCartItems } = useSelector(
-    (state: RootState) => state.cart,
-  );
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const { showAlert } = useAlert();
+  const { showToast } = useToast();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const { favorites } = useSelector((state: RootState) => state.wishlist);
+  const { items: cartItems } = useSelector((state: RootState) => state.cart);
+  const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
 
   const [activeBanner, setActiveBanner] = React.useState(0);
@@ -156,6 +155,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [summaryData, setSummaryData] = useState<SummaryCount | null>(null);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
   const flatListRef = React.useRef<FlatList>(null);
 
   // Fetch user profile for full name in popover
@@ -163,6 +163,19 @@ export default function DashboardScreen({ navigation }: any) {
     skip: !user?.user_id,
     skipGlobalLoader: true,
   } as any);
+
+  React.useEffect(() => {
+    if (userDetails) {
+      console.log(
+        '--- DASHBOARD: USER PROFILE INFO ---',
+        JSON.stringify(userDetails, null, 2),
+      );
+      console.log(
+        '--- DASHBOARD: AUTH USER OBJECT ---',
+        JSON.stringify(user, null, 2),
+      );
+    }
+  }, [userDetails, user]);
 
   // Sync cart from server
   const { data: serverCartItems } = useGetPujaCartInfoQuery(
@@ -231,8 +244,25 @@ export default function DashboardScreen({ navigation }: any) {
         action: isCurrentlyFav ? 5 : 1,
         skipGlobalLoader: true,
       }).unwrap();
+
+      showToast({
+        message: isCurrentlyFav
+          ? isBn
+            ? 'উইশলিস্ট থেকে সরানো হয়েছে'
+            : 'Removed from Wishlist'
+          : isBn
+          ? 'উইশলিস্টে যোগ করা হয়েছে'
+          : 'Added to Wishlist',
+        type: 'success',
+      });
     } catch (error) {
       console.error('Wishlist sync failed:', error);
+      showToast({
+        message: isBn
+          ? 'উইশলিস্ট আপডেট করতে ব্যর্থ হয়েছে'
+          : 'Failed to update Wishlist',
+        type: 'error',
+      });
       // Rollback is handled in pujaApi.ts onQueryStarted catch block
     }
   };
@@ -321,8 +351,6 @@ export default function DashboardScreen({ navigation }: any) {
     return () => clearInterval(timer);
   }, [isPaused, CAROUSEL_DATA.length, START_INDEX]);
 
-  const toggleLanguage = () => i18n.changeLanguage(isBn ? 'en' : 'bn');
-
   // Back-button exits the app with a confirmation rather than going to login
   useFocusEffect(
     React.useCallback(() => {
@@ -344,6 +372,13 @@ export default function DashboardScreen({ navigation }: any) {
       const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
       return () => sub.remove();
     }, [showAlert]),
+  );
+
+  // Update image timestamp on focus to refresh profile pic if changed
+  useFocusEffect(
+    React.useCallback(() => {
+      setImageTimestamp(Date.now());
+    }, []),
   );
 
   const handleLogout = () => {
@@ -404,93 +439,99 @@ export default function DashboardScreen({ navigation }: any) {
     <View style={styles.container}>
       <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
       {/* ── Top Header ── */}
-      <View style={styles.header}>
-        <SafeAreaView edges={['top']}>
-          <View style={styles.headerInner}>
-            {/* Logo */}
-            <View style={styles.logoRow}>
-              <Image source={appLogo} style={styles.headerLogo} />
-            </View>
-
-            {/* Right actions */}
-            <View style={styles.headerActions}>
-              {/* Language toggle */}
-              <TouchableOpacity
-                onPress={toggleLanguage}
-                style={styles.langPill}
-              >
-                <Text style={styles.langPillText}>
-                  {i18n.language.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-              {/* Header icons */}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Wishlist')}
-                style={styles.cartBtn}
-              >
-                <Text style={styles.iconBtnText}>❤️</Text>
-                {hasUnseenWishlistItems && favorites.length > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{favorites.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Cart')}
-                style={styles.cartBtn}
-              >
-                <Text style={styles.iconBtnText}>🛒</Text>
-                {hasUnseenCartItems && cartItems.length > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              {/* User avatar */}
-              <TouchableOpacity
-                onPress={() => setShowProfileMenu(true)}
-                style={styles.avatar}
-              >
-                <Text style={styles.avatarText}>
-                  {(user?.user_name ?? 'U').toString().slice(0, 1)}
-                </Text>
-              </TouchableOpacity>
-            </View>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.headerInner}>
+          {/* Logo */}
+          <View style={styles.logoRow}>
+            <Image source={appLogo} style={styles.headerLogo} />
           </View>
 
-          {/* ── Nav chips ── */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.navRow, styles.horizontalScroll]}
-            contentContainerStyle={styles.navRowContent}
-          >
-            {NAV_ITEMS.map((item, idx) => (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.navChip, idx === 0 && styles.navChipActive]}
-                onPress={() => handleNavClick(item)}
-              >
-                <Text style={styles.navChipIcon}>{item.icon}</Text>
-                <Text
-                  style={[
-                    styles.navChipLabel,
-                    idx === 0 && styles.navChipLabelActive,
-                  ]}
-                >
-                  {isBn ? item.labelBn : item.labelEn}
+          {/* Right actions */}
+          <View style={styles.headerActions}>
+            {/* Language toggle */}
+            {/* Header icons */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Wishlist')}
+              style={styles.cartBtn}
+            >
+              <Text style={styles.iconBtnText}>❤️</Text>
+              {favorites.length > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{favorites.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Cart')}
+              style={styles.cartBtn}
+            >
+              <Text style={styles.iconBtnText}>🛒</Text>
+              {cartItems.length > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {/* User avatar - Updated logic */}
+            <TouchableOpacity
+              onPress={() => setShowProfileMenu(true)}
+              style={styles.avatar}
+            >
+              {userDetails?.ctnz_profile_image || user?.profile_image ? (
+                <Image
+                  source={{
+                    uri: `${
+                      userDetails?.ctnz_profile_image || user?.profile_image
+                    }?t=${imageTimestamp}`,
+                  }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {userDetails?.ctnz_full_name
+                    ? userDetails.ctnz_full_name.trim().charAt(0).toUpperCase()
+                    : (user?.fullname || user?.user_name || 'U')
+                        .toString()
+                        .slice(0, 1)
+                        .toUpperCase()}
                 </Text>
-                {item.comingSoon && (
-                  <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonText}>
-                      {isBn ? 'শীঘ্রই' : 'SOON'}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── Nav chips ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.navRow, styles.horizontalScroll]}
+          contentContainerStyle={styles.navRowContent}
+        >
+          {NAV_ITEMS.map((item, idx) => (
+            <TouchableOpacity
+              key={item.key}
+              style={[styles.navChip, idx === 0 && styles.navChipActive]}
+              onPress={() => handleNavClick(item)}
+            >
+              <Text style={styles.navChipIcon}>{item.icon}</Text>
+              <Text
+                style={[
+                  styles.navChipLabel,
+                  idx === 0 && styles.navChipLabelActive,
+                ]}
+              >
+                {isBn ? item.labelBn : item.labelEn}
+              </Text>
+              {item.comingSoon && (
+                <View style={styles.comingSoonBadge}>
+                  <Text style={styles.comingSoonText}>
+                    {isBn ? 'শীঘ্রই' : 'SOON'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* ── Body ── */}
@@ -769,7 +810,12 @@ export default function DashboardScreen({ navigation }: any) {
           />
         )}
 
-        <View style={styles.bottomSpacer} />
+        <View
+          style={[
+            styles.bottomSpacer,
+            { height: Math.max(60, insets.bottom + 10) },
+          ]}
+        />
       </ScrollView>
 
       {/* Profile Popover Menu */}
@@ -782,12 +828,22 @@ export default function DashboardScreen({ navigation }: any) {
               <TouchableWithoutFeedback>
                 <View style={styles.popoverBox}>
                   <View style={styles.popoverHeader}>
-                    <Text style={styles.popoverUserName}>
-                      {userDetails?.ctnz_full_name || user?.user_name || 'User'}
-                    </Text>
-                    <Text style={styles.popoverUserPhone}>
-                      {user?.user_name || ''}
-                    </Text>
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: 'flex-start',
+                        paddingLeft: 5,
+                      }}
+                    >
+                      <Text style={styles.popoverUserName}>
+                        {userDetails?.ctnz_full_name ||
+                          user?.user_name ||
+                          'User'}
+                      </Text>
+                      <Text style={styles.popoverUserPhone}>
+                        {user?.user_name || ''}
+                      </Text>
+                    </View>
                   </View>
                   <View style={styles.popoverDivider} />
 
@@ -933,10 +989,9 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: Colors.white,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    zIndex: 100,
   },
   headerInner: {
     flexDirection: 'row',
@@ -944,7 +999,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   logoOm: { fontSize: 22, color: BRAND_TEXT },
@@ -965,17 +1020,24 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 6 },
   iconBtnText: { fontSize: 20, color: BRAND_TEXT },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: BRAND_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF5F0',
+    overflow: 'hidden',
   },
-  avatarText: { color: Colors.white, fontSize: 15, fontWeight: '800' },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
 
   // Navigation chips
-  navRow: { marginTop: 16, backgroundColor: Colors.white },
+  navRow: { marginTop: 8, backgroundColor: Colors.white },
   navChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -990,17 +1052,19 @@ const styles = StyleSheet.create({
   navChipLabel: { color: BRAND_MUTED, fontSize: 13, fontWeight: '500' },
   navChipLabelActive: { color: Colors.white, fontWeight: '700' },
   comingSoonBadge: {
-    backgroundColor: Colors.red,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 6,
+    backgroundColor: '#FFF1F2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
   },
   comingSoonText: {
-    color: Colors.white,
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    color: '#E11D48',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
 
   // Body
@@ -1031,12 +1095,22 @@ const styles = StyleSheet.create({
   },
   bannerBtn: {
     backgroundColor: Colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
     alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
-  bannerBtnText: { color: BRAND_SECONDARY, fontSize: 13, fontWeight: '700' },
+  bannerBtnText: {
+    color: BRAND_SECONDARY,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
   bannerDecor: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1062,32 +1136,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   statCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 20,
+    paddingVertical: 20,
+    borderRadius: 24,
     alignItems: 'center',
-    marginRight: 12,
-    width: 150, // Fixed width for horizontal items
-    elevation: 3,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
+    marginRight: 16,
+    width: 160,
+    elevation: 6,
+    shadowColor: BRAND_PRIMARY,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  statIcon: { fontSize: 22, marginBottom: 4 },
-  statValue: { fontSize: 18, fontWeight: '900', color: BRAND_PRIMARY },
+  statIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+    backgroundColor: '#FDF2F2',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    textAlign: 'center',
+    lineHeight: 50,
+    overflow: 'hidden',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: BRAND_PRIMARY,
+    letterSpacing: 0.2,
+  },
   statLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: BRAND_MUTED,
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 4,
+    fontWeight: '600',
   },
 
   // Section header
-  sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
-  sectionSub: { fontSize: 12, color: BRAND_MUTED, marginTop: 2 },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+    letterSpacing: -0.5,
+  },
+  sectionSub: {
+    fontSize: 13,
+    color: BRAND_MUTED,
+    marginTop: 4,
+    lineHeight: 18,
+  },
 
   // Controls (Filter & Search)
   controlsWrap: { paddingHorizontal: 16, marginBottom: 16 },
@@ -1246,7 +1352,34 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
-  popoverHeader: { paddingHorizontal: 16, paddingBottom: 12 },
+  popoverHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  popoverAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.lightOrange,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#FFF',
+    overflow: 'hidden',
+  },
+  popoverAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+  },
+  popoverAvatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: BRAND_PRIMARY,
+  },
   popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
   popoverUserPhone: {
     fontSize: 12,
@@ -1393,21 +1526,27 @@ const styles = StyleSheet.create({
   filterDropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    backgroundColor: '#FFF5F0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#FFD4B0',
     gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterDropdownText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: BRAND_TEXT,
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_PRIMARY,
   },
   dropdownArrow: {
     fontSize: 10,
     color: BRAND_PRIMARY,
+    opacity: 0.8,
   },
 });

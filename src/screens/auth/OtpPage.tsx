@@ -25,6 +25,8 @@ import { useAlert } from '../../context/AlertContext';
 import { generateOtp, validateOtp } from '../../service/auth/authService';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { VALIDATION } from '../../config/apiConfig';
+import RNOtpVerify from 'react-native-otp-verify';
+import DeviceInfo from 'react-native-device-info';
 import appLogo from '../../assets/images/Logo.png';
 import { Colors } from '../../constants/Colors';
 
@@ -36,11 +38,10 @@ type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Otp'>;
   route: RouteProp<AuthStackParamList, 'Otp'>;
 };
-
 export default function OtpPage({ navigation, route }: Props) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const { showAlert } = useAlert();
+  const { showErrorAlert } = useAlert();
   const { mobileNumber } = route.params;
 
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
@@ -50,6 +51,32 @@ export default function OtpPage({ navigation, route }: Props) {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const headerHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
   const logoSize = useRef(new Animated.Value(280)).current;
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      RNOtpVerify.getHash().then(console.log).catch(console.log);
+
+      RNOtpVerify.getOtp()
+        .then(() => RNOtpVerify.addListener(otpHandler))
+        .catch(console.log);
+
+      return () => {
+        RNOtpVerify.removeListener();
+      };
+    }
+  }, []);
+
+  const otpHandler = (message: string) => {
+    if (message && message !== 'Timeout Error') {
+      const match = message.match(new RegExp(`\\b\\d{${OTP_LENGTH}}\\b`));
+      if (match && match[0]) {
+        const code = match[0];
+        setOtp(code.split(''));
+        RNOtpVerify.removeListener();
+        Keyboard.dismiss();
+      }
+    }
+  };
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
@@ -118,11 +145,7 @@ export default function OtpPage({ navigation, route }: Props) {
         dispatch(login({ user: result, token: 'session_active' }));
       }
     } catch {
-      showAlert({
-        title: 'Verification Failed',
-        message: 'Unable to verify OTP. Please try again.',
-        buttons: [{ text: 'OK' }],
-      });
+      showErrorAlert('Unable to verify OTP. Please try again.');
       setOtp(Array(OTP_LENGTH).fill(''));
     } finally {
       setIsVerifying(false);
@@ -138,11 +161,7 @@ export default function OtpPage({ navigation, route }: Props) {
       setResendCountdown(30);
       setOtp(Array(OTP_LENGTH).fill(''));
     } catch {
-      showAlert({
-        title: 'Error',
-        message: 'Could not resend OTP. Please try again.',
-        buttons: [{ text: 'OK' }],
-      });
+      showErrorAlert('Could not resend OTP. Please try again.');
     } finally {
       setIsResending(false);
     }
@@ -167,6 +186,9 @@ export default function OtpPage({ navigation, route }: Props) {
         >
           {/* ── Animated Header ── */}
           <Animated.View style={[styles.header, { height: headerHeight }]}>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.versionText}>v{DeviceInfo.getVersion()}</Text>
+            </View>
             <View style={styles.logoWrap}>
               <Animated.Image
                 source={appLogo}
@@ -258,6 +280,17 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 24,
     paddingTop: 8,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  versionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   logoWrap: {
     flex: 1,

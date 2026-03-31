@@ -77,7 +77,7 @@ export function OtpInput({
               }}
               style={styles.input}
               keyboardType="number-pad"
-              maxLength={index === 0 ? length : 1} // allow initial paste of full length
+              maxLength={length} // allow paste of full length from suggestion
               textContentType="oneTimeCode"
               autoComplete="sms-otp"
               value={digit}

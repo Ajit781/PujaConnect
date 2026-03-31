@@ -13,7 +13,7 @@ import {
   FlatList,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
@@ -27,6 +27,7 @@ import NoDataFound from '../../components/common/NoDataFound';
 import { Colors } from '../../constants/Colors';
 
 export default function AllPujasScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
@@ -306,63 +307,71 @@ export default function AllPujasScreen({ navigation, route }: any) {
     </View>
   );
 
-  const renderFooter = () => (
-    <>
-      {(pageNo > 1 || hasMore) && filteredPujas.length > 0 && (
-        <View style={styles.paginationRow}>
-          <TouchableOpacity
-            style={[styles.pageBtn, pageNo === 1 && styles.pageBtnDisabled]}
-            onPress={handlePrevPage}
-            disabled={pageNo === 1}
-          >
-            <Text style={styles.pageBtnText}>← {isBn ? 'আগের' : 'Prev'}</Text>
-          </TouchableOpacity>
+  const renderFooter = () => {
+    const isSearching = searchQuery.trim().length > 0;
+    // Hide pagination if searching and results are few. Show if not searching or if search hits the limit (10).
+    const shouldShowPagination = isSearching
+      ? filteredPujas.length >= 10
+      : (pageNo > 1 || hasMore) && filteredPujas.length > 0;
 
-          <View style={styles.pageNumBox}>
-            <Text style={styles.pageNumText}>{pageNo}</Text>
+    return (
+      <>
+        {shouldShowPagination && (
+          <View style={styles.paginationRow}>
+            <TouchableOpacity
+              style={[styles.pageBtn, pageNo === 1 && styles.pageBtnDisabled]}
+              onPress={handlePrevPage}
+              disabled={pageNo === 1}
+            >
+              <Text style={styles.pageBtnText}>← {isBn ? 'আগের' : 'Prev'}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.pageNumBox}>
+              <Text style={styles.pageNumText}>{pageNo}</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]}
+              onPress={handleNextPage}
+              disabled={!hasMore}
+            >
+              <Text style={styles.pageBtnText}>{isBn ? 'পরের' : 'Next'} →</Text>
+            </TouchableOpacity>
           </View>
+        )}
+        <View style={styles.bottomSpacer} />
+      </>
+    );
+  };
 
-          <TouchableOpacity
-            style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]}
-            onPress={handleNextPage}
-            disabled={!hasMore}
-          >
-            <Text style={styles.pageBtnText}>{isBn ? 'পরের' : 'Next'} →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <View style={styles.bottomSpacer} />
-    </>
-  );
+  const headerStyle = [
+    styles.header,
+    styles.headerPadding,
+    { paddingTop: insets.top + 12 },
+  ];
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backBtnText}>
-              ← {isBn ? 'ফিরে যান' : 'Back'}
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isBn ? 'সব পূজা' : 'All Pujas'}
-          </Text>
+      <View style={headerStyle}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backBtnText}>← {isBn ? 'ফিরে যান' : 'Back'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{isBn ? 'সব পূজা' : 'All Pujas'}</Text>
 
-          <TouchableOpacity
-            style={styles.headerFilterBtn}
-            onPress={() => setShowTagMenu(true)}
-          >
-            <Text style={styles.headerFilterBtnText}>
-              {getTagName(selectedTagId)}
-            </Text>
-            <Text style={styles.dropdownArrowSmall}>▼</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+        <TouchableOpacity
+          style={styles.headerFilterBtn}
+          onPress={() => setShowTagMenu(true)}
+        >
+          <Text style={styles.headerFilterBtnText}>
+            {getTagName(selectedTagId)}
+          </Text>
+          <Text style={styles.dropdownArrowSmall}>▼</Text>
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         style={styles.body}
@@ -479,9 +488,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    height: 60,
+    paddingHorizontal: 12,
   },
+  headerPadding: { paddingBottom: 14 },
   backBtn: { paddingVertical: 10, paddingRight: 20 },
   backBtnText: { fontSize: 16, fontWeight: '700', color: BRAND_PRIMARY },
   headerTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },

@@ -5,7 +5,7 @@ const SYSTEM_BASIC_AUTH = 'YURtaW4jVG9rZW4kR2VOYVJhVGUyNjphZG1pbkAxMjM=';
 
 export const ENDPOINTS = {
   generateToken: '/auth/generateToken',
-  sendOtp: '/auth/citizen_generate_otp',
+  sendOtp: '/auth/citizen_generate_otp_mobile',
   verifyOtp: '/auth/citizen_validate_otp',
   getPujaTypes: '/master/get_all_puja_type',
   getAddressTypes: '/master/get_all_address_type',
@@ -18,6 +18,7 @@ export const ENDPOINTS = {
   getPujaFullDetails: '/citizen/get_puja_details_by_puja_id',
   addPujaToCart: '/citizen/add_puja_cart',
   getPujaCartInfo: '/citizen/get_puja_cart_info',
+  getPujaCartSummary: '/citizen/get_puja_cart_summary',
   managePujaCart: '/citizen/manage_puja_cart',
   savePujaTag: '/citizen/save_puja_tag',
   saveUserProfile: '/citizen/save_user_profile',
@@ -27,7 +28,12 @@ export const ENDPOINTS = {
   saveAddress: '/citizen/save_address',
   getAddresses: '/citizen/get_addresses',
   saveDefaultAddress: '/citizen/save_default_address',
+  deleteAddress: '/citizen/delete_address',
   bookPuja: '/citizen/book_puja',
+  getBookingSummary: '/citizen/get_puja_booking_summary',
+  getBookingDetails: '/citizen/get_booking_details_by_id',
+  reschedulePuja: '/citizen/reschedule_puja',
+  cancelBooking: '/citizen/cancel_booking',
 };
 
 // Validation constants

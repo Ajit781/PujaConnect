@@ -15,18 +15,26 @@ type ShowAlertFn = (opts: {
   buttons?: AlertButton[];
 }) => void;
 
+type ShowErrorAlertFn = (message?: string) => void;
+
 type LogoutFn = () => void;
 
 // Module-level references — initialized once from App.tsx after providers mount
 let _showAlert: ShowAlertFn | null = null;
+let _showErrorAlert: ShowErrorAlertFn | null = null;
 let _logout: LogoutFn | null = null;
 
 /**
  * Call this once in App.tsx (inside AlertProvider + Redux Provider) to wire
  * the error handler to the global alert and logout functions.
  */
-export function initApiErrorHandler(showAlert: ShowAlertFn, logout: LogoutFn) {
+export function initApiErrorHandler(
+  showAlert: ShowAlertFn,
+  showErrorAlert: ShowErrorAlertFn,
+  logout: LogoutFn,
+) {
   _showAlert = showAlert;
+  _showErrorAlert = showErrorAlert;
   _logout = logout;
 }
 
@@ -46,11 +54,7 @@ export function handleApiBusinessError(data: {
 }): boolean {
   if (data.status === 0) return true; // All good
 
-  _showAlert?.({
-    title: 'Notice',
-    message: data.message || 'Something went wrong. Please try again.',
-    buttons: [{ text: 'OK' }],
-  });
+  _showErrorAlert?.(data.message || 'Internal server error');
   return false;
 }
 
@@ -76,10 +80,5 @@ export function handleApiHttpError(status: number | undefined, url?: string) {
   }
 
   // All other error codes — show a clean, generic production message
-  _showAlert?.({
-    title: 'Something Went Wrong',
-    message:
-      'We were unable to complete your request. Please check your connection and try again.',
-    buttons: [{ text: 'OK' }],
-  });
+  _showErrorAlert?.('We were unable to complete your request.');
 }

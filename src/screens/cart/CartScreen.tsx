@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,15 @@ import {
   ScrollView,
   StatusBar,
   Image,
-  Platform,
+  Keyboard,
+  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -24,11 +30,15 @@ import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { placeOrder, Order } from '../../store/slices/orderSlice';
 import {
   useGetPujaCartInfoQuery,
+  useGetPujaCartSummaryQuery,
   useManagePujaCartMutation,
   useGetAddressesQuery,
   useBookPujaMutation,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
+import SchedulePujasModal, {
+  ScheduleItemPayload,
+} from '../../components/booking/SchedulePujasModal';
 import { Colors } from '../../constants/Colors';
 
 const BRAND_PRIMARY = Colors.primary;
@@ -36,6 +46,7 @@ const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
 export default function CartScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
@@ -54,6 +65,21 @@ export default function CartScreen({ navigation }: any) {
     { userId: user?.user_id || 0, pageNo: 1, pageSize: 100 },
     { skip: !user?.user_id },
   );
+
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
+      setKeyboardVisible(true),
+    );
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardVisible(false),
+    );
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const addresses = useMemo(() => {
     if (!serverAddresses || !Array.isArray(serverAddresses)) return [];
@@ -90,6 +116,18 @@ export default function CartScreen({ navigation }: any) {
       { skip: !user?.user_id },
     );
 
+  const { data: cartSummary } = useGetPujaCartSummaryQuery(user?.user_id || 0, {
+    skip: !user?.user_id,
+  });
+
+  useEffect(() => {
+    console.log('Cart Items Details:', fullApiCartItems);
+  }, [fullApiCartItems]);
+
+  useEffect(() => {
+    console.log('Cart Summary Details:', cartSummary);
+  }, [cartSummary]);
+
   // Local pagination logic
   const totalPages = Math.ceil(fullApiCartItems.length / itemsPerPage);
   const startIndex = (pageNo - 1) * itemsPerPage;
@@ -99,6 +137,7 @@ export default function CartScreen({ navigation }: any) {
   const cartItemsMapped = currentItems.map(item => ({
     cartItemId: item.cart_item_id.toString(),
     pujaId: item.puja_id.toString(),
+    packageId: item.pkg_id,
     titleEn: item.puja_name,
     titleBn: item.puja_name,
     exactPrice: item.pkg_price,
@@ -109,67 +148,46 @@ export default function CartScreen({ navigation }: any) {
     pkg_name: item.pkg_name,
     pkg_quantity: item.pkg_quantity,
     duration: item.duration,
-  }));
-
-  const allItemsForCalc = fullApiCartItems.map(item => ({
-    exactPrice: item.pkg_price,
+    pandits: item.pkg_pandit_qty,
+    rating: item.puja_rating,
   }));
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [pujaScheduleList, setPujaScheduleList] = useState<
+    ScheduleItemPayload[]
+  >([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null,
   );
   const [orderSuccessRef, setOrderSuccessRef] = useState<string | null>(null);
 
-  const calculateSubtotal = () => {
-    return allItemsForCalc.reduce(
-      (sum, item) => sum + (item.exactPrice || 0),
-      0,
-    );
-  };
+  const rotateValue = useRef(new Animated.Value(0)).current;
 
-  const subtotal = calculateSubtotal();
-  const platformFee = 17.8;
-  const gst = 3.2;
-  const grandTotal = subtotal + platformFee + gst;
-  const payOnlineAmount = platformFee + gst;
-  const cashOnDeliveryAmount = subtotal;
+  useEffect(() => {
+    rotateValue.setValue(0);
+    Animated.loop(
+      Animated.timing(rotateValue, {
+        toValue: 1,
+        duration: 4000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    ).start();
+  }, [rotateValue]);
 
-  const formatDate = (dateString: string) => {
-    const d = new Date(dateString);
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  };
+  const spin = rotateValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
-  const formatTime12Hr = (time24: string) => {
-    if (!time24) return '';
-    try {
-      const parts = time24.split(':');
-      if (parts.length < 2) return time24;
-      let hours = parseInt(parts[0], 10);
-      const minutes = parts[1];
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      return `${hours}:${minutes} ${ampm}`;
-    } catch {
-      return time24;
-    }
-  };
+  const subtotal = cartSummary?.cart_value || 0;
+  const platformFee = cartSummary?.platform_charges || 0;
+  const gst = cartSummary?.platform_charges_gst || 0;
+  const grandTotal = cartSummary?.total_booking_amount || 0;
+  const payOnlineAmount = cartSummary?.total_payable_amount || 0;
+  const cashOnDeliveryAmount = cartSummary?.cart_value || 0;
 
   const handleAddAddressNav = () => {
     setShowAddressModal(false);
@@ -218,31 +236,51 @@ export default function CartScreen({ navigation }: any) {
       fullApiCartItems.length > 0 ? fullApiCartItems[0].cart_id : 1;
 
     try {
-      const response = await bookPuja({
+      const payload = {
         in_booking_id: 0,
         ctzn_id: user?.user_id || 0,
         cart_id: cart_id,
         payment_mode: 1,
-        payment_status: 1, // 1 for Paid/COD assumed from user snippet
+        payment_status: 1,
         payable_amount: grandTotal,
         total_amount: grandTotal,
         ctzn_address_id: parseInt(selectedAddressId || '0', 10),
-      }).unwrap();
+        puja_schedule_list: pujaScheduleList,
+      };
+
+      console.log(
+        '--- API: bookPuja PAYLOAD Request ---',
+        JSON.stringify(payload, null, 2),
+      );
+
+      const response = await bookPuja(payload).unwrap();
 
       console.log('--- API: bookPuja Formatted Response ---', response);
 
-      if (response.status === 0) {
+      if (response?.status === 0 || response?.status === '0') {
+        let bookingData: any = {};
+        if (typeof response.data === 'string') {
+          try {
+            bookingData = JSON.parse(response.data);
+          } catch {}
+        } else {
+          bookingData = response.data || {};
+        }
+
         const now = new Date();
         const dateString = `${now.getFullYear()}${(now.getMonth() + 1)
           .toString()
           .padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
         const randomId = Math.floor(10000000 + Math.random() * 90000000);
+
         const bookingRef =
-          response.data?.booking_ref || `PB-${dateString}-${randomId}`;
+          bookingData?.booking_no ||
+          bookingData?.booking_ref ||
+          `PB-${dateString}-${randomId}`;
 
         const newOrder: Order = {
           id:
-            response.data?.booking_id?.toString() ||
+            bookingData?.booking_id?.toString() ||
             Math.random().toString(36).substring(7),
           bookingRef,
           items: cartItemsMapped.map(item => ({
@@ -272,10 +310,20 @@ export default function CartScreen({ navigation }: any) {
       } else {
         dispatch(hideLoader());
         console.error('Booking failed API Response:', response);
+        Alert.alert(
+          isBn ? 'বুকিং ব্যর্থ হয়েছে' : 'Booking Failed',
+          response.message || 'An error occurred.',
+        );
       }
     } catch (err) {
       dispatch(hideLoader());
       console.error('Booking failed Exception:', err);
+      Alert.alert(
+        isBn ? 'ত্রুটি' : 'Error',
+        isBn
+          ? 'বুকিং সম্পূর্ণ করতে অক্ষম। অনুগ্ৰহ করে আবার চেষ্টা করুন।'
+          : 'Unable to complete the booking. Please try again.',
+      );
     }
   };
 
@@ -371,6 +419,7 @@ export default function CartScreen({ navigation }: any) {
                 fontWeight: 'bold',
                 color: BRAND_TEXT,
                 letterSpacing: 1,
+                textAlign: 'center',
               }}
             >
               📄 {orderSuccessRef}
@@ -472,9 +521,11 @@ export default function CartScreen({ navigation }: any) {
     >
       {!isModal && (
         <View style={styles.osHeader}>
-          <View style={styles.omIconBoxSm}>
+          <Animated.View
+            style={[styles.omIconBoxSm, { transform: [{ rotate: spin }] }]}
+          >
             <Text style={styles.omTextSm}>ॐ</Text>
-          </View>
+          </Animated.View>
           <Text style={styles.osTitle}>
             {isBn ? 'অর্ডার সারাংশ' : 'Order Summary'}
           </Text>
@@ -542,36 +593,46 @@ export default function CartScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtnBig}
-          >
-            <Text style={styles.backBtnBigText}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleBox}>
-            <Text style={styles.headerTitleMain}>
-              🛒 {isBn ? 'পবিত্র কার্ট' : 'Sacred Cart'}
-            </Text>
-            <Text style={styles.headerTitleSub}>
-              {cartItemsMapped.length}{' '}
-              {isBn ? 'আশীর্বাদ নির্বাচিত' : 'blessings selected'}
-            </Text>
-          </View>
-          <Text style={styles.headerSparkle}>✨</Text>
+      <StatusBar
+        backgroundColor={Colors.white}
+        barStyle="dark-content"
+        translucent={true}
+      />
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 8, paddingBottom: 10 },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtnBig}
+        >
+          <Text style={styles.backBtnBigText}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitleBox}>
+          <Text style={styles.headerTitleMain}>
+            🛒 {isBn ? 'পবিত্র কার্ট' : 'Sacred Cart'}
+          </Text>
+          <Text style={styles.headerTitleSub}>
+            {cartItemsMapped.length}{' '}
+            {isBn ? 'আশীর্বাদ নির্বাচিত' : 'blessings selected'}
+          </Text>
         </View>
-      </SafeAreaView>
+        <Text style={styles.headerSparkle}>✨</Text>
+      </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 30,
+          paddingTop: 12,
+        }}
+      >
         {/* Cart Items List */}
         <View style={styles.listSection}>
-          <ScrollView
-            nestedScrollEnabled={true}
-            style={styles.itemListScroll}
-            showsVerticalScrollIndicator={true}
-          >
+          <View style={styles.itemListContainer}>
             {cartItemsMapped.map(item => (
               <View key={item.cartItemId} style={styles.cartCard}>
                 <View style={styles.cardHeaderRow}>
@@ -624,23 +685,15 @@ export default function CartScreen({ navigation }: any) {
 
                 <View style={styles.tagsRow}>
                   <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>⏱️ 4h</Text>
+                    <Text style={styles.tagText}>⏱️ {item.duration || 1}h</Text>
                   </View>
                   <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>🧘 2 Pandits</Text>
+                    <Text style={styles.tagText}>
+                      🧘 {item.pandits || 1} Pandits
+                    </Text>
                   </View>
                   <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>⭐ 2</Text>
-                  </View>
-                  <View style={styles.tagBoxGreen}>
-                    <Text style={styles.tagTextGreen}>
-                      📅 {formatDate(item.selectedDate)}
-                    </Text>
-                  </View>
-                  <View style={styles.tagBoxBlue}>
-                    <Text style={styles.tagTextBlue}>
-                      🕒 {formatTime12Hr(item.selectedTime)}
-                    </Text>
+                    <Text style={styles.tagText}>⭐ {item.rating || 5}</Text>
                   </View>
                 </View>
 
@@ -700,17 +753,7 @@ export default function CartScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             )}
-          </ScrollView>
-          {fullApiCartItems.length > 2 && (
-            <View style={styles.scrollHint}>
-              <Text style={styles.scrollHintText}>
-                {isBn
-                  ? 'আরও দেখতে নিচে স্ক্রোল করুন'
-                  : 'Scroll down for more items'}{' '}
-                ⌄
-              </Text>
-            </View>
-          )}
+          </View>
         </View>
 
         {/* Order Summary Form */}
@@ -756,7 +799,16 @@ export default function CartScreen({ navigation }: any) {
 
       {/* Fixed Checkout Footer */}
       {cartItemsMapped.length > 0 && (
-        <View style={styles.fixedFooter}>
+        <View
+          style={[
+            styles.fixedFooter,
+            {
+              paddingBottom: Math.max(20, insets.bottom + 15),
+              paddingTop: 16,
+              marginBottom: isKeyboardVisible ? 20 : 0,
+            },
+          ]}
+        >
           <View style={styles.fixedFooterInner}>
             <View style={styles.fixedFooterPriceBox}>
               <Text style={styles.fixedFooterPriceLabel}>
@@ -768,7 +820,7 @@ export default function CartScreen({ navigation }: any) {
             </View>
             <TouchableOpacity
               style={styles.fixedFooterBtn}
-              onPress={() => setShowConfirmModal(true)}
+              onPress={() => setShowScheduleModal(true)}
             >
               <Text style={styles.fixedFooterBtnText}>
                 {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
@@ -785,9 +837,14 @@ export default function CartScreen({ navigation }: any) {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <View style={styles.omIconBoxModal}>
+              <Animated.View
+                style={[
+                  styles.omIconBoxModal,
+                  { transform: [{ rotate: spin }] },
+                ]}
+              >
                 <Text style={styles.omTextSm}>ॐ</Text>
-              </View>
+              </Animated.View>
               <Text style={styles.modalTitle}>
                 {isBn ? 'আপনার অর্ডার নিশ্চিত করুন' : 'Confirm Your Order'}
               </Text>
@@ -977,7 +1034,7 @@ export default function CartScreen({ navigation }: any) {
                   </Text>
                 </TouchableOpacity>
 
-                <View style={{ height: 20 }} />
+                <View style={{ height: 4 }} />
               </ScrollView>
 
               <View style={styles.modalFooterBtns}>
@@ -1008,6 +1065,19 @@ export default function CartScreen({ navigation }: any) {
           </View>
         </View>
       )}
+
+      {/* Schedule Pujas Modal */}
+      <SchedulePujasModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        cartItems={cartItemsMapped}
+        isBn={isBn}
+        onConfirmSchedule={schedules => {
+          setPujaScheduleList(schedules);
+          setShowScheduleModal(false);
+          setShowConfirmModal(true);
+        }}
+      />
     </View>
   );
 }
@@ -1039,7 +1109,7 @@ const styles = StyleSheet.create({
   body: { flex: 1, padding: 16 },
 
   listSection: { marginBottom: 12 },
-  itemListScroll: { maxHeight: 485, paddingBottom: 8 },
+  itemListContainer: { paddingBottom: 8 },
   scrollHint: {
     paddingVertical: 4,
     alignItems: 'center',
@@ -1291,7 +1361,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 12,
+    // paddingBottom removed to allow insets in component
     borderTopWidth: 1,
     borderTopColor: Colors.lightGray,
     elevation: 20,
@@ -1452,12 +1522,10 @@ const styles = StyleSheet.create({
   // Delivery Address Modal
   modalContentAddr: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderRadius: 24,
     maxHeight: '90%',
     width: '100%',
+    overflow: 'hidden',
   },
   modalHeaderOrange: {
     backgroundColor: Colors.primary,
@@ -1622,6 +1690,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.lightGray,
     backgroundColor: Colors.white,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   modalCancelOutlinedBtn: {
     flex: 1,
