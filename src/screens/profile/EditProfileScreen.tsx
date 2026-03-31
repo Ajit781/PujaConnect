@@ -10,6 +10,7 @@ import {
   StatusBar,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -192,6 +193,7 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const [profileImageFile, setProfileImageFile] = useState<any>(null);
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState(false);
 
   // ── Modals / Pickers State ──────────────────────────────────────────────────
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -216,7 +218,11 @@ export default function EditProfileScreen({ navigation }: any) {
         JSON.stringify(userDetailsRaw, null, 2),
       );
       if (userDetailsRaw.ctnz_profile_image) {
-        setProfileImageUri(userDetailsRaw.ctnz_profile_image);
+        // Add a cache-buster timestamp to ensure the latest image is always shown
+        const timestamp = new Date().getTime();
+        setProfileImageUri(
+          `${userDetailsRaw.ctnz_profile_image}?t=${timestamp}`,
+        );
       }
     }
   }, [userDetailsRaw]);
@@ -437,6 +443,20 @@ export default function EditProfileScreen({ navigation }: any) {
 
       if (result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+
+        // 5MB Validation (5 * 1024 * 1024 bytes)
+        const MAX_SIZE = 5 * 1024 * 1024;
+        if (asset.fileSize && asset.fileSize > MAX_SIZE) {
+          showAlert({
+            title: isBn ? 'সতর্কতা' : 'Warning',
+            message: isBn
+              ? 'ছবির আকার ৫এমবি-র বেশি হওয়া উচিত নয়'
+              : 'Image size should not exceed 5MB',
+            buttons: [{ text: 'OK' }],
+          });
+          return;
+        }
+
         setProfileImageUri(asset.uri || null);
         setProfileImageFile({
           uri: asset.uri,
@@ -453,19 +473,20 @@ export default function EditProfileScreen({ navigation }: any) {
     const buttons: any[] = [
       {
         text: isBn ? 'গ্যালারি থেকে বেছে নিন' : 'Choose from Gallery',
-        onPress: () => {
-          handleSelectImage();
-        },
+        onPress: () => handleSelectImage(),
       },
     ];
 
-    if (profileImageUri) {
+    const isPlaceholder = profileImageUri?.includes('3A7BFF');
+    const hasRealImage =
+      (profileImageUri && !isPlaceholder) || profileImageFile;
+
+    // Only show "Remove" option if a real image is currently present
+    if (hasRealImage) {
       buttons.push({
         text: isBn ? 'ছবি সরান' : 'Remove Photo',
         style: 'destructive',
-        onPress: () => {
-          handleRemoveImage();
-        },
+        onPress: () => handleRemoveImage(),
       });
     }
 
@@ -482,6 +503,7 @@ export default function EditProfileScreen({ navigation }: any) {
   };
 
   const handleRemoveImage = () => {
+    console.log('--- handleRemoveImage executing ---');
     setProfileImageUri(null);
     setProfileImageFile(null);
   };
@@ -501,11 +523,25 @@ export default function EditProfileScreen({ navigation }: any) {
         entry_user_id: user?.user_id || 0,
         ctz_address: address,
         social_relation_id: 18, // 18 is 'Self'
-        // Only send blank string if NO new image is selected, otherwise let the file part handle it
-        ctnz_profile_image: profileImageFile ? undefined : '',
+        // Send blank string ONLY if no user photo exists (removal or never had one)
+        ctnz_profile_image:
+          !profileImageFile && !profileImageUri ? '' : undefined,
       };
 
-      const fileData = profileImageFile || undefined;
+      let fileData = profileImageFile || undefined;
+
+      // If NO image is selected AND no existing photo exists, send the local placeholder asset as a file.
+      // If profileImageUri exists but profileImageFile is null, fileData remains undefined (preserving existing photo).
+      if (!profileImageUri && !profileImageFile) {
+        const placeholderSource = Image.resolveAssetSource(
+          require('../../assets/Placeholder_Person_3A7BFF.png'),
+        );
+        fileData = {
+          uri: placeholderSource.uri,
+          name: 'Placeholder_Person_3A7BFF.png',
+          type: 'image/png',
+        };
+      }
 
       const result = await saveProfile({
         data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
@@ -798,25 +834,25 @@ export default function EditProfileScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Avatar */}
         <View style={styles.avatarSection}>
           <TouchableOpacity
+            activeOpacity={0.8}
             onPress={handleAvatarPress}
             style={styles.avatarOuter}
           >
-            {profileImageUri ? (
-              <Image
-                source={{ uri: profileImageUri }}
-                style={styles.avatarCircle}
-              />
-            ) : (
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarLetter}>
-                  {(user?.user_name ?? 'U')
-                    .toString()
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </Text>
+            <Image
+              source={
+                profileImageUri
+                  ? { uri: profileImageUri }
+                  : require('../../assets/Placeholder_Person_3A7BFF.png')
+              }
+              style={styles.avatarCircle}
+              onLoadStart={() => setIsImageLoading(true)}
+              onLoadEnd={() => setIsImageLoading(false)}
+            />
+            {isImageLoading && (
+              <View style={styles.imageLoaderOverlay}>
+                <ActivityIndicator size="small" color="#FF6F00" />
               </View>
             )}
             <View style={styles.cameraBtn}>
@@ -1234,7 +1270,14 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingTop: 8,
   },
-  avatarOuter: { position: 'relative', marginBottom: 10 },
+  avatarOuter: {
+    position: 'relative',
+    marginBottom: 10,
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   avatarCircle: {
     width: 80,
     height: 80,
@@ -1486,5 +1529,16 @@ const styles = StyleSheet.create({
   },
   relSaveBtnText: { fontSize: 14, color: Colors.white, fontWeight: '700' },
 
+  imageLoaderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 40,
+  },
   bottomSpacer: { height: 60 },
 });

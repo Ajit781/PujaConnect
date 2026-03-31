@@ -31,21 +31,26 @@ export function CustomAlert({
   buttons,
   onDismiss,
 }: CustomAlertProps) {
-  if (!visible) return null;
+  console.log('--- CustomAlert Render ---', {
+    visible,
+    title,
+    buttonCount: buttons?.length,
+  });
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={buttons && buttons.length ? undefined : onDismiss}
+      statusBarTranslucent={true} // FORCE: Ensures Modal is visible on Android with translucent status bars
+      onRequestClose={
+        buttons && buttons.length ? () => {} : onDismiss || (() => {})
+      }
     >
-      <View
-        style={[StyleSheet.absoluteFill, { zIndex: 999999, elevation: 999999 }]}
-      >
-        {/* Dimmed overlay — blocks interaction with the screen behind */}
-        <TouchableWithoutFeedback onPress={undefined}>
-          <View style={styles.overlay}>
+      {/* Dimmed overlay — blocks interaction with the screen behind */}
+      <TouchableWithoutFeedback onPress={onDismiss}>
+        <View style={[styles.overlay, { zIndex: 1000, elevation: 12 }]}>
+          <TouchableWithoutFeedback>
             <View style={styles.card}>
               {/* Title */}
               <Text style={styles.title}>{title}</Text>
@@ -94,9 +99,9 @@ export function CustomAlert({
                 </>
               )}
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

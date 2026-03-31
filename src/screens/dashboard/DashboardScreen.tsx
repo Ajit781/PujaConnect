@@ -155,7 +155,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [summaryData, setSummaryData] = useState<SummaryCount | null>(null);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
-  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
+  const [headerImageLoading, setHeaderImageLoading] = React.useState(false);
   const flatListRef = React.useRef<FlatList>(null);
 
   // Fetch user profile for full name in popover
@@ -248,19 +248,19 @@ export default function DashboardScreen({ navigation }: any) {
       showToast({
         message: isCurrentlyFav
           ? isBn
-            ? 'উইশলিস্ট থেকে সরানো হয়েছে'
-            : 'Removed from Wishlist'
+            ? 'ফেভারিট থেকে সরানো হয়েছে'
+            : 'Removed from favourite'
           : isBn
-          ? 'উইশলিস্টে যোগ করা হয়েছে'
-          : 'Added to Wishlist',
+          ? 'ফেভারিটে যোগ করা হয়েছে'
+          : 'Added to favourite',
         type: 'success',
       });
     } catch (error) {
       console.error('Wishlist sync failed:', error);
       showToast({
         message: isBn
-          ? 'উইশলিস্ট আপডেট করতে ব্যর্থ হয়েছে'
-          : 'Failed to update Wishlist',
+          ? 'ফেভারিট আপডেট করতে ব্যর্থ হয়েছে'
+          : 'Failed to update favourite',
         type: 'error',
       });
       // Rollback is handled in pujaApi.ts onQueryStarted catch block
@@ -374,13 +374,6 @@ export default function DashboardScreen({ navigation }: any) {
     }, [showAlert]),
   );
 
-  // Update image timestamp on focus to refresh profile pic if changed
-  useFocusEffect(
-    React.useCallback(() => {
-      setImageTimestamp(Date.now());
-    }, []),
-  );
-
   const handleLogout = () => {
     showAlert({
       title: isBn ? 'লগআউট' : 'Logout',
@@ -477,24 +470,24 @@ export default function DashboardScreen({ navigation }: any) {
               onPress={() => setShowProfileMenu(true)}
               style={styles.avatar}
             >
-              {userDetails?.ctnz_profile_image || user?.profile_image ? (
-                <Image
-                  source={{
-                    uri: `${
-                      userDetails?.ctnz_profile_image || user?.profile_image
-                    }?t=${imageTimestamp}`,
-                  }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {userDetails?.ctnz_full_name
-                    ? userDetails.ctnz_full_name.trim().charAt(0).toUpperCase()
-                    : (user?.fullname || user?.user_name || 'U')
-                        .toString()
-                        .slice(0, 1)
-                        .toUpperCase()}
-                </Text>
+              <Image
+                source={
+                  userDetails?.ctnz_profile_image || user?.profile_image
+                    ? {
+                        uri:
+                          userDetails?.ctnz_profile_image ||
+                          user?.profile_image,
+                      }
+                    : require('../../assets/Placeholder_Person_3A7BFF.png')
+                }
+                style={styles.avatarImage}
+                onLoadStart={() => setHeaderImageLoading(true)}
+                onLoadEnd={() => setHeaderImageLoading(false)}
+              />
+              {headerImageLoading && (
+                <View style={[styles.avatarImage, styles.avatarLoader]}>
+                  <ActivityIndicator size="small" color="#FF6F00" />
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -1033,6 +1026,12 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: '100%',
     height: '100%',
+  },
+  avatarLoader: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
 
