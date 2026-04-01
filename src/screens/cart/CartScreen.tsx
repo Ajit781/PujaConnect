@@ -228,12 +228,21 @@ export default function CartScreen({ navigation }: any) {
     }
   };
 
-  const handleConfirmOrder = async () => {
-    if (!selectedAddressId && addresses.length > 0) return;
+  const handleConfirmOrder = async (
+    schedulesOverride?: ScheduleItemPayload[],
+  ) => {
+    const schedulesToUse = schedulesOverride || pujaScheduleList;
+
     dispatch(showLoader());
 
     const cart_id =
       fullApiCartItems.length > 0 ? fullApiCartItems[0].cart_id : 1;
+
+    // Use the first scheduled item's address as the top-level address for the API
+    const topAddressId =
+      schedulesToUse.length > 0 && schedulesToUse[0].ctzn_address_id
+        ? schedulesToUse[0].ctzn_address_id
+        : parseInt(selectedAddressId || '0', 10);
 
     try {
       const payload = {
@@ -244,8 +253,8 @@ export default function CartScreen({ navigation }: any) {
         payment_status: 1,
         payable_amount: grandTotal,
         total_amount: grandTotal,
-        ctzn_address_id: parseInt(selectedAddressId || '0', 10),
-        puja_schedule_list: pujaScheduleList,
+        ctzn_address_id: topAddressId,
+        puja_schedule_list: schedulesToUse,
       };
 
       console.log(
@@ -257,7 +266,7 @@ export default function CartScreen({ navigation }: any) {
 
       console.log('--- API: bookPuja Formatted Response ---', response);
 
-      if (response?.status === 0 || response?.status === '0') {
+      if (response?.status === 0 || String(response?.status) === '0') {
         let bookingData: any = {};
         if (typeof response.data === 'string') {
           try {
@@ -798,37 +807,40 @@ export default function CartScreen({ navigation }: any) {
       </ScrollView>
 
       {/* Fixed Checkout Footer */}
-      {cartItemsMapped.length > 0 && (
-        <View
-          style={[
-            styles.fixedFooter,
-            {
-              paddingBottom: Math.max(20, insets.bottom + 15),
-              paddingTop: 16,
-              marginBottom: isKeyboardVisible ? 20 : 0,
-            },
-          ]}
-        >
-          <View style={styles.fixedFooterInner}>
-            <View style={styles.fixedFooterPriceBox}>
-              <Text style={styles.fixedFooterPriceLabel}>
-                {isBn ? 'সর্বমোট প্রদেয়' : 'Total Amount'}
-              </Text>
-              <Text style={styles.fixedFooterPriceValue}>
-                ₹{grandTotal.toLocaleString('en-IN')}
-              </Text>
+      {cartItemsMapped.length > 0 &&
+        !showScheduleModal &&
+        !showAddressModal &&
+        !showConfirmModal && (
+          <View
+            style={[
+              styles.fixedFooter,
+              {
+                paddingBottom: Math.max(20, insets.bottom + 15),
+                paddingTop: 16,
+                marginBottom: isKeyboardVisible ? 20 : 0,
+              },
+            ]}
+          >
+            <View style={styles.fixedFooterInner}>
+              <View style={styles.fixedFooterPriceBox}>
+                <Text style={styles.fixedFooterPriceLabel}>
+                  {isBn ? 'সর্বমোট প্রদেয়' : 'Total Amount'}
+                </Text>
+                <Text style={styles.fixedFooterPriceValue}>
+                  ₹{grandTotal.toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.fixedFooterBtn}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <Text style={styles.fixedFooterBtnText}>
+                  {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.fixedFooterBtn}
-              onPress={() => setShowScheduleModal(true)}
-            >
-              <Text style={styles.fixedFooterBtnText}>
-                {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
-              </Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      )}
+        )}
 
       {/* Confirm Order Modal */}
       {showConfirmModal && (
@@ -1053,7 +1065,7 @@ export default function CartScreen({ navigation }: any) {
                       opacity: 0.5,
                     },
                   ]}
-                  onPress={handleConfirmOrder}
+                  onPress={() => handleConfirmOrder()}
                   disabled={!selectedAddressId || addresses.length === 0}
                 >
                   <Text style={styles.modalConfirmBtnTxt}>
@@ -1066,17 +1078,20 @@ export default function CartScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* Schedule Pujas Modal */}
+      {/* Schedule Pujas Modal with embedded Addresses */}
       <SchedulePujasModal
         visible={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
         cartItems={cartItemsMapped}
+        addresses={addresses} // Passed from API in CartScreen
         isBn={isBn}
         onConfirmSchedule={schedules => {
           setPujaScheduleList(schedules);
           setShowScheduleModal(false);
-          setShowConfirmModal(true);
+          // Directly proceed to payment/booking API logic!
+          handleConfirmOrder(schedules);
         }}
+        onAddNewAddress={handleAddAddressNav}
       />
     </View>
   );

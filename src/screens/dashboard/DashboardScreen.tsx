@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
+import { clearNewLoginFlag } from '../../store/slices/authSlice';
 import { useAlert } from '../../context/AlertContext';
 import { useToast } from '../../context/ToastContext';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
@@ -42,9 +43,590 @@ import {
 } from '../../store/api/pujaApi';
 import appLogo from '../../assets/images/Logo.png';
 import NoDataFound from '../../components/common/NoDataFound';
+import ProfileCompletionModal from '../../components/common/ProfileCompletionModal';
 import { Colors } from '../../constants/Colors';
 
 const { width } = Dimensions.get('window');
+
+const BRAND_PRIMARY = Colors.primary;
+const BRAND_SECONDARY = Colors.splashRed;
+const BRAND_BG = Colors.background;
+const BRAND_TEXT = Colors.textMain;
+const BRAND_MUTED = Colors.textMuted;
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BRAND_BG },
+
+  // Header
+  header: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    zIndex: 100,
+  },
+  headerInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoOm: { fontSize: 22, color: BRAND_TEXT },
+  logoText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+    letterSpacing: -0.5,
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  langPill: {
+    backgroundColor: Colors.lightGray,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  langPillText: { color: BRAND_TEXT, fontSize: 11, fontWeight: '700' },
+  iconBtn: { padding: 6 },
+  iconBtnText: { fontSize: 20, color: BRAND_TEXT },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: BRAND_PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF5F0',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarLoader: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
+
+  // Navigation chips
+  navRow: { marginTop: 8, backgroundColor: Colors.white },
+  navChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.lightGray,
+    marginRight: 8,
+  },
+  navChipActive: { backgroundColor: BRAND_PRIMARY },
+  navChipIcon: { fontSize: 14, marginRight: 5 },
+  navChipLabel: { color: BRAND_MUTED, fontSize: 13, fontWeight: '500' },
+  navChipLabelActive: { color: Colors.white, fontWeight: '700' },
+  comingSoonBadge: {
+    backgroundColor: '#FFF1F2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+  },
+  comingSoonText: {
+    color: '#E11D48',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  // Body
+  body: { flex: 1 },
+
+  // Banner
+  banner: {
+    margin: 16,
+    backgroundColor: BRAND_SECONDARY,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    height: 164,
+  },
+  bannerContent: { flex: 1 },
+  bannerTitle: {
+    color: Colors.background,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  bannerSub: {
+    color: 'rgba(253,248,240,0.75)',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  bannerBtn: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bannerBtnText: {
+    color: BRAND_SECONDARY,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  bannerDecor: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 8,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  dot: { height: 6, borderRadius: 3, marginHorizontal: 4 },
+  dotActive: { width: 18, backgroundColor: BRAND_PRIMARY },
+  dotInactive: { width: 6, backgroundColor: Colors.cardBorder },
+
+  // Stats
+  horizontalScroll: {
+    marginHorizontal: 16,
+  },
+  statsScrollContent: {
+    paddingHorizontal: 8, // Room for shadows so they don't clip at the wall
+    paddingVertical: 12,
+    flexDirection: 'row',
+  },
+  statCard: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderRadius: 24,
+    alignItems: 'center',
+    marginRight: 16,
+    width: 160,
+    elevation: 6,
+    shadowColor: BRAND_PRIMARY,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  statIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+    backgroundColor: '#FDF2F2',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    textAlign: 'center',
+    lineHeight: 50,
+    overflow: 'hidden',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: BRAND_PRIMARY,
+    letterSpacing: 0.2,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: BRAND_MUTED,
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+
+  // Section header
+  sectionHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+    letterSpacing: -0.5,
+  },
+  sectionSub: {
+    fontSize: 13,
+    color: BRAND_MUTED,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+
+  // Controls (Filter & Search)
+  controlsWrap: { paddingHorizontal: 16, marginBottom: 16 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginRight: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginRight: 6,
+    backgroundColor: Colors.white,
+  },
+  filterChipActive: {
+    backgroundColor: BRAND_PRIMARY,
+    borderColor: BRAND_PRIMARY,
+  },
+  filterChipText: { fontSize: 12, fontWeight: '600', color: BRAND_MUTED },
+  filterChipTextActive: { color: Colors.white },
+  countBadge: {
+    backgroundColor: Colors.lightOrange,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countBadgeText: { fontSize: 10, fontWeight: '700', color: BRAND_PRIMARY },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: BRAND_TEXT },
+
+  // Puja cards Grid
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  gridCard: {
+    width: '48%',
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: Colors.shadow,
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  cardImgBox: {
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  heartBtn: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 16,
+    padding: 6,
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  popularBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+  cardBody: { padding: 12 },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 11,
+    color: BRAND_MUTED,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  durationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  durationIcon: { fontSize: 12, marginRight: 4 },
+  durationText: { fontSize: 11, color: BRAND_MUTED, fontWeight: '500' },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.lightGray,
+    paddingTop: 8,
+  },
+  priceLabel: {
+    fontSize: 9,
+    color: BRAND_MUTED,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  priceValue: { fontSize: 13, fontWeight: '800', color: BRAND_TEXT },
+  ratingValue: { fontSize: 12, fontWeight: '800', color: Colors.gold },
+  bookBtn: {
+    backgroundColor: BRAND_PRIMARY,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  bookBtnDisabled: { backgroundColor: Colors.disabled },
+  bookBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  bookBtnTextDisabled: { color: Colors.gray },
+
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyStateEmoji: { fontSize: 40, marginBottom: 12 },
+  emptyStateText: { color: BRAND_MUTED, fontSize: 14, textAlign: 'center' },
+
+  // Popover Menu
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.15)', // Very light dim
+  },
+  popoverBox: {
+    position: 'absolute',
+    top: 60, // Place it right below the header
+    right: 16,
+    width: 200,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    paddingVertical: 12,
+    shadowColor: Colors.shadow,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  popoverHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  popoverAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.lightOrange,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#FFF',
+    overflow: 'hidden',
+  },
+  popoverAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+  },
+  popoverAvatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: BRAND_PRIMARY,
+  },
+  popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
+  popoverUserPhone: {
+    fontSize: 12,
+    color: Colors.gray,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  popoverDivider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 4,
+  },
+
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
+  popoverItemText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    flex: 1,
+    fontWeight: '500',
+  },
+  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.red },
+
+  popoverItemIconRed: { fontSize: 16, marginRight: 12, opacity: 0.8 },
+  popoverItemTextRed: { fontSize: 14, color: Colors.red, fontWeight: '500' },
+
+  headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
+  navRowContent: { paddingHorizontal: 8, paddingBottom: 12 },
+  carouselContainer: { paddingTop: 16 },
+  bannerWrapper: { width: width - 32 },
+  bannerZeroMargin: { margin: 0, marginHorizontal: 8 },
+  bannerIcon: { fontSize: 60 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  showMoreText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '700' },
+  featuredListContent: { paddingHorizontal: 8, paddingVertical: 4 },
+  featuredCard: { width: 240, marginRight: 16, marginBottom: 4 },
+  featuredImgText: { fontSize: 44 },
+  ratingText: {
+    fontSize: 11,
+    color: Colors.gold,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  heartIconText: { fontSize: 16 },
+  ratingCol: { alignItems: 'flex-end' },
+  bottomSpacer: { height: 40 },
+  pujaIconImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  cartBtn: {
+    position: 'relative',
+    padding: 4,
+  },
+  cartIconText: { fontSize: 24 },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: Colors.red,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+
+  sectionLoaderBox: {
+    padding: 30,
+    width: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  centeredSectionLoader: {
+    width: '100%',
+    height: 285,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  loaderText: {
+    fontSize: 13,
+    color: BRAND_MUTED,
+    fontWeight: '500',
+  },
+  showMoreCard: {
+    width: 140,
+    height: 285,
+    marginRight: 16,
+    marginBottom: 4,
+    justifyContent: 'center',
+  },
+  showMoreCardInner: {
+    backgroundColor: Colors.white,
+    borderWidth: 2,
+    borderColor: Colors.redLight,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  showMoreIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.tagRed,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  showMoreIcon: {
+    fontSize: 20,
+    color: BRAND_PRIMARY,
+    fontWeight: 'bold',
+  },
+  showMoreCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    textAlign: 'center',
+  },
+  showMoreCardSub: {
+    fontSize: 11,
+    color: BRAND_MUTED,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  filterDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FFD4B0',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterDropdownText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_PRIMARY,
+  },
+  dropdownArrow: {
+    fontSize: 10,
+    color: BRAND_PRIMARY,
+    opacity: 0.8,
+  },
+});
 
 const DASHBOARD_BANNERS = [
   {
@@ -156,26 +738,62 @@ export default function DashboardScreen({ navigation }: any) {
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
   const [headerImageLoading, setHeaderImageLoading] = React.useState(false);
+  const [showProfileCompletionModal, setShowProfileCompletionModal] =
+    useState(false);
   const flatListRef = React.useRef<FlatList>(null);
 
   // Fetch user profile for full name in popover
-  const { data: userDetails } = useGetUserDetailsQuery(user?.user_id || 0, {
-    skip: !user?.user_id,
+  const {
+    data: userDetails,
+    isSuccess: userDetailsLoaded,
+    isError: userDetailsError,
+  } = useGetUserDetailsQuery(user?.user_id ?? 0, {
+    skip: !user?.user_id || user.user_id === 0,
     skipGlobalLoader: true,
   } as any);
 
+  const { isNewLogin } = useSelector((state: RootState) => state.auth);
+
+  // ── Profile Completion Modal ─────────────────────────────────────────────
   React.useEffect(() => {
-    if (userDetails) {
-      console.log(
-        '--- DASHBOARD: USER PROFILE INFO ---',
-        JSON.stringify(userDetails, null, 2),
-      );
-      console.log(
-        '--- DASHBOARD: AUTH USER OBJECT ---',
-        JSON.stringify(user, null, 2),
-      );
+    const userId = user?.user_id;
+
+    // ONLY SHOW after a fresh login
+    if (!isNewLogin) return;
+    if (!userId) return;
+
+    // Wait until the user details query definitively succeeds or fails
+    if (!userDetailsLoaded && !userDetailsError) return;
+
+    // We now have the definitive result. Check the percentage.
+    const rawPct = userDetails?.ctnz_profile_progress_percent;
+    const pct =
+      rawPct !== null && rawPct !== undefined && rawPct !== ''
+        ? parseFloat(String(rawPct))
+        : null;
+
+    console.log('[ProfileModal] check — pct:', pct, 'raw:', rawPct);
+
+    // Disable the flag IMMEDIATELY so we never re-evaluate this login
+    dispatch(clearNewLoginFlag());
+
+    // If the profile is 100% complete, do NOT show the modal
+    if (pct !== null && !isNaN(pct) && pct >= 100) {
+      return; // done, won't show
     }
-  }, [userDetails, user]);
+
+    // Otherwise, show the modal after a small delay for smooth UX
+    setTimeout(() => {
+      setShowProfileCompletionModal(true);
+    }, 600);
+  }, [
+    user?.user_id,
+    userDetailsLoaded,
+    userDetailsError,
+    userDetails,
+    isNewLogin,
+    dispatch,
+  ]);
 
   // Sync cart from server
   const { data: serverCartItems } = useGetPujaCartInfoQuery(
@@ -966,586 +1584,21 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableWithoutFeedback>
         </View>
       )}
+
+      {/* Profile Completion Modal */}
+      <ProfileCompletionModal
+        visible={showProfileCompletionModal}
+        percentage={
+          userDetails?.ctnz_profile_progress_percent
+            ? parseFloat(userDetails.ctnz_profile_progress_percent)
+            : 0
+        }
+        onClose={() => setShowProfileCompletionModal(false)}
+        onComplete={() => {
+          setShowProfileCompletionModal(false);
+          navigation.navigate('EditProfile');
+        }}
+      />
     </View>
   );
 }
-
-const BRAND_PRIMARY = Colors.primary;
-const BRAND_SECONDARY = Colors.splashRed;
-const BRAND_BG = Colors.background;
-const BRAND_TEXT = Colors.textMain;
-const BRAND_MUTED = Colors.textMuted;
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BRAND_BG },
-
-  // Header
-  header: {
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    zIndex: 100,
-  },
-  headerInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 6,
-  },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  logoOm: { fontSize: 22, color: BRAND_TEXT },
-  logoText: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: BRAND_TEXT,
-    letterSpacing: -0.5,
-  },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  langPill: {
-    backgroundColor: Colors.lightGray,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  langPillText: { color: BRAND_TEXT, fontSize: 11, fontWeight: '700' },
-  iconBtn: { padding: 6 },
-  iconBtnText: { fontSize: 20, color: BRAND_TEXT },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: BRAND_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF5F0',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarLoader: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
-
-  // Navigation chips
-  navRow: { marginTop: 8, backgroundColor: Colors.white },
-  navChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.lightGray,
-    marginRight: 8,
-  },
-  navChipActive: { backgroundColor: BRAND_PRIMARY },
-  navChipIcon: { fontSize: 14, marginRight: 5 },
-  navChipLabel: { color: BRAND_MUTED, fontSize: 13, fontWeight: '500' },
-  navChipLabelActive: { color: Colors.white, fontWeight: '700' },
-  comingSoonBadge: {
-    backgroundColor: '#FFF1F2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginLeft: 6,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-  },
-  comingSoonText: {
-    color: '#E11D48',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  // Body
-  body: { flex: 1 },
-
-  // Banner
-  banner: {
-    margin: 16,
-    backgroundColor: BRAND_SECONDARY,
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    height: 164,
-  },
-  bannerContent: { flex: 1 },
-  bannerTitle: {
-    color: Colors.background,
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  bannerSub: {
-    color: 'rgba(253,248,240,0.75)',
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  bannerBtn: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    alignSelf: 'flex-start',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  bannerBtnText: {
-    color: BRAND_SECONDARY,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  bannerDecor: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 8,
-  },
-  paginationRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  dot: { height: 6, borderRadius: 3, marginHorizontal: 4 },
-  dotActive: { width: 18, backgroundColor: BRAND_PRIMARY },
-  dotInactive: { width: 6, backgroundColor: Colors.cardBorder },
-
-  // Stats
-  horizontalScroll: {
-    marginHorizontal: 16,
-  },
-  statsScrollContent: {
-    paddingHorizontal: 8, // Room for shadows so they don't clip at the wall
-    paddingVertical: 12,
-    flexDirection: 'row',
-  },
-  statCard: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginRight: 16,
-    width: 160,
-    elevation: 6,
-    shadowColor: BRAND_PRIMARY,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  statIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-    backgroundColor: '#FDF2F2',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    textAlign: 'center',
-    lineHeight: 50,
-    overflow: 'hidden',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: BRAND_PRIMARY,
-    letterSpacing: 0.2,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: BRAND_MUTED,
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-
-  // Section header
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: BRAND_TEXT,
-    letterSpacing: -0.5,
-  },
-  sectionSub: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-
-  // Controls (Filter & Search)
-  controlsWrap: { paddingHorizontal: 16, marginBottom: 16 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  filterLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginRight: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginRight: 6,
-    backgroundColor: Colors.white,
-  },
-  filterChipActive: {
-    backgroundColor: BRAND_PRIMARY,
-    borderColor: BRAND_PRIMARY,
-  },
-  filterChipText: { fontSize: 12, fontWeight: '600', color: BRAND_MUTED },
-  filterChipTextActive: { color: Colors.white },
-  countBadge: {
-    backgroundColor: Colors.lightOrange,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  countBadgeText: { fontSize: 10, fontWeight: '700', color: BRAND_PRIMARY },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: BRAND_TEXT },
-
-  // Puja cards Grid
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  gridCard: {
-    width: '48%',
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  cardImgBox: {
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  heartBtn: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 16,
-    padding: 6,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: Colors.gold,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  popularBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
-  cardBody: { padding: 12 },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 11,
-    color: BRAND_MUTED,
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  durationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  durationIcon: { fontSize: 12, marginRight: 4 },
-  durationText: { fontSize: 11, color: BRAND_MUTED, fontWeight: '500' },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    paddingTop: 8,
-  },
-  priceLabel: {
-    fontSize: 9,
-    color: BRAND_MUTED,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  priceValue: { fontSize: 13, fontWeight: '800', color: BRAND_TEXT },
-  ratingValue: { fontSize: 12, fontWeight: '800', color: Colors.gold },
-  bookBtn: {
-    backgroundColor: BRAND_PRIMARY,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  bookBtnDisabled: { backgroundColor: Colors.disabled },
-  bookBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
-  bookBtnTextDisabled: { color: Colors.gray },
-
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyStateEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyStateText: { color: BRAND_MUTED, fontSize: 14, textAlign: 'center' },
-
-  // Popover Menu
-  popoverOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)', // Very light dim
-  },
-  popoverBox: {
-    position: 'absolute',
-    top: 60, // Place it right below the header
-    right: 16,
-    width: 200,
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    paddingVertical: 12,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  popoverHeader: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  popoverAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.lightOrange,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#FFF',
-    overflow: 'hidden',
-  },
-  popoverAvatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 25,
-  },
-  popoverAvatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: BRAND_PRIMARY,
-  },
-  popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
-  popoverUserPhone: {
-    fontSize: 12,
-    color: Colors.gray,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  popoverDivider: {
-    height: 1,
-    backgroundColor: Colors.lightGray,
-    marginVertical: 4,
-  },
-
-  popoverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
-  popoverItemText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    flex: 1,
-    fontWeight: '500',
-  },
-  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.red },
-
-  popoverItemIconRed: { fontSize: 16, marginRight: 12, opacity: 0.8 },
-  popoverItemTextRed: { fontSize: 14, color: Colors.red, fontWeight: '500' },
-
-  headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
-  navRowContent: { paddingHorizontal: 8, paddingBottom: 12 },
-  carouselContainer: { paddingTop: 16 },
-  bannerWrapper: { width: width - 32 },
-  bannerZeroMargin: { margin: 0, marginHorizontal: 8 },
-  bannerIcon: { fontSize: 60 },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  showMoreText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '700' },
-  featuredListContent: { paddingHorizontal: 8, paddingVertical: 4 },
-  featuredCard: { width: 240, marginRight: 16, marginBottom: 4 },
-  featuredImgText: { fontSize: 44 },
-  ratingText: {
-    fontSize: 11,
-    color: Colors.gold,
-    fontWeight: '700',
-    marginLeft: 6,
-  },
-  heartIconText: { fontSize: 16 },
-  ratingCol: { alignItems: 'flex-end' },
-  bottomSpacer: { height: 40 },
-  pujaIconImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  cartBtn: {
-    position: 'relative',
-    padding: 4,
-  },
-  cartIconText: { fontSize: 24 },
-  cartBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -4,
-    backgroundColor: Colors.red,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
-
-  sectionLoaderBox: {
-    padding: 30,
-    width: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  centeredSectionLoader: {
-    width: '100%',
-    height: 285,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  loaderText: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    fontWeight: '500',
-  },
-  showMoreCard: {
-    width: 140,
-    height: 285,
-    marginRight: 16,
-    marginBottom: 4,
-    justifyContent: 'center',
-  },
-  showMoreCardInner: {
-    backgroundColor: Colors.white,
-    borderWidth: 2,
-    borderColor: Colors.redLight,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-  },
-  showMoreIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.tagRed,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  showMoreIcon: {
-    fontSize: 20,
-    color: BRAND_PRIMARY,
-    fontWeight: 'bold',
-  },
-  showMoreCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    textAlign: 'center',
-  },
-  showMoreCardSub: {
-    fontSize: 11,
-    color: BRAND_MUTED,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  filterDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FFD4B0',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterDropdownText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BRAND_PRIMARY,
-  },
-  dropdownArrow: {
-    fontSize: 10,
-    color: BRAND_PRIMARY,
-    opacity: 0.8,
-  },
-});

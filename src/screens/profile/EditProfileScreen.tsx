@@ -47,7 +47,7 @@ interface RelativeProfile {
   dob: string;
   timeOfBirth: string;
   placeOfBirth: string;
-  gotram: string;
+  gotra: string;
 }
 
 interface ProfileErrors {
@@ -56,7 +56,7 @@ interface ProfileErrors {
   dob?: string;
   timeOfBirth?: string;
   birthPlace?: string;
-  gotro?: string;
+  gotra?: string;
   address?: string;
 }
 
@@ -67,7 +67,7 @@ interface RelErrors {
   dob?: string;
   timeOfBirth?: string;
   placeOfBirth?: string;
-  gotram?: string;
+  gotra?: string;
 }
 
 // RELATION_TYPES replaced by API or SOCIAL_RELATIONS below
@@ -183,7 +183,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [timeOfBirth, setTimeOfBirth] = useState('');
   const [gender, setGender] = useState<Gender>('Male');
   const [birthPlace, setBirthPlace] = useState('');
-  const [gotro, setGotro] = useState('');
+  const [gotra, setGotra] = useState('');
   const [address, setAddress] = useState('');
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
 
@@ -237,7 +237,7 @@ export default function EditProfileScreen({ navigation }: any) {
       setLastName(nameParts.slice(1).join(' ') || '');
 
       setGender((userDetailsRaw.ctnz_gender as Gender) || 'Male');
-      setGotro(userDetailsRaw.ctnz_gotra || '');
+      setGotra(userDetailsRaw.ctnz_gotra || '');
       setBirthPlace(userDetailsRaw.ctnz_birth_place || '');
       setAddress(userDetailsRaw.ctnz_address || '');
 
@@ -295,7 +295,7 @@ export default function EditProfileScreen({ navigation }: any) {
             dob: rDob,
             timeOfBirth: rTime,
             placeOfBirth: r.relative_birth_place || '',
-            gotram: r.relative_gotra || '',
+            gotra: r.relative_gotra || '',
           };
         });
         setRelatives(mappedRels);
@@ -338,7 +338,8 @@ export default function EditProfileScreen({ navigation }: any) {
 
     if (pickerTarget === 'profile') {
       setDob(formatted);
-      if (profileErrors.dob) setProfileErrors(p => ({ ...p, dob: undefined }));
+      if (profileErrors.gotra)
+        setProfileErrors(p => ({ ...p, gotra: undefined }));
     } else {
       setRelDob(formatted);
       if (relErrors.dob) setRelErrors(p => ({ ...p, dob: undefined }));
@@ -407,10 +408,10 @@ export default function EditProfileScreen({ navigation }: any) {
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
-    // Gotro
-    if (!gotro.trim()) errs.gotro = isBn ? 'গোত্র আবশ্যক' : 'Gotro is required';
-    else if (gotro.trim().length < 2)
-      errs.gotro = isBn
+    // Gotra
+    if (!gotra.trim()) errs.gotra = isBn ? 'গোত্র আবশ্যক' : 'Gotra is required';
+    else if (gotra.trim().length < 2)
+      errs.gotra = isBn
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
@@ -452,6 +453,20 @@ export default function EditProfileScreen({ navigation }: any) {
             message: isBn
               ? 'ছবির আকার ৫এমবি-র বেশি হওয়া উচিত নয়'
               : 'Image size should not exceed 5MB',
+            buttons: [{ text: 'OK' }],
+          });
+          return;
+        }
+
+        // Extension Validation
+        const extension = asset.fileName?.split('.').pop()?.toLowerCase();
+        const validExtensions = ['png', 'jpg', 'jpeg'];
+        if (!extension || !validExtensions.includes(extension)) {
+          showAlert({
+            title: isBn ? 'অবৈধ ফাইল' : 'Invalid File',
+            message: isBn
+              ? 'শুধুমাত্র .png, .jpg, এবং .jpeg ছবি সমর্থনযোগ্য'
+              : 'Only .png, .jpg, and .jpeg images are supported.',
             buttons: [{ text: 'OK' }],
           });
           return;
@@ -516,7 +531,7 @@ export default function EditProfileScreen({ navigation }: any) {
       const payload = {
         auth_id: user?.user_id || 0,
         full_name: `${firstName} ${lastName}`.trim(),
-        gotra: gotro,
+        gotra: gotra,
         gender: gender,
         dob: formatApiDate(dob, timeOfBirth),
         birthplace: birthPlace,
@@ -578,7 +593,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [relDob, setRelDob] = useState('');
   const [relTimeOfBirth, setRelTimeOfBirth] = useState('');
   const [relPlaceOfBirth, setRelPlaceOfBirth] = useState('');
-  const [relGotram, setRelGotram] = useState('');
+  const [relGotra, setRelGotra] = useState('');
   const [relErrors, setRelErrors] = useState<RelErrors>({});
 
   const handleEditRelative = (rel: RelativeProfile) => {
@@ -590,7 +605,7 @@ export default function EditProfileScreen({ navigation }: any) {
     setRelDob(rel.dob);
     setRelTimeOfBirth(rel.timeOfBirth);
     setRelPlaceOfBirth(rel.placeOfBirth);
-    setRelGotram(rel.gotram);
+    setRelGotra(rel.gotra);
     setRelErrors({});
     setShowAddRelative(true);
   };
@@ -691,11 +706,11 @@ export default function EditProfileScreen({ navigation }: any) {
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
-    // Gotram
-    if (!relGotram.trim())
-      errs.gotram = isBn ? 'গোত্র আবশ্যক' : 'Gotram is required';
-    else if (relGotram.trim().length < 2)
-      errs.gotram = isBn
+    // Gotra
+    if (!relGotra.trim())
+      errs.gotra = isBn ? 'গোত্র আবশ্যক' : 'Gotra is required';
+    else if (relGotra.trim().length < 2)
+      errs.gotra = isBn
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
@@ -719,7 +734,7 @@ export default function EditProfileScreen({ navigation }: any) {
           date_of_birth: formatApiDate(relDob, relTimeOfBirth),
           place_of_birth: relPlaceOfBirth,
           gender: relGender,
-          gotram: relGotram,
+          gotram: relGotra,
           created_by: user?.user_id || 0,
         },
       ];
@@ -743,7 +758,7 @@ export default function EditProfileScreen({ navigation }: any) {
                     dob: relDob,
                     timeOfBirth: relTimeOfBirth,
                     placeOfBirth: relPlaceOfBirth,
-                    gotram: relGotram,
+                    gotra: relGotra,
                   }
                 : r,
             ),
@@ -762,7 +777,7 @@ export default function EditProfileScreen({ navigation }: any) {
               dob: relDob,
               timeOfBirth: relTimeOfBirth,
               placeOfBirth: relPlaceOfBirth,
-              gotram: relGotram,
+              gotra: relGotra,
             },
           ]);
         }
@@ -799,7 +814,7 @@ export default function EditProfileScreen({ navigation }: any) {
     setRelDob('');
     setRelTimeOfBirth('');
     setRelPlaceOfBirth('');
-    setRelGotram('');
+    setRelGotra('');
     setRelErrors({});
     setShowAddRelative(false);
   };
@@ -946,16 +961,16 @@ export default function EditProfileScreen({ navigation }: any) {
               error={profileErrors.birthPlace}
             />
             <Field
-              label={isBn ? 'গোত্র' : 'GOTRO'}
+              label={isBn ? 'গোত্র' : 'GOTRA'}
               required
-              value={gotro}
+              value={gotra}
               onChange={v => {
-                setGotro(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                if (profileErrors.gotro)
-                  setProfileErrors(p => ({ ...p, gotro: undefined }));
+                setGotra(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                if (profileErrors.gotra)
+                  setProfileErrors(p => ({ ...p, gotra: undefined }));
               }}
-              placeholder={isBn ? 'গোত্র লিখুন' : 'Enter gotro'}
-              error={profileErrors.gotro}
+              placeholder={isBn ? 'গোত্র লিখুন' : 'Enter gotra'}
+              error={profileErrors.gotra}
             />
           </View>
 
@@ -1012,76 +1027,117 @@ export default function EditProfileScreen({ navigation }: any) {
         </View>
 
         {/* ── Relation Details Card ── */}
-        <View style={styles.card}>
-          <View style={styles.relationHeader}>
-            <Text style={styles.sectionTitle}>
-              {isBn ? 'সম্পর্কের বিবরণ' : 'Relation Details'}
-            </Text>
-            <TouchableOpacity
-              style={styles.addRelBtn}
-              onPress={() => {
-                setRelErrors({});
-                setShowAddRelative(true);
-              }}
-            >
-              <Text style={styles.addRelBtnText}>
-                + {isBn ? 'সম্পর্ক যোগ' : 'Add Relative'}
+        {(userDetailsRaw?.ctnz_profile_progress_percent || 0) > 0 && (
+          <View style={styles.card}>
+            <View style={styles.relationHeader}>
+              <Text style={styles.sectionTitle}>
+                {isBn ? 'সম্পর্কের বিবরণ' : 'Relation Details'}
               </Text>
-            </TouchableOpacity>
-          </View>
+              {/* If relatives exist, show the small header button */}
+              {relatives.length > 0 && (
+                <TouchableOpacity
+                  style={styles.addRelBtn}
+                  onPress={() => {
+                    setRelErrors({});
+                    setShowAddRelative(true);
+                  }}
+                >
+                  <Text style={styles.addRelBtnText}>
+                    + {isBn ? 'সম্পর্ক যোগ' : 'Add Relative'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-          {relatives.length > 0 && !showAddRelative && (
-            <View style={{ marginTop: 10 }}>
-              <Text style={styles.fieldLabel}>
-                {isBn ? 'যোগ করা আত্মীয়' : 'Added Relations'} (
-                {relatives.length})
-              </Text>
-              <ScrollView
-                style={{ maxHeight: 420, marginTop: 8 }}
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
-              >
-                {relatives.map(rel => (
-                  <View key={rel.id} style={styles.relativeCard}>
-                    <View style={styles.relCardHeader}>
-                      <Text style={styles.relativeCardTitle}>
-                        {rel.firstName} {rel.lastName}
+            {/* If NO relatives yet, show the nudge banner */}
+            {relatives.length === 0 && (
+              <>
+                {/* Dashed line as shown in image */}
+                <View style={styles.dashedDivider} />
+
+                {/* New Promo Style Add Relative Container */}
+                <View style={styles.promoCard}>
+                  <View style={styles.promoContent}>
+                    <Text style={styles.promoIcon}>👨‍👩‍👧‍👦</Text>
+                    <Text style={styles.promoText}>
+                      {isBn
+                        ? 'আপনি কি আপনার পরিবারের সদস্যদের যোগ করতে চান? '
+                        : 'Would you like to add your family members? '}
+                      <Text style={styles.promoHighlight}>
+                        {isBn
+                          ? 'আত্মীয়দের যোগ করা আপনার পূজার অভিজ্ঞতাকে ব্যক্তিগতকৃত করতে সহায়তা করে।'
+                          : 'Adding relatives helps personalise your puja experience.'}
                       </Text>
-                      <View style={styles.relCardActions}>
-                        <TouchableOpacity
-                          onPress={() => handleEditRelative(rel)}
-                          style={{ padding: 4 }}
-                        >
-                          <Text style={{ fontSize: 13 }}>✏️</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleDeleteRelative(rel.id)}
-                          style={{ padding: 4 }}
-                        >
-                          <Text style={{ fontSize: 13 }}>🗑️</Text>
-                        </TouchableOpacity>
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.promoAddBtn}
+                    onPress={() => {
+                      setRelErrors({});
+                      setShowAddRelative(true);
+                    }}
+                  >
+                    <Text style={styles.promoAddBtnText}>
+                      + {isBn ? 'সম্পর্ক যোগ' : 'Add Relative'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {relatives.length > 0 && !showAddRelative && (
+              <View style={{ marginTop: 20 }}>
+                <Text style={styles.fieldLabel}>
+                  {isBn ? 'যোগ করা আত্মীয়' : 'Added Relations'} (
+                  {relatives.length})
+                </Text>
+                <ScrollView
+                  style={{ maxHeight: 420, marginTop: 8 }}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {relatives.map(rel => (
+                    <View key={rel.id} style={styles.relativeCard}>
+                      <View style={styles.relCardHeader}>
+                        <Text style={styles.relativeCardTitle}>
+                          {rel.firstName} {rel.lastName}
+                        </Text>
+                        <View style={styles.relCardActions}>
+                          <TouchableOpacity
+                            onPress={() => handleEditRelative(rel)}
+                            style={{ padding: 4 }}
+                          >
+                            <Text style={{ fontSize: 13 }}>✏️</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteRelative(rel.id)}
+                            style={{ padding: 4 }}
+                          >
+                            <Text style={{ fontSize: 13 }}>🗑️</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
-                    <View style={styles.relCardDetails}>
-                      <View style={styles.relPill}>
-                        <Text style={styles.relPillText}>
-                          {rel.relationType}
+                      <View style={styles.relCardDetails}>
+                        <View style={styles.relPill}>
+                          <Text style={styles.relPillText}>
+                            {rel.relationType}
+                          </Text>
+                        </View>
+                        <Text style={styles.relativeCardSub}>
+                          {' '}
+                          • {rel.gender}{' '}
+                          {rel.dob
+                            ? `• ${rel.dob.split('/').reverse().join('-')}`
+                            : ''}
                         </Text>
                       </View>
-                      <Text style={styles.relativeCardSub}>
-                        {' '}
-                        • {rel.gender}{' '}
-                        {rel.dob
-                          ? `• ${rel.dob.split('/').reverse().join('-')}`
-                          : ''}
-                      </Text>
                     </View>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -1194,16 +1250,16 @@ export default function EditProfileScreen({ navigation }: any) {
                   error={relErrors.placeOfBirth}
                 />
                 <Field
-                  label={isBn ? 'গোত্র' : 'GOTRAM'}
+                  label={isBn ? 'গোত্র' : 'GOTRA'}
                   required
-                  value={relGotram}
+                  value={relGotra}
                   onChange={v => {
-                    setRelGotram(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                    if (relErrors.gotram)
-                      setRelErrors(p => ({ ...p, gotram: undefined }));
+                    setRelGotra(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                    if (relErrors.gotra)
+                      setRelErrors(p => ({ ...p, gotra: undefined }));
                   }}
-                  placeholder={isBn ? 'গোত্র' : 'Enter gotram'}
-                  error={relErrors.gotram}
+                  placeholder={isBn ? 'গোত্র' : 'Enter gotra'}
+                  error={relErrors.gotra}
                 />
               </View>
 
@@ -1447,6 +1503,44 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.lightOrange,
   },
   addRelBtnText: { fontSize: 12, color: BRAND_ORANGE, fontWeight: '700' },
+  dashedDivider: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#FFE4C4',
+    borderStyle: 'dashed',
+    marginVertical: 12,
+  },
+  promoCard: {
+    backgroundColor: '#FFF9F2',
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#FFE4C4',
+    marginTop: 4,
+  },
+  promoContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  promoIcon: { fontSize: 22 },
+  promoText: { fontSize: 12, color: BRAND_TEXT, flex: 1, lineHeight: 18 },
+  promoHighlight: { color: BRAND_ORANGE, fontWeight: '700' },
+  promoAddBtn: {
+    backgroundColor: BRAND_ORANGE,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 8,
+    elevation: 2,
+    shadowColor: BRAND_ORANGE,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  promoAddBtnText: { color: Colors.white, fontSize: 11, fontWeight: '800' },
 
   relativeCard: {
     backgroundColor: Colors.white,

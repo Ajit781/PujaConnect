@@ -598,6 +598,7 @@ export const pujaApi = createApi({
           package_id: number;
           preferred_date: string;
           preferred_time: string;
+          ctzn_address_id?: number;
         }[];
       }
     >({
@@ -665,6 +666,7 @@ export const pujaApi = createApi({
               : response.data;
           return Array.isArray(data) ? data : [];
         }
+        return [];
       },
       providesTags: ['Orders'],
     }),
@@ -687,6 +689,7 @@ export const pujaApi = createApi({
               : response.data;
           return Array.isArray(data) ? data : [];
         }
+        return [];
       },
       providesTags: ['Orders'],
     }),
