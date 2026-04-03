@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Keyboard,
+  RefreshControl,
 } from 'react-native';
 import {
   SafeAreaView,
@@ -31,6 +32,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const { pujaId, pujaData } = route.params;
+  const [refreshing, setRefreshing] = useState(false);
 
   // Use passed pujaData (Real API) or fallback to FEATURED_PUJAS (Dummy)
   const puja = pujaData || FEATURED_PUJAS.find(p => p.id === pujaId);
@@ -42,8 +44,13 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   );
 
   // RTK Query Hooks
-  const { data: imagesData = [], isLoading: isLoadingImages } =
-    useGetPujaImagesQuery(pujaId.toString(), { skipGlobalLoader: true } as any);
+  const {
+    data: imagesData = [],
+    isLoading: isLoadingImages,
+    refetch: refetchImages,
+  } = useGetPujaImagesQuery(pujaId.toString(), {
+    skipGlobalLoader: true,
+  } as any);
   const {
     data: packagesData = [],
     isLoading: isLoadingPackages,
@@ -52,18 +59,24 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   } = useGetPujaPackagesQuery(pujaId.toString(), {
     skipGlobalLoader: true,
   } as any);
-  const { data: materialsData = [], isLoading: isLoadingMaterials } =
-    useGetPackageMaterialsQuery(
-      {
-        pujaId: pujaId.toString(),
-        packageId: selectedPackageId || '',
-      },
-      { skip: !selectedPackageId, skipGlobalLoader: true } as any,
-    );
-  const { data: fullDetails, isLoading: isLoadingFull } =
-    useGetPujaFullDetailsQuery(pujaId.toString(), {
-      skipGlobalLoader: true,
-    } as any);
+  const {
+    data: materialsData = [],
+    isLoading: isLoadingMaterials,
+    refetch: refetchMaterials,
+  } = useGetPackageMaterialsQuery(
+    {
+      pujaId: pujaId.toString(),
+      packageId: selectedPackageId || '',
+    },
+    { skip: !selectedPackageId, skipGlobalLoader: true } as any,
+  );
+  const {
+    data: fullDetails,
+    isLoading: isLoadingFull,
+    refetch: refetchFullDetails,
+  } = useGetPujaFullDetailsQuery(pujaId.toString(), {
+    skipGlobalLoader: true,
+  } as any);
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -79,6 +92,22 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
       hideSubscription.remove();
     };
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchImages(),
+        refetchPackages(),
+        refetchMaterials(),
+        refetchFullDetails(),
+      ]);
+    } catch (err) {
+      console.error('PujaDetails refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchImages, refetchPackages, refetchMaterials, refetchFullDetails]);
 
   // Auto-select first package when loaded
   useEffect(() => {
@@ -195,6 +224,14 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         style={styles.body}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
       >
         {/* Banner Area */}
         <View style={styles.bannerWrapper}>

@@ -1,5 +1,6 @@
 /* eslint-disable react-native/no-inline-styles */
 import React, { useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -14,6 +15,7 @@ import {
   TouchableWithoutFeedback,
   ActivityIndicator,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -741,12 +743,14 @@ export default function DashboardScreen({ navigation }: any) {
   const [showProfileCompletionModal, setShowProfileCompletionModal] =
     useState(false);
   const flatListRef = React.useRef<FlatList>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   // Fetch user profile for full name in popover
   const {
     data: userDetails,
     isSuccess: userDetailsLoaded,
     isError: userDetailsError,
+    refetch: refetchUserDetails,
   } = useGetUserDetailsQuery(user?.user_id ?? 0, {
     skip: !user?.user_id || user.user_id === 0,
     skipGlobalLoader: true,
@@ -796,14 +800,15 @@ export default function DashboardScreen({ navigation }: any) {
   ]);
 
   // Sync cart from server
-  const { data: serverCartItems } = useGetPujaCartInfoQuery(
-    {
-      userId: user?.user_id || 0,
-      pageNo: 1,
-      limit: 1000,
-    },
-    { skip: !user?.user_id },
-  );
+  const { data: serverCartItems, refetch: refetchCartInfo } =
+    useGetPujaCartInfoQuery(
+      {
+        userId: user?.user_id || 0,
+        pageNo: 1,
+        limit: 1000,
+      },
+      { skip: !user?.user_id },
+    );
 
   React.useEffect(() => {
     if (serverCartItems) {
@@ -827,7 +832,7 @@ export default function DashboardScreen({ navigation }: any) {
 
   // Sync favorites from server
   const WISHLIST_TAG_ID = 3;
-  const { data: wishlistPujas } = useGetTagPujasQuery(
+  const { data: wishlistPujas, refetch: refetchWishlist } = useGetTagPujasQuery(
     {
       userId: user?.user_id || 0,
       tagId: WISHLIST_TAG_ID,
@@ -895,6 +900,54 @@ export default function DashboardScreen({ navigation }: any) {
     return arr;
   }, []);
   const START_INDEX = Math.floor(REPEAT_COUNT / 2) * DASHBOARD_BANNERS.length;
+
+  const onRefresh = React.useCallback(async () => {
+    if (!user?.user_id) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchUserDetails(),
+        refetchCartInfo(),
+        refetchWishlist(),
+        (async () => {
+          const [summaryRes, tagsData] = await Promise.all([
+            getSummaryCount(),
+            getAllPujaTags(),
+          ]);
+          setSummaryData(summaryRes);
+          setPujaTags(tagsData);
+        })(),
+        (async () => {
+          const data = await getPujaByTag(user.user_id, selectedTagId, 1, 10);
+          setPujas(data);
+        })(),
+      ]);
+    } catch (err) {
+      console.error('Dashboard refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [
+    user?.user_id,
+    selectedTagId,
+    refetchUserDetails,
+    refetchCartInfo,
+    refetchWishlist,
+  ]);
+
+  const isFirstConn = React.useRef(true);
+  React.useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (isFirstConn.current) {
+        isFirstConn.current = false;
+        return;
+      }
+      if (state.isConnected) {
+        onRefresh();
+      }
+    });
+    return () => unsubscribe();
+  }, [onRefresh]);
 
   // Fetch initial data (summary and tags)
   React.useEffect(() => {
@@ -1146,7 +1199,18 @@ export default function DashboardScreen({ navigation }: any) {
       </View>
 
       {/* ── Body ── */}
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
+      >
         {/* Banner Carousel */}
         <View style={styles.carouselContainer}>
           <FlatList

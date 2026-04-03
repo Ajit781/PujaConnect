@@ -34,6 +34,8 @@ export const ENDPOINTS = {
   getBookingDetails: '/citizen/get_booking_details_by_id',
   reschedulePuja: '/citizen/reschedule_puja',
   cancelBooking: '/citizen/cancel_booking',
+  getAllPujaCount: '/home/get_all_puja_count',
+  getBookingSummaryCount: '/citizen/get_puja_booking_summary_count',
 };
 
 // Validation constants

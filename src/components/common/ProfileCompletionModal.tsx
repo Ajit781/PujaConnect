@@ -123,6 +123,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB', // Slightly yellowish background matching image
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#FFFBEB',
     elevation: 5,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },

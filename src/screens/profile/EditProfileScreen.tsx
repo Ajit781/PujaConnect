@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -175,6 +176,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const { showAlert, showErrorAlert } = useAlert();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Profile form ──────────────────────────────────────────────────────────
   const [firstName, setFirstName] = useState('');
@@ -203,10 +205,11 @@ export default function EditProfileScreen({ navigation }: any) {
   );
 
   // -- API Hooks --
-  const { data: userDetailsRaw } = useGetUserDetailsQuery(user?.user_id || 0, {
-    skip: !user?.user_id,
-    refetchOnMountOrArgChange: true,
-  });
+  const { data: userDetailsRaw, refetch: refetchUserDetails } =
+    useGetUserDetailsQuery(user?.user_id || 0, {
+      skip: !user?.user_id,
+      refetchOnMountOrArgChange: true,
+    });
   const [saveProfile] = useSaveUserProfileMutation();
   const [saveRelativeMutation] = useSaveRelativeDetailsMutation();
   const [deleteRelativeMutation] = useDeleteRelativeDetailsMutation();
@@ -302,6 +305,17 @@ export default function EditProfileScreen({ navigation }: any) {
       }
     }
   }, [userDetailsRaw]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchUserDetails();
+    } catch (err) {
+      console.error('Profile refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchUserDetails]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   // Removed unused isValidCalendarDate helper logic
@@ -848,6 +862,14 @@ export default function EditProfileScreen({ navigation }: any) {
         style={styles.body}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_ORANGE]}
+            tintColor={BRAND_ORANGE}
+          />
+        }
       >
         <View style={styles.avatarSection}>
           <TouchableOpacity

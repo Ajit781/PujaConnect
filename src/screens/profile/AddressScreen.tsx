@@ -15,6 +15,7 @@ import {
   FlatList,
   ScrollView,
   PermissionsAndroid,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Geolocation from 'react-native-geolocation-service';
@@ -40,6 +41,7 @@ import {
 } from '../../store/api/pujaApi';
 
 const ERROR_COLOR = Colors.red;
+const BRAND_ORANGE = Colors.primary;
 
 const SOCIAL_RELATIONS = [
   { id: 18, name: 'Self' },
@@ -201,6 +203,7 @@ export default function AddressScreen({ navigation }: any) {
   const [saveDefaultAddressMutation] = useSaveDefaultAddressMutation();
   const [deleteAddressMutation] = useDeleteAddressMutation();
   const [pageNo] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const pageSize = 10;
   const {
     data: serverAddresses,
@@ -328,6 +331,17 @@ export default function AddressScreen({ navigation }: any) {
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchAddresses();
+    } catch (err) {
+      console.error('Address refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchAddresses]);
 
   useEffect(() => {
     const fetchTypes = async () => {
@@ -735,6 +749,14 @@ export default function AddressScreen({ navigation }: any) {
         maxToRenderPerBatch={10}
         windowSize={10}
         removeClippedSubviews={Platform.OS === 'android'}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_ORANGE]}
+            tintColor={BRAND_ORANGE}
+          />
+        }
       />
 
       {/* Modal for Add/Edit Address */}

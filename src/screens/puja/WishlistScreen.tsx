@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -21,6 +22,7 @@ import { Colors } from '../../constants/Colors';
 import {
   useGetTagPujasQuery,
   useSavePujaTagMutation,
+  useGetAllPujaCountQuery,
 } from '../../store/api/pujaApi';
 
 export default function WishlistScreen({ navigation }: any) {
@@ -42,12 +44,17 @@ export default function WishlistScreen({ navigation }: any) {
   );
 
   const [pageNo, setPageNo] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const LIMIT = 10;
   const WISHLIST_TAG_ID = 3;
 
   const [savePujaTag] = useSavePujaTagMutation();
 
-  const { data: wishlistPujas = [], isLoading } = useGetTagPujasQuery(
+  const {
+    data: wishlistPujas = [],
+    isLoading,
+    refetch: refetchWishlist,
+  } = useGetTagPujasQuery(
     {
       userId: user?.user_id || 0,
       tagId: WISHLIST_TAG_ID,
@@ -57,17 +64,31 @@ export default function WishlistScreen({ navigation }: any) {
     { skip: !user?.user_id, skipGlobalLoader: true } as any,
   );
 
-  const { data: nextPujas = [] } = useGetTagPujasQuery(
-    {
-      userId: user?.user_id || 0,
-      tagId: WISHLIST_TAG_ID,
-      pageNo: pageNo + 1,
-      limit: LIMIT,
-    },
-    { skip: !user?.user_id, skipGlobalLoader: true } as any,
-  );
+  const { data: totalPujaCount = 0, refetch: refetchCount } =
+    useGetAllPujaCountQuery(
+      {
+        userId: user?.user_id || 0,
+        tagId: WISHLIST_TAG_ID,
+      },
+      { skip: !user?.user_id } as any,
+    );
+  const totalCount =
+    typeof totalPujaCount === 'object'
+      ? (totalPujaCount as any).total_puja_count || 0
+      : totalPujaCount;
 
-  const hasMore = nextPujas.length > 0;
+  const hasMore = pageNo * LIMIT < totalCount;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchWishlist(), refetchCount()]);
+    } catch (error) {
+      console.error('Wishlist refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchWishlist, refetchCount]);
 
   const handleToggleFavorite = useCallback(
     async (pujaId: string) => {
@@ -187,7 +208,7 @@ export default function WishlistScreen({ navigation }: any) {
 
   const renderFooter = () => (
     <>
-      {(pageNo > 1 || hasMore) && wishlistPujas.length > 0 && (
+      {totalCount > LIMIT && wishlistPujas.length > 0 && (
         <View style={styles.paginationRow}>
           <TouchableOpacity
             style={[styles.pageBtn, pageNo === 1 && styles.pageBtnDisabled]}
@@ -269,6 +290,14 @@ export default function WishlistScreen({ navigation }: any) {
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews={Platform.OS === 'android'}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
       />
     </View>
   );

@@ -133,6 +133,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFCF5',
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,

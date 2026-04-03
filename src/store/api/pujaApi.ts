@@ -94,6 +94,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const pujaApi = createApi({
   reducerPath: 'pujaApi',
   baseQuery: baseQueryWithReauth,
+  refetchOnReconnect: true,
   tagTypes: ['Pujas', 'Tags', 'Cart', 'UserDetails', 'Addresses', 'Orders'],
   endpoints: builder => ({
     getPujaTags: builder.query<PujaTag[], void>({
@@ -735,6 +736,62 @@ export const pujaApi = createApi({
       }),
       invalidatesTags: ['Orders'],
     }),
+    getAllPujaCount: builder.query<number, { userId: number; tagId: number }>({
+      query: ({ userId, tagId }) => ({
+        url: ENDPOINTS.getAllPujaCount,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            ctzn_user_id: userId,
+            puja_tag_id: tagId,
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return data?.total_puja_count || 0;
+        }
+        return 0;
+      },
+    }),
+    getBookingSummaryCount: builder.query<
+      number,
+      {
+        userId: number;
+        status: number;
+        paymentStatus: number;
+        fromDate: string | null;
+        toDate: string | null;
+      }
+    >({
+      query: ({ userId, status, paymentStatus, fromDate, toDate }) => ({
+        url: ENDPOINTS.getBookingSummaryCount,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            ctzn_id: userId,
+            status,
+            payment_status: paymentStatus,
+            from_date: fromDate,
+            to_date: toDate,
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return data?.total_puja_booking_summary_qty || 0;
+        }
+        return 0;
+      },
+    }),
   }),
 });
 
@@ -763,4 +820,6 @@ export const {
   useGetBookingDetailsQuery,
   useReschedulePujaMutation,
   useCancelBookingMutation,
+  useGetAllPujaCountQuery,
+  useGetBookingSummaryCountQuery,
 } = pujaApi;

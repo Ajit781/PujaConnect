@@ -55,6 +55,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.white,
   },
   iconContainer: { marginBottom: 16 },
   iconBg: {

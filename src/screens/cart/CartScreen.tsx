@@ -1,5 +1,11 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -12,6 +18,7 @@ import {
   Alert,
   Animated,
   Easing,
+  RefreshControl,
 } from 'react-native';
 import {
   SafeAreaView,
@@ -61,10 +68,12 @@ export default function CartScreen({ navigation }: any) {
   );
 
   const user = useSelector((state: RootState) => state.auth.user);
-  const { data: serverAddresses } = useGetAddressesQuery(
-    { userId: user?.user_id || 0, pageNo: 1, pageSize: 100 },
-    { skip: !user?.user_id },
-  );
+  const [refreshing, setRefreshing] = useState(false);
+  const { data: serverAddresses, refetch: refetchAddresses } =
+    useGetAddressesQuery(
+      { userId: user?.user_id || 0, pageNo: 1, pageSize: 100 },
+      { skip: !user?.user_id },
+    );
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -106,19 +115,23 @@ export default function CartScreen({ navigation }: any) {
   const itemsPerPage = 10;
 
   // Fetch full cart (limit 1000) for accurate subtotal calculations
-  const { data: fullApiCartItems = [], isLoading: isFetchingCart } =
-    useGetPujaCartInfoQuery(
-      {
-        userId: user?.user_id || 0,
-        pageNo: 1,
-        limit: 1000,
-      },
-      { skip: !user?.user_id },
-    );
+  const {
+    data: fullApiCartItems = [],
+    isLoading: isFetchingCart,
+    refetch: refetchCartInfo,
+  } = useGetPujaCartInfoQuery(
+    {
+      userId: user?.user_id || 0,
+      pageNo: 1,
+      limit: 1000,
+    },
+    { skip: !user?.user_id },
+  );
 
-  const { data: cartSummary } = useGetPujaCartSummaryQuery(user?.user_id || 0, {
-    skip: !user?.user_id,
-  });
+  const { data: cartSummary, refetch: refetchCartSummary } =
+    useGetPujaCartSummaryQuery(user?.user_id || 0, {
+      skip: !user?.user_id,
+    });
 
   useEffect(() => {
     console.log('Cart Items Details:', fullApiCartItems);
@@ -151,6 +164,21 @@ export default function CartScreen({ navigation }: any) {
     pandits: item.pkg_pandit_qty,
     rating: item.puja_rating,
   }));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchAddresses(),
+        refetchCartInfo(),
+        refetchCartSummary(),
+      ]);
+    } catch (err) {
+      console.error('Cart refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchAddresses, refetchCartInfo, refetchCartSummary]);
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -638,6 +666,14 @@ export default function CartScreen({ navigation }: any) {
           paddingBottom: insets.bottom + 30,
           paddingTop: 12,
         }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
       >
         {/* Cart Items List */}
         <View style={styles.listSection}>

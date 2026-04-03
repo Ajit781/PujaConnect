@@ -49,7 +49,7 @@ export function CustomAlert({
     >
       {/* Dimmed overlay — blocks interaction with the screen behind */}
       <TouchableWithoutFeedback onPress={onDismiss}>
-        <View style={[styles.overlay, { zIndex: 1000, elevation: 12 }]}>
+        <View style={[styles.overlay, { zIndex: 1000 }]}>
           <TouchableWithoutFeedback>
             <View style={styles.card}>
               {/* Title */}
@@ -120,6 +120,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingTop: 24,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.white,
     // Subtle shadow
     shadowColor: Colors.textMain,
     shadowOffset: { width: 0, height: 8 },

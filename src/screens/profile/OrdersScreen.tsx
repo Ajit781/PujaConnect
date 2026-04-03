@@ -8,12 +8,16 @@ import {
   StatusBar,
   FlatList,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import { useGetBookingSummaryQuery } from '../../store/api/pujaApi';
+import {
+  useGetBookingSummaryQuery,
+  useGetBookingSummaryCountQuery,
+} from '../../store/api/pujaApi';
 import { BookingSummary } from '../../service/api/dashboardService';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
@@ -212,10 +216,33 @@ export default function OrdersScreen({ navigation }: any) {
     'from' | 'to' | null
   >(null);
   const [pageNo, setPageNo] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const PAGE_SIZE = 10;
 
-  // Fetch from Dynamic API
-  const { data: bookings = [], isLoading } = useGetBookingSummaryQuery(
+  // Fetch counts for pagination
+  const { data: totalSummaryCountData, refetch: refetchCount } =
+    useGetBookingSummaryCountQuery(
+      {
+        userId: user?.user_id || 0,
+        status: activeTab.value,
+        paymentStatus: paymentFilter.value,
+        fromDate: fromDate,
+        toDate: toDate,
+      },
+      { skip: !user?.user_id },
+    );
+
+  const totalCount =
+    typeof totalSummaryCountData === 'object' && totalSummaryCountData !== null
+      ? (totalSummaryCountData as any).total_puja_booking_summary_qty || 0
+      : Number(totalSummaryCountData) || 0;
+
+  // Fetch list data
+  const {
+    data: bookings = [],
+    isLoading,
+    refetch: refetchBookings,
+  } = useGetBookingSummaryQuery(
     {
       userId: user?.user_id || 0,
       status: activeTab.value,
@@ -228,10 +255,21 @@ export default function OrdersScreen({ navigation }: any) {
     { skip: !user?.user_id },
   );
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchBookings(), refetchCount()]);
+    } catch (err) {
+      console.error('Orders refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchBookings, refetchCount]);
+
   // Reset page when filters change
   React.useEffect(() => {
     setPageNo(1);
-  }, [activeTab, paymentFilter, fromDate, toDate, searchQuery]);
+  }, [activeTab, paymentFilter, fromDate, toDate]);
 
   const filteredOrders = React.useMemo(() => {
     if (!searchQuery) return bookings;
@@ -241,8 +279,8 @@ export default function OrdersScreen({ navigation }: any) {
   }, [bookings, searchQuery]);
 
   // Pagination Logic
-  const showPagination = bookings.length >= PAGE_SIZE || pageNo > 1;
-  const isNextDisabled = bookings.length < PAGE_SIZE;
+  const showPagination = totalCount > PAGE_SIZE;
+  const isNextDisabled = pageNo * PAGE_SIZE >= totalCount;
   const isPrevDisabled = pageNo === 1;
 
   const selectedOrder =
@@ -444,6 +482,14 @@ export default function OrdersScreen({ navigation }: any) {
         maxToRenderPerBatch={10}
         windowSize={10}
         removeClippedSubviews={Platform.OS === 'android'}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
         ListEmptyComponent={
           !isLoading ? (
             <NoDataFound

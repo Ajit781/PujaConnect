@@ -12,6 +12,7 @@ import {
   Modal,
   FlatList,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -22,6 +23,7 @@ import {
   useGetPujaTagsQuery,
   useGetTagPujasQuery,
   useSavePujaTagMutation,
+  useGetAllPujaCountQuery,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
 import { Colors } from '../../constants/Colors';
@@ -44,16 +46,18 @@ export default function AllPujasScreen({ navigation, route }: any) {
   const [pageNo, setPageNo] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const LIMIT = 10;
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // RTK Query Hooks
-  const { data: pujaTags = [] } = useGetPujaTagsQuery();
+  const { data: pujaTags = [], refetch: refetchTags } = useGetPujaTagsQuery();
 
   const {
     data: currentPujas = [],
     isLoading,
     isError,
     error,
+    refetch: refetchCurrentPujas,
   } = useGetTagPujasQuery(
     {
       userId: user?.user_id || user?.id || 0,
@@ -64,21 +68,20 @@ export default function AllPujasScreen({ navigation, route }: any) {
     { skip: !user?.user_id && !user?.id, skipGlobalLoader: true } as any,
   );
 
-  if (isError) {
-    console.error('RTK Query error:', error);
-  }
+  const { data: totalPujaCount = 0, refetch: refetchCount } =
+    useGetAllPujaCountQuery(
+      {
+        userId: user?.user_id || user?.id || 0,
+        tagId: selectedTagId,
+      },
+      { skip: !user?.user_id && !user?.id } as any,
+    );
+  const totalCount =
+    typeof totalPujaCount === 'object'
+      ? (totalPujaCount as any).total_puja_count || 0
+      : totalPujaCount;
 
-  const { data: nextPujas = [] } = useGetTagPujasQuery(
-    {
-      userId: user?.user_id || user?.id || 0,
-      tagId: selectedTagId,
-      pageNo: pageNo + 1,
-      limit: LIMIT,
-    },
-    { skip: !user?.user_id && !user?.id, skipGlobalLoader: true } as any,
-  );
-
-  const hasMore = nextPujas.length > 0;
+  const hasMore = pageNo * LIMIT < totalCount;
 
   React.useEffect(() => {
     setPageNo(1);
@@ -86,7 +89,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
 
   // Sync favorites from server
   const WISHLIST_TAG_ID = 3;
-  const { data: wishlistPujas } = useGetTagPujasQuery(
+  const { data: wishlistPujas, refetch: refetchWishlist } = useGetTagPujasQuery(
     {
       userId: user?.user_id || 0,
       tagId: WISHLIST_TAG_ID,
@@ -106,6 +109,22 @@ export default function AllPujasScreen({ navigation, route }: any) {
       dispatch(setFavorites(favIds));
     }
   }, [wishlistPujas, dispatch]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchTags(),
+        refetchCurrentPujas(),
+        refetchCount(),
+        refetchWishlist(),
+      ]);
+    } catch (err) {
+      console.error('AllPujas refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchTags, refetchCurrentPujas, refetchCount, refetchWishlist]);
 
   const handleToggleFavoriteServer = useCallback(
     async (pujaId: string) => {
@@ -309,10 +328,10 @@ export default function AllPujasScreen({ navigation, route }: any) {
 
   const renderFooter = () => {
     const isSearching = searchQuery.trim().length > 0;
-    // Hide pagination if searching and results are few. Show if not searching or if search hits the limit (10).
+    // Show pagination only if total count > 10
     const shouldShowPagination = isSearching
       ? filteredPujas.length >= 10
-      : (pageNo > 1 || hasMore) && filteredPujas.length > 0;
+      : totalCount > LIMIT;
 
     return (
       <>
@@ -417,6 +436,14 @@ export default function AllPujasScreen({ navigation, route }: any) {
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews={Platform.OS === 'android'}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_PRIMARY]}
+            tintColor={BRAND_PRIMARY}
+          />
+        }
       />
 
       {/* Tag Filter Popover Menu */}

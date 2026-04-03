@@ -1,5 +1,7 @@
 import React from 'react';
 import { StatusBar } from 'react-native';
+import { setupListeners } from '@reduxjs/toolkit/query';
+import NetInfo from '@react-native-community/netinfo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -52,6 +54,23 @@ function RootNavigator() {
 }
 
 function App() {
+  React.useEffect(() => {
+    // Enable automatic refetch on reconnect for RTK Query
+    const unsubscribe = setupListeners(
+      store.dispatch,
+      (dispatch, { onOnline, onOffline }) => {
+        return NetInfo.addEventListener(state => {
+          if (state.isConnected) {
+            onOnline();
+          } else {
+            onOffline();
+          }
+        });
+      },
+    );
+    return unsubscribe;
+  }, []);
+
   return (
     <Provider store={store}>
       <PersistGate loading={<SplashScreen />} persistor={persistor}>
