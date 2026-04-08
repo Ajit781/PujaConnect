@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -26,6 +27,8 @@ import {
   useGetAllPujaCountQuery,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
+import ImagePlaceholder from '../../components/common/ImagePlaceholder';
+import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 
 export default function AllPujasScreen({ navigation, route }: any) {
@@ -33,6 +36,8 @@ export default function AllPujasScreen({ navigation, route }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
+  const { t } = useTranslation();
+  const { showToast } = useToast();
 
   const user = useSelector((state: RootState) => state.auth.user);
   const favorites = useSelector(
@@ -179,7 +184,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
   });
 
   const getTagName = (tagId: number) => {
-    const tag = pujaTags.find(t => t.tag_id === tagId);
+    const tag = pujaTags.find(tg => tg.tag_id === tagId);
     if (!tag) return isBn ? 'সব' : 'All';
     if (isBn) {
       if (tag.tag_value === 'All') return 'সব';
@@ -219,11 +224,21 @@ export default function AllPujasScreen({ navigation, route }: any) {
                 resizeMode="cover"
               />
             ) : (
-              <Text style={styles.pujaImgText}>🛕</Text>
+              <ImagePlaceholder />
             )}
             <TouchableOpacity
               style={styles.heartBtn}
-              onPress={() => pId && handleToggleFavoriteServer(pId.toString())}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  pId && handleToggleFavoriteServer(pId.toString());
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text style={styles.heartIconText}>
                 {pId && favorites.includes(pId.toString()) ? '❤️' : '🤍'}
@@ -278,12 +293,21 @@ export default function AllPujasScreen({ navigation, route }: any) {
                 puja.puja_active_status === 0 && styles.bookBtnDisabled,
               ]}
               disabled={puja.puja_active_status === 0}
-              onPress={() =>
-                navigation.navigate('PujaDetails', {
-                  pujaId: pId.toString(),
-                  pujaData: puja,
-                })
-              }
+              onPress={() => {
+                NetInfo.fetch().then(state => {
+                  if (state.isConnected) {
+                    navigation.navigate('PujaDetails', {
+                      pujaId: pId.toString(),
+                      pujaData: puja,
+                    });
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                });
+              }}
             >
               <Text
                 style={[
@@ -304,7 +328,7 @@ export default function AllPujasScreen({ navigation, route }: any) {
         </View>
       );
     },
-    [favorites, handleToggleFavoriteServer, isBn, navigation],
+    [favorites, handleToggleFavoriteServer, isBn, navigation, showToast, t],
   );
 
   const renderHeader = () => (
@@ -383,7 +407,17 @@ export default function AllPujasScreen({ navigation, route }: any) {
 
         <TouchableOpacity
           style={styles.headerFilterBtn}
-          onPress={() => setShowTagMenu(true)}
+          onPress={async () => {
+            const state = await NetInfo.fetch();
+            if (state.isConnected) {
+              setShowTagMenu(true);
+            } else {
+              showToast({
+                message: t('common.connectionRequired'),
+                type: 'error',
+              });
+            }
+          }}
         >
           <Text style={styles.headerFilterBtnText}>
             {getTagName(selectedTagId)}

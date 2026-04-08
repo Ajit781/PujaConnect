@@ -46,6 +46,7 @@ import {
 import appLogo from '../../assets/images/Logo.png';
 import NoDataFound from '../../components/common/NoDataFound';
 import ProfileCompletionModal from '../../components/common/ProfileCompletionModal';
+import ImagePlaceholder from '../../components/common/ImagePlaceholder';
 import { Colors } from '../../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -727,7 +728,7 @@ export default function DashboardScreen({ navigation }: any) {
   const user = useSelector((state: RootState) => state.auth.user);
   const { favorites } = useSelector((state: RootState) => state.wishlist);
   const { items: cartItems } = useSelector((state: RootState) => state.cart);
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
 
   const [activeBanner, setActiveBanner] = React.useState(0);
@@ -859,6 +860,15 @@ export default function DashboardScreen({ navigation }: any) {
     const isCurrentlyFav = favorites.includes(pujaId);
     // Optimistic toggle is now handled in pujaApi.ts via onQueryStarted
 
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
+
     try {
       await savePujaTag({
         userId: user.user_id,
@@ -903,6 +913,14 @@ export default function DashboardScreen({ navigation }: any) {
 
   const onRefresh = React.useCallback(async () => {
     if (!user?.user_id) return;
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
     setRefreshing(true);
     try {
       await Promise.all([
@@ -933,6 +951,8 @@ export default function DashboardScreen({ navigation }: any) {
     refetchUserDetails,
     refetchCartInfo,
     refetchWishlist,
+    showToast,
+    t,
   ]);
 
   const isFirstConn = React.useRef(true);
@@ -1056,7 +1076,17 @@ export default function DashboardScreen({ navigation }: any) {
         {
           text: isBn ? 'লগআউট' : 'Logout',
           style: 'destructive',
-          onPress: performLogout,
+          onPress: async () => {
+            const state = await NetInfo.fetch();
+            if (state.isConnected) {
+              performLogout();
+            } else {
+              showToast({
+                message: t('common.connectionRequired'),
+                type: 'error',
+              });
+            }
+          },
         },
       ],
     });
@@ -1081,16 +1111,16 @@ export default function DashboardScreen({ navigation }: any) {
   const filteredPujas = pujas;
 
   const getTagName = (tagId: number) => {
-    const tag = pujaTags.find((t: PujaTag) => t.tag_id === tagId);
-    if (!tag) return isBn ? 'বৈশিষ্ট্যযুক্ত' : 'Featured';
+    const tagObj = pujaTags.find((tag: PujaTag) => tag.tag_id === tagId);
+    if (!tagObj) return isBn ? 'বৈশিষ্ট্যযুক্ত' : 'Featured';
 
     if (isBn) {
-      if (tag.tag_value === 'All') return 'সব';
-      if (tag.tag_value === 'Featured') return 'বৈশিষ্ট্যযুক্ত';
-      if (tag.tag_value === 'Favourite') return 'প্রিয়';
-      if (tag.tag_value === 'Popular') return 'জনপ্রিয়';
+      if (tagObj.tag_value === 'All') return 'সব';
+      if (tagObj.tag_value === 'Featured') return 'বৈশিষ্ট্যযুক্ত';
+      if (tagObj.tag_value === 'Favourite') return 'প্রিয়';
+      if (tagObj.tag_value === 'Popular') return 'জনপ্রিয়';
     }
-    return tag.tag_value;
+    return tagObj.tag_value;
   };
 
   const handleNavClick = (item: any) => {
@@ -1115,7 +1145,17 @@ export default function DashboardScreen({ navigation }: any) {
             {/* Language toggle */}
             {/* Header icons */}
             <TouchableOpacity
-              onPress={() => navigation.navigate('Wishlist')}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  navigation.navigate('Wishlist');
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
               style={styles.cartBtn}
             >
               <Text style={styles.iconBtnText}>❤️</Text>
@@ -1126,7 +1166,17 @@ export default function DashboardScreen({ navigation }: any) {
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Cart')}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  navigation.navigate('Cart');
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
               style={styles.cartBtn}
             >
               <Text style={styles.iconBtnText}>🛒</Text>
@@ -1138,7 +1188,17 @@ export default function DashboardScreen({ navigation }: any) {
             </TouchableOpacity>
             {/* User avatar - Updated logic */}
             <TouchableOpacity
-              onPress={() => setShowProfileMenu(true)}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  setShowProfileMenu(true);
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
               style={styles.avatar}
             >
               <Image
@@ -1328,7 +1388,17 @@ export default function DashboardScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.filterDropdown}
-            onPress={() => setShowTagMenu(true)}
+            onPress={async () => {
+              const state = await NetInfo.fetch();
+              if (state.isConnected) {
+                setShowTagMenu(true);
+              } else {
+                showToast({
+                  message: t('common.connectionRequired'),
+                  type: 'error',
+                });
+              }
+            }}
           >
             <Text style={styles.filterDropdownText}>
               {getTagName(selectedTagId)}
@@ -1383,13 +1453,21 @@ export default function DashboardScreen({ navigation }: any) {
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text style={styles.featuredImgText}>🛕</Text>
+                      <ImagePlaceholder />
                     )}
                     <TouchableOpacity
                       style={styles.heartBtn}
-                      onPress={() =>
-                        pId && handleToggleFavoriteServer(pId.toString())
-                      }
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) {
+                          pId && handleToggleFavoriteServer(pId.toString());
+                        } else {
+                          showToast({
+                            message: t('common.connectionRequired'),
+                            type: 'error',
+                          });
+                        }
+                      }}
                     >
                       <Text style={styles.heartIconText}>
                         {favorites.includes(pId.toString()) ? '❤️' : '🤍'}
@@ -1426,12 +1504,21 @@ export default function DashboardScreen({ navigation }: any) {
                         puja.puja_active_status === 0 && styles.bookBtnDisabled,
                       ]}
                       disabled={puja.puja_active_status === 0}
-                      onPress={() =>
-                        navigation.navigate('PujaDetails', {
-                          pujaId: pId.toString(),
-                          pujaData: puja,
-                        })
-                      }
+                      onPress={() => {
+                        NetInfo.fetch().then(state => {
+                          if (state.isConnected) {
+                            navigation.navigate('PujaDetails', {
+                              pujaId: pId.toString(),
+                              pujaData: puja,
+                            });
+                          } else {
+                            showToast({
+                              message: t('common.connectionRequired'),
+                              type: 'error',
+                            });
+                          }
+                        });
+                      }}
                     >
                       <Text
                         style={[
@@ -1458,11 +1545,19 @@ export default function DashboardScreen({ navigation }: any) {
             {filteredPujas.length > 5 && (
               <TouchableOpacity
                 style={styles.showMoreCard}
-                onPress={() =>
-                  navigation.navigate('AllPujas', {
-                    initialTagId: selectedTagId,
-                  })
-                }
+                onPress={async () => {
+                  const state = await NetInfo.fetch();
+                  if (state.isConnected) {
+                    navigation.navigate('AllPujas', {
+                      initialTagId: selectedTagId,
+                    });
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                }}
               >
                 <View style={styles.showMoreCardInner}>
                   <View style={styles.showMoreIconCircle}>
@@ -1524,9 +1619,17 @@ export default function DashboardScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={styles.popoverItem}
-                    onPress={() => {
-                      setShowProfileMenu(false);
-                      navigation.navigate('EditProfile');
+                    onPress={async () => {
+                      const state = await NetInfo.fetch();
+                      if (state.isConnected) {
+                        setShowProfileMenu(false);
+                        navigation.navigate('EditProfile');
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
                     }}
                   >
                     <Text style={styles.popoverItemIconOrange}>👤</Text>
@@ -1538,9 +1641,17 @@ export default function DashboardScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={styles.popoverItem}
-                    onPress={() => {
-                      setShowProfileMenu(false);
-                      navigation.navigate('Address');
+                    onPress={async () => {
+                      const state = await NetInfo.fetch();
+                      if (state.isConnected) {
+                        setShowProfileMenu(false);
+                        navigation.navigate('Address');
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
                     }}
                   >
                     <Text style={styles.popoverItemIconOrange}>📍</Text>
@@ -1551,9 +1662,17 @@ export default function DashboardScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={styles.popoverItem}
-                    onPress={() => {
-                      setShowProfileMenu(false);
-                      navigation.navigate('Orders');
+                    onPress={async () => {
+                      const state = await NetInfo.fetch();
+                      if (state.isConnected) {
+                        setShowProfileMenu(false);
+                        navigation.navigate('Orders');
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
                     }}
                   >
                     <Text style={styles.popoverItemIconOrange}>🕔</Text>

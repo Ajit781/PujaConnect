@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -19,6 +20,8 @@ import { useTranslation } from 'react-i18next';
 import { FEATURED_PUJAS } from '../../data/dummyData';
 import BookingModal from '../../components/booking/BookingModal';
 import NoDataFound from '../../components/common/NoDataFound';
+import ImagePlaceholder from '../../components/common/ImagePlaceholder';
+import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 import {
   useGetPujaImagesQuery,
@@ -29,8 +32,9 @@ import {
 
 export default function PujaDetailsScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const { showToast } = useToast();
   const { pujaId, pujaData } = route.params;
   const [refreshing, setRefreshing] = useState(false);
 
@@ -185,12 +189,10 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
       : [
           {
             id: 0,
-            content: pujaData ? '🛕' : puja.imagePlaceholder,
+            content: null,
             isUrl: false,
-            color: pujaData ? Colors.tagRed : puja.color,
+            color: Colors.tagRed,
           },
-          { id: 1, content: '🕉️', isUrl: false, color: Colors.tagYellow },
-          { id: 2, content: '🛕', isUrl: false, color: Colors.tagRed },
         ];
 
   return (
@@ -254,9 +256,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
                     resizeMode="cover"
                   />
                 ) : (
-                  <Text style={styles.bannerIconLarge}>
-                    {IMAGES[activeImageIndex].content}
-                  </Text>
+                  <ImagePlaceholder />
                 )}
                 <View style={styles.vedicTag}>
                   <Text style={styles.vedicTagText}>
@@ -285,16 +285,9 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
                           resizeMode="cover"
                         />
                       ) : (
-                        <Text
-                          style={[
-                            styles.thumbEmoji,
-                            activeImageIndex === idx
-                              ? styles.thumbEmojiActive
-                              : styles.thumbEmojiInactive,
-                          ]}
-                        >
-                          {img.content}
-                        </Text>
+                        <View style={styles.thumbPlaceholder}>
+                          <Text style={styles.thumbEmoji}>🛕</Text>
+                        </View>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -751,7 +744,18 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
             pujaData ? {} : !puja.isAvailable && styles.footerBtnDisabled,
           ]}
           disabled={pujaData ? false : !puja.isAvailable}
-          onPress={() => setShowBookingModal(true)}
+          onPress={() => {
+            NetInfo.fetch().then(state => {
+              if (state.isConnected) {
+                setShowBookingModal(true);
+              } else {
+                showToast({
+                  message: t('common.connectionRequired'),
+                  type: 'error',
+                });
+              }
+            });
+          }}
         >
           <Text style={styles.footerBtnText}>
             🛒 {isBn ? 'পূজা বুক করুন' : 'Book Puja'}
@@ -1009,7 +1013,6 @@ const styles = StyleSheet.create({
   bannerIconLarge: { fontSize: 100, opacity: 0.8 },
   floatingEmoji1: { top: 20, right: 20 },
   floatingEmoji2: { bottom: 20, left: 30 },
-  thumbEmoji: { fontSize: 24 },
   thumbEmojiActive: { opacity: 1 },
   thumbEmojiInactive: { opacity: 0.6 },
   comingSoonWrap: { padding: 40, alignItems: 'center' },
@@ -1296,4 +1299,15 @@ const styles = StyleSheet.create({
   flowerIconFontSize: { fontSize: 16 },
   inlineMarginHorizontal16Padding20: { marginHorizontal: 16, padding: 20 },
   inlineMargin40: { margin: 40 },
+  thumbPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  thumbEmoji: {
+    fontSize: 16,
+    opacity: 0.6,
+  },
 });

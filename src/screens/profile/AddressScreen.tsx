@@ -1,5 +1,6 @@
 /* eslint-disable react-native/no-inline-styles */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -32,6 +33,7 @@ import {
 } from '../../store/slices/addressSlice';
 import NoDataFound from '../../components/common/NoDataFound';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 import {
   useSaveAddressMutation,
@@ -89,8 +91,8 @@ const Field = ({
       placeholderTextColor={Colors.placeholder}
       value={val}
       maxLength={maxLength}
-      onChangeText={t => {
-        setVal(t);
+      onChangeText={text => {
+        setVal(text);
         if (setErrors) setErrors(prev => ({ ...prev, [lab]: '' }));
       }}
       keyboardType={(kbd as any) || 'default'}
@@ -192,8 +194,9 @@ const AddressCard = React.memo(
 
 export default function AddressScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const { showToast } = useToast();
   const dispatch = useDispatch();
   const { showAlert, showErrorAlert } = useAlert();
   const user = useSelector((state: RootState) => state.auth.user);
@@ -271,7 +274,15 @@ export default function AddressScreen({ navigation }: any) {
     setEditingId(null);
   };
 
-  const openAdd = () => {
+  const openAdd = async () => {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
     clearForm();
     setShowModal(true);
   };
@@ -333,6 +344,14 @@ export default function AddressScreen({ navigation }: any) {
   };
 
   const onRefresh = useCallback(async () => {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
     setRefreshing(true);
     try {
       await refetchAddresses();
@@ -341,7 +360,7 @@ export default function AddressScreen({ navigation }: any) {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchAddresses]);
+  }, [refetchAddresses, showToast, t]);
 
   useEffect(() => {
     const fetchTypes = async () => {
@@ -385,25 +404,36 @@ export default function AddressScreen({ navigation }: any) {
     }));
   }, [serverAddresses]);
 
-  const openEdit = useCallback((addr: Address) => {
-    setType(addr.type);
-    setLabel(addr.label);
-    setContactName(addr.contactName);
-    setContactNumber(addr.contactNumber);
-    setRelationType(addr.relationType);
-    setAddressLine1(addr.addressLine1);
-    setStreetArea(addr.streetArea);
-    setLandmark(addr.landmark);
-    setCity(addr.city);
-    setStateName(addr.state);
-    setPincode(addr.pincode);
-    setLatitude(addr.latitude || '');
-    setLongitude(addr.longitude || '');
-    setIsDefaultState(addr.isDefault || false);
-    setEditingId(addr.id);
-    setErrors({});
-    setShowModal(true);
-  }, []);
+  const openEdit = useCallback(
+    async (addr: Address) => {
+      const state = await NetInfo.fetch();
+      if (!state.isConnected) {
+        showToast({
+          message: t('common.connectionRequired'),
+          type: 'error',
+        });
+        return;
+      }
+      setType(addr.type);
+      setLabel(addr.label);
+      setContactName(addr.contactName);
+      setContactNumber(addr.contactNumber);
+      setRelationType(addr.relationType);
+      addressLine1 && setAddressLine1(addr.addressLine1);
+      setStreetArea(addr.streetArea);
+      setLandmark(addr.landmark);
+      setCity(addr.city);
+      setStateName(addr.state);
+      setPincode(addr.pincode);
+      setLatitude(addr.latitude || '');
+      setLongitude(addr.longitude || '');
+      setIsDefaultState(addr.isDefault || false);
+      setEditingId(addr.id);
+      setErrors({});
+      setShowModal(true);
+    },
+    [showToast, t, addressLine1],
+  );
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -428,12 +458,20 @@ export default function AddressScreen({ navigation }: any) {
 
   const handleSave = async () => {
     if (!validate()) return;
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
 
     try {
       dispatch(showLoader());
       const relId =
         SOCIAL_RELATIONS.find(r => r.name === relationType)?.id || 0;
-      const typeId = addressTypes.find(t => t.type === type)?.id || 1;
+      const typeId = addressTypes.find(at => at.type === type)?.id || 1;
 
       const payload = {
         in_ctzn_address_id: editingId ? parseInt(editingId, 10) : 0,
@@ -515,6 +553,14 @@ export default function AddressScreen({ navigation }: any) {
 
   const handleSetDefault = useCallback(
     async (addrId: string) => {
+      const state = await NetInfo.fetch();
+      if (!state.isConnected) {
+        showToast({
+          message: t('common.connectionRequired'),
+          type: 'error',
+        });
+        return;
+      }
       try {
         dispatch(showLoader());
         const result = await saveDefaultAddressMutation({
@@ -556,6 +602,8 @@ export default function AddressScreen({ navigation }: any) {
       showAlert,
       showErrorAlert,
       refetchAddresses,
+      showToast,
+      t,
     ],
   );
 
@@ -571,6 +619,14 @@ export default function AddressScreen({ navigation }: any) {
           {
             text: isBn ? 'মুছুন' : 'Delete',
             onPress: async () => {
+              const state = await NetInfo.fetch();
+              if (!state.isConnected) {
+                showToast({
+                  message: t('common.connectionRequired'),
+                  type: 'error',
+                });
+                return;
+              }
               dispatch(showLoader());
               try {
                 const payload = {
@@ -626,6 +682,8 @@ export default function AddressScreen({ navigation }: any) {
       deleteAddressMutation,
       user,
       refetchAddresses,
+      showToast,
+      t,
     ],
   );
 
@@ -801,22 +859,22 @@ export default function AddressScreen({ navigation }: any) {
                   {isBn ? 'ঠিকানার ধরন' : 'ADDRESS TYPE'}
                 </Text>
                 <View style={styles.typeRow}>
-                  {addressTypes.map(t => (
+                  {addressTypes.map(at => (
                     <TouchableOpacity
-                      key={t.id}
+                      key={at.id}
                       style={[
                         styles.typeChip,
-                        type === t.type && styles.typeChipOn,
+                        type === at.type && styles.typeChipOn,
                       ]}
-                      onPress={() => setType(t.type)}
+                      onPress={() => setType(at.type)}
                     >
                       <Text
                         style={[
                           styles.typeChipTxt,
-                          type === t.type && styles.typeChipTxtOn,
+                          type === at.type && styles.typeChipTxtOn,
                         ]}
                       >
-                        {t.type}
+                        {at.type}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -840,7 +898,9 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'পুরো নাম' : 'Full Name'}
                   req
                   val={contactName}
-                  setVal={t => setContactName(t.replace(/[^a-zA-Z\s.-]/g, ''))}
+                  setVal={txt =>
+                    setContactName(txt.replace(/[^a-zA-Z\s.-]/g, ''))
+                  }
                   place="John Doe"
                   err={errors.contactName}
                   setErrors={setErrors}
@@ -849,7 +909,7 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'ফোন নম্বর' : 'Phone Number'}
                   req
                   val={contactNumber}
-                  setVal={t => setContactNumber(t.replace(/[^0-9]/g, ''))}
+                  setVal={txt => setContactNumber(txt.replace(/[^0-9]/g, ''))}
                   place="1234567890"
                   kbd="phone-pad"
                   maxLength={10}
@@ -886,8 +946,8 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'ঠিকানা (লাইন ১)' : 'Address line 1'}
                   req
                   val={addressLine1}
-                  setVal={t =>
-                    setAddressLine1(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  setVal={txt =>
+                    setAddressLine1(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
                   }
                   place="House No, Building"
                   err={errors.addressLine1}
@@ -896,16 +956,16 @@ export default function AddressScreen({ navigation }: any) {
                 <Field
                   lab={isBn ? 'রাস্তা / এলাকা' : 'Street / Area'}
                   val={streetArea}
-                  setVal={t =>
-                    setStreetArea(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  setVal={txt =>
+                    setStreetArea(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
                   }
                   place="Near mall, park"
                 />
                 <Field
                   lab={isBn ? 'ল্যান্ডমার্ক' : 'Landmark'}
                   val={landmark}
-                  setVal={t =>
-                    setLandmark(t.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
+                  setVal={txt =>
+                    setLandmark(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))
                   }
                   place="Near hospital"
                 />
@@ -915,7 +975,7 @@ export default function AddressScreen({ navigation }: any) {
                     lab={isBn ? 'শহর' : 'City'}
                     req
                     val={city}
-                    setVal={t => setCity(t.replace(/[^a-zA-Z\s.-]/g, ''))}
+                    setVal={txt => setCity(txt.replace(/[^a-zA-Z\s.-]/g, ''))}
                     place="Kolkata"
                     err={errors.city}
                     setErrors={setErrors}
@@ -923,7 +983,9 @@ export default function AddressScreen({ navigation }: any) {
                   <Field
                     lab={isBn ? 'রাজ্য' : 'State'}
                     val={stateName}
-                    setVal={t => setStateName(t.replace(/[^a-zA-Z\s.-]/g, ''))}
+                    setVal={txt =>
+                      setStateName(txt.replace(/[^a-zA-Z\s.-]/g, ''))
+                    }
                     place="West Bengal"
                   />
                 </View>
@@ -932,7 +994,7 @@ export default function AddressScreen({ navigation }: any) {
                   lab={isBn ? 'পিনকোড' : 'Pincode'}
                   req
                   val={pincode}
-                  setVal={t => setPincode(t.replace(/[^0-9]/g, ''))}
+                  setVal={txt => setPincode(txt.replace(/[^0-9]/g, ''))}
                   place="700001"
                   kbd="number-pad"
                   maxLength={6}

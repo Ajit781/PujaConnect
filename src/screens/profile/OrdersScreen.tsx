@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -23,6 +24,7 @@ import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 import NoDataFound from '../../components/common/NoDataFound';
+import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 
 const BRAND_PRIMARY = Colors.primary;
@@ -178,8 +180,9 @@ const OrderCard = React.memo(
 
 export default function OrdersScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const { showToast } = useToast();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const STATUS_TABS = [
@@ -256,6 +259,14 @@ export default function OrdersScreen({ navigation }: any) {
   );
 
   const onRefresh = React.useCallback(async () => {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
     setRefreshing(true);
     try {
       await Promise.all([refetchBookings(), refetchCount()]);
@@ -264,7 +275,7 @@ export default function OrdersScreen({ navigation }: any) {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchBookings, refetchCount]);
+  }, [refetchBookings, refetchCount, showToast, t]);
 
   // Reset page when filters change
   React.useEffect(() => {
@@ -297,15 +308,37 @@ export default function OrdersScreen({ navigation }: any) {
     setActiveDatePicker(null);
   };
 
-  const handlePressDetails = React.useCallback((id: string) => {
-    setSelectedOrderId(id);
-    setShowDetailsModal(true);
-  }, []);
+  const handlePressDetails = React.useCallback(
+    async (id: string) => {
+      const state = await NetInfo.fetch();
+      if (!state.isConnected) {
+        showToast({
+          message: t('common.connectionRequired'),
+          type: 'error',
+        });
+        return;
+      }
+      setSelectedOrderId(id);
+      setShowDetailsModal(true);
+    },
+    [showToast, t],
+  );
 
-  const handlePressCancel = React.useCallback((id: string) => {
-    setSelectedOrderId(id);
-    setShowCancelModal(true);
-  }, []);
+  const handlePressCancel = React.useCallback(
+    async (id: string) => {
+      const state = await NetInfo.fetch();
+      if (!state.isConnected) {
+        showToast({
+          message: t('common.connectionRequired'),
+          type: 'error',
+        });
+        return;
+      }
+      setSelectedOrderId(id);
+      setShowCancelModal(true);
+    },
+    [showToast, t],
+  );
 
   return (
     <View style={styles.container}>
@@ -336,7 +369,7 @@ export default function OrdersScreen({ navigation }: any) {
           data={STATUS_TABS}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={t => t.value.toString()}
+          keyExtractor={tabObj => tabObj.value.toString()}
           contentContainerStyle={styles.tabsContent}
           renderItem={({ item: tab }) => (
             <TouchableOpacity
@@ -344,7 +377,17 @@ export default function OrdersScreen({ navigation }: any) {
                 styles.tabBtn,
                 activeTab.value === tab.value && styles.tabBtnActive,
               ]}
-              onPress={() => setActiveTab(tab)}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  setActiveTab(tab);
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text
                 style={[
@@ -386,7 +429,17 @@ export default function OrdersScreen({ navigation }: any) {
           {/* Payment Filter Dropdown */}
           <TouchableOpacity
             style={styles.filterDropdown}
-            onPress={() => setShowPaymentDropdown(true)}
+            onPress={async () => {
+              const state = await NetInfo.fetch();
+              if (state.isConnected) {
+                setShowPaymentDropdown(true);
+              } else {
+                showToast({
+                  message: t('common.connectionRequired'),
+                  type: 'error',
+                });
+              }
+            }}
           >
             <Text style={styles.filterDropdownText} numberOfLines={1}>
               {paymentFilter.label}
@@ -403,7 +456,17 @@ export default function OrdersScreen({ navigation }: any) {
             </Text>
             <TouchableOpacity
               style={styles.dateBox}
-              onPress={() => setActiveDatePicker('from')}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  setActiveDatePicker('from');
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text style={styles.dateIcon}>📅</Text>
               <Text
@@ -420,7 +483,17 @@ export default function OrdersScreen({ navigation }: any) {
             </Text>
             <TouchableOpacity
               style={styles.dateBox}
-              onPress={() => setActiveDatePicker('to')}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  setActiveDatePicker('to');
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text style={styles.dateIcon}>📅</Text>
               <Text
@@ -506,7 +579,18 @@ export default function OrdersScreen({ navigation }: any) {
                   styles.pageBtn,
                   isPrevDisabled && styles.pageBtnDisabled,
                 ]}
-                onPress={() => !isPrevDisabled && setPageNo(p => p - 1)}
+                onPress={async () => {
+                  if (isPrevDisabled) return;
+                  const state = await NetInfo.fetch();
+                  if (state.isConnected) {
+                    setPageNo(p => p - 1);
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                }}
                 disabled={isPrevDisabled}
               >
                 <Text style={styles.pageBtnText}>
@@ -525,7 +609,18 @@ export default function OrdersScreen({ navigation }: any) {
                   styles.pageBtn,
                   isNextDisabled && styles.pageBtnDisabled,
                 ]}
-                onPress={() => !isNextDisabled && setPageNo(p => p + 1)}
+                onPress={async () => {
+                  if (isNextDisabled) return;
+                  const state = await NetInfo.fetch();
+                  if (state.isConnected) {
+                    setPageNo(p => p + 1);
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                }}
                 disabled={isNextDisabled}
               >
                 <Text style={styles.pageBtnText}>

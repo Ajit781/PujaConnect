@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -18,6 +19,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { markWishlistAsSeen } from '../../store/slices/wishlistSlice';
 import NoDataFound from '../../components/common/NoDataFound';
+import ImagePlaceholder from '../../components/common/ImagePlaceholder';
+import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 import {
   useGetTagPujasQuery,
@@ -30,6 +33,8 @@ export default function WishlistScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const dispatch = useDispatch();
+  const { t } = useTranslation();
+  const { showToast } = useToast();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -139,11 +144,21 @@ export default function WishlistScreen({ navigation }: any) {
                 resizeMode="cover"
               />
             ) : (
-              <Text style={styles.pujaImgText}>🛕</Text>
+              <ImagePlaceholder />
             )}
             <TouchableOpacity
               style={styles.heartBtn}
-              onPress={() => pId && handleToggleFavorite(pId.toString())}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  pId && handleToggleFavorite(pId.toString());
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text style={styles.heartIconText}>{isFav ? '❤️' : '🤍'}</Text>
             </TouchableOpacity>
@@ -174,12 +189,21 @@ export default function WishlistScreen({ navigation }: any) {
                 puja.puja_active_status === 0 && styles.bookBtnDisabled,
               ]}
               disabled={puja.puja_active_status === 0}
-              onPress={() =>
-                navigation.navigate('PujaDetails', {
-                  pujaId: pId?.toString(),
-                  pujaData: puja,
-                })
-              }
+              onPress={() => {
+                NetInfo.fetch().then(state => {
+                  if (state.isConnected) {
+                    navigation.navigate('PujaDetails', {
+                      pujaId: pId?.toString(),
+                      pujaData: puja,
+                    });
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                });
+              }}
             >
               <Text style={styles.bookBtnText}>
                 {puja.puja_active_status !== 0
@@ -195,7 +219,7 @@ export default function WishlistScreen({ navigation }: any) {
         </View>
       );
     },
-    [favorites, handleToggleFavorite, isBn, navigation],
+    [favorites, handleToggleFavorite, isBn, navigation, showToast, t],
   );
 
   const renderHeader = () => (

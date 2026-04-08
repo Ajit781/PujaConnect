@@ -6,20 +6,22 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  StatusBar,
   Image,
   Keyboard,
-  Alert,
   Animated,
   Easing,
   RefreshControl,
+  StatusBar,
 } from 'react-native';
+import { decode as base64Decode } from 'base-64';
+import { startPayment_ } from '../../utils/edgePayment';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -43,6 +45,8 @@ import {
   useBookPujaMutation,
 } from '../../store/api/pujaApi';
 import NoDataFound from '../../components/common/NoDataFound';
+import { useToast } from '../../context/ToastContext';
+import { CustomAlert } from '../../components/common/CustomAlert';
 import SchedulePujasModal, {
   ScheduleItemPayload,
 } from '../../components/booking/SchedulePujasModal';
@@ -54,8 +58,15 @@ const BRAND_MUTED = Colors.textMuted;
 
 export default function CartScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const { showToast } = useToast();
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: any[];
+  }>({ visible: false, title: '' });
   const dispatch = useDispatch();
   const [manageCart] = useManagePujaCartMutation();
   const [bookPuja] = useBookPujaMutation();
@@ -76,6 +87,44 @@ export default function CartScreen({ navigation }: any) {
     );
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  // --- Edge RN SDK Transaction Handler ---
+  const handleTransactionSuccess = (redirectUrl: string) => {
+    console.log(
+      'Redirect URL inside handleTransactionSuccess is:',
+      redirectUrl,
+    ); // Log the URL before passing it
+    const paymentOptionsData = {
+      options: {
+        redirectUrl: redirectUrl,
+      },
+    };
+
+    // Call startPayment_ and pass the handleTransaction callback
+    startPayment_(paymentOptionsData, (response: any) => {
+      console.log('Edge Payment Response:', response);
+
+      const statusStr = response?.status || response?.code || 'Unknown';
+
+      setAlertConfig({
+        visible: true,
+        title: isBn ? 'পেমেন্ট রেসপন্স' : 'Payment Response',
+        message: `Status: ${statusStr}\nMessage: ${
+          response?.message || 'Transaction event resolved.'
+        }`,
+        buttons: [
+          {
+            text: 'OK',
+            onPress: () =>
+              setAlertConfig(prev => ({ ...prev, visible: false })),
+          },
+        ],
+      });
+
+      // Optionally handle specific status here
+      // onTransactionResponse, internetNotAvailable, onErrorOccured, onPressedBackButton, onCancelTxn
+    });
+  };
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
@@ -304,6 +353,34 @@ export default function CartScreen({ navigation }: any) {
           bookingData = response.data || {};
         }
 
+        // Handle Payment Redirect via Edge SDK
+        if (bookingData.redirect_url) {
+          try {
+            const redirectUrl = base64Decode(bookingData.redirect_url);
+            console.log('Redirecting to edge payment SDK:', redirectUrl);
+
+            // Execute the Edge SDK Payment flow
+            handleTransactionSuccess(redirectUrl);
+          } catch (e) {
+            console.error('Base64 decode failed for edge SDK', e);
+            setAlertConfig({
+              visible: true,
+              title: isBn ? 'পেমেন্ট ত্রুটি' : 'Payment Error',
+              message: 'Failed to parse payment URL for Edge SDK.',
+              buttons: [
+                {
+                  text: 'OK',
+                  onPress: () =>
+                    setAlertConfig(prev => ({ ...prev, visible: false })),
+                },
+              ],
+            });
+          }
+          dispatch(hideLoader());
+          setShowAddressModal(false);
+          return; // Do not show booking confirmed page since payment is pending
+        }
+
         const now = new Date();
         const dateString = `${now.getFullYear()}${(now.getMonth() + 1)
           .toString()
@@ -347,20 +424,36 @@ export default function CartScreen({ navigation }: any) {
       } else {
         dispatch(hideLoader());
         console.error('Booking failed API Response:', response);
-        Alert.alert(
-          isBn ? 'বুকিং ব্যর্থ হয়েছে' : 'Booking Failed',
-          response.message || 'An error occurred.',
-        );
+        setAlertConfig({
+          visible: true,
+          title: isBn ? 'বুকিং ব্যর্থ হয়েছে' : 'Booking Failed',
+          message: response.message || 'An error occurred.',
+          buttons: [
+            {
+              text: 'OK',
+              onPress: () =>
+                setAlertConfig(prev => ({ ...prev, visible: false })),
+            },
+          ],
+        });
       }
     } catch (err) {
       dispatch(hideLoader());
       console.error('Booking failed Exception:', err);
-      Alert.alert(
-        isBn ? 'ত্রুটি' : 'Error',
-        isBn
+      setAlertConfig({
+        visible: true,
+        title: isBn ? 'ত্রুটি' : 'Error',
+        message: isBn
           ? 'বুকিং সম্পূর্ণ করতে অক্ষম। অনুগ্ৰহ করে আবার চেষ্টা করুন।'
           : 'Unable to complete the booking. Please try again.',
-      );
+        buttons: [
+          {
+            text: 'OK',
+            onPress: () =>
+              setAlertConfig(prev => ({ ...prev, visible: false })),
+          },
+        ],
+      });
     }
   };
 
@@ -721,7 +814,17 @@ export default function CartScreen({ navigation }: any) {
                     </Text>
                   </View>
                   <TouchableOpacity
-                    onPress={() => handleRemoveSingleItem(item.cartItemId)}
+                    onPress={async () => {
+                      const state = await NetInfo.fetch();
+                      if (state.isConnected) {
+                        handleRemoveSingleItem(item.cartItemId);
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
+                    }}
                     style={styles.deleteBtn}
                   >
                     <Text style={styles.deleteIcon}>🗑️</Text>
@@ -755,7 +858,17 @@ export default function CartScreen({ navigation }: any) {
 
             <TouchableOpacity
               style={styles.addMoreBtn}
-              onPress={() => navigation.navigate('AllPujas')}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  navigation.navigate('AllPujas');
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
             >
               <Text style={styles.addMoreBtnText}>
                 + {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
@@ -831,7 +944,17 @@ export default function CartScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.clearCartBtn}
-            onPress={handleClearAllCart}
+            onPress={async () => {
+              const state = await NetInfo.fetch();
+              if (state.isConnected) {
+                handleClearAllCart();
+              } else {
+                showToast({
+                  message: t('common.connectionRequired'),
+                  type: 'error',
+                });
+              }
+            }}
           >
             <Text style={styles.clearCartBtnText}>
               {isBn ? 'কার্ট মুছুন' : 'Clear Cart'}
@@ -868,7 +991,17 @@ export default function CartScreen({ navigation }: any) {
               </View>
               <TouchableOpacity
                 style={styles.fixedFooterBtn}
-                onPress={() => setShowScheduleModal(true)}
+                onPress={async () => {
+                  const state = await NetInfo.fetch();
+                  if (state.isConnected) {
+                    setShowScheduleModal(true);
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                }}
               >
                 <Text style={styles.fixedFooterBtnText}>
                   {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
@@ -915,12 +1048,21 @@ export default function CartScreen({ navigation }: any) {
               <TouchableOpacity
                 style={styles.modalActionBtn}
                 onPress={() => {
-                  setShowConfirmModal(false);
-                  const def = addresses.find(a => a.isDefault);
-                  if (def) setSelectedAddressId(def.id);
-                  else if (addresses.length > 0)
-                    setSelectedAddressId(addresses[0].id);
-                  setTimeout(() => setShowAddressModal(true), 300);
+                  NetInfo.fetch().then(state => {
+                    if (state.isConnected) {
+                      setShowConfirmModal(false);
+                      const def = addresses.find(a => a.isDefault);
+                      if (def) setSelectedAddressId(def.id);
+                      else if (addresses.length > 0)
+                        setSelectedAddressId(addresses[0].id);
+                      setTimeout(() => setShowAddressModal(true), 300);
+                    } else {
+                      showToast({
+                        message: t('common.connectionRequired'),
+                        type: 'error',
+                      });
+                    }
+                  });
                 }}
               >
                 <Text style={styles.modalActionBtnText}>
@@ -985,7 +1127,17 @@ export default function CartScreen({ navigation }: any) {
                   </Text>
                   <TouchableOpacity
                     style={styles.addNewInlineBtn}
-                    onPress={handleAddAddressNav}
+                    onPress={async () => {
+                      const state = await NetInfo.fetch();
+                      if (state.isConnected) {
+                        handleAddAddressNav();
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
+                    }}
                   >
                     <Text style={styles.addNewInlineBtnTxt}>
                       + {isBn ? 'নতুন যোগ করুন' : 'Add New'}
@@ -1075,7 +1227,18 @@ export default function CartScreen({ navigation }: any) {
 
                 <TouchableOpacity
                   style={styles.addAnotherBtnDashed}
-                  onPress={handleAddAddressNav}
+                  onPress={() => {
+                    NetInfo.fetch().then(state => {
+                      if (state.isConnected) {
+                        handleAddAddressNav();
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
+                    });
+                  }}
                 >
                   <Text style={styles.addAnotherBtnDashedTxt}>
                     + {isBn ? 'আরেকটি ঠিকানা যোগ করুন' : 'Add Another Address'}
@@ -1101,7 +1264,18 @@ export default function CartScreen({ navigation }: any) {
                       opacity: 0.5,
                     },
                   ]}
-                  onPress={() => handleConfirmOrder()}
+                  onPress={() => {
+                    NetInfo.fetch().then(state => {
+                      if (state.isConnected) {
+                        handleConfirmOrder();
+                      } else {
+                        showToast({
+                          message: t('common.connectionRequired'),
+                          type: 'error',
+                        });
+                      }
+                    });
+                  }}
                   disabled={!selectedAddressId || addresses.length === 0}
                 >
                   <Text style={styles.modalConfirmBtnTxt}>
@@ -1128,6 +1302,14 @@ export default function CartScreen({ navigation }: any) {
           handleConfirmOrder(schedules);
         }}
         onAddNewAddress={handleAddAddressNav}
+      />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );

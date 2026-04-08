@@ -19,6 +19,10 @@
       "mobileRequired": "Mobile number is required",
       "mobileTooShort": "Enter a valid 10-digit mobile number",
       "mobileInvalid": "Mobile number must start with 6, 7, 8 or 9"
+    },
+    "common": {
+      "noImage": "No Image Available",
+      "connectionRequired": "Internet connection required for this action"
     }
   }
 }

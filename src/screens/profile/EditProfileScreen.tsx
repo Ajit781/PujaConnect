@@ -1,5 +1,6 @@
 /* eslint-disable react-native/no-inline-styles */
 import React, { useState, useCallback } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -30,6 +31,7 @@ import CustomDatePickerModal from '../../components/common/CustomDatePickerModal
 import CustomTimePickerModal from '../../components/common/CustomTimePickerModal';
 import Dropdown from '../../components/common/Dropdown';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
+import { useToast } from '../../context/ToastContext';
 
 const BRAND_ORANGE = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -171,8 +173,9 @@ const SOCIAL_RELATIONS = [
 
 export default function EditProfileScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const { showToast } = useToast();
   const { showAlert, showErrorAlert } = useAlert();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
@@ -540,6 +543,15 @@ export default function EditProfileScreen({ navigation }: any) {
   const handleSaveProfile = async () => {
     if (!validateProfile()) return;
 
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
+
     try {
       dispatch(showLoader());
       const payload = {
@@ -635,6 +647,14 @@ export default function EditProfileScreen({ navigation }: any) {
         {
           text: isBn ? 'মুছুন' : 'Delete',
           onPress: async () => {
+            const state = await NetInfo.fetch();
+            if (!state.isConnected) {
+              showToast({
+                message: t('common.connectionRequired'),
+                type: 'error',
+              });
+              return;
+            }
             try {
               dispatch(showLoader());
               const payload = { relative_id: parseInt(id, 10) };
@@ -734,6 +754,15 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const handleSaveRelative = async () => {
     if (!validateRelative()) return;
+
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      showToast({
+        message: t('common.connectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
 
     try {
       dispatch(showLoader());
