@@ -466,8 +466,8 @@ const styles = StyleSheet.create({
   cellText: { fontSize: 14, color: Colors.textMain },
   cellSelected: { backgroundColor: Colors.primary, borderRadius: 20 },
   cellTextSelected: { color: '#fff', fontWeight: 'bold' },
-  cellDisabled: { opacity: 0.3 },
-  cellTextDisabled: { color: '#999' },
+  cellDisabled: { opacity: 0.6 },
+  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
 
   titleRow: {
     flexDirection: 'row',

@@ -119,8 +119,29 @@ export default function SchedulePujasModal({
       setActiveAddressDropdown(null);
       setSearchQuery('');
       setStep(1);
+
+      // Clear all selection data when modal is closed
+      setGlobalDate(null);
+      setGlobalTime(null);
+      setGlobalAddressId(null);
+      setPreparedPayload([]);
+      setCurrentMonth(new Date());
+
+      // Reset individual schedules
+      const initialSchedules: Record<
+        string,
+        { date: Date | null; time: string | null; addressId: string | null }
+      > = {};
+      cartItems.forEach(item => {
+        initialSchedules[item.cartItemId] = {
+          date: null,
+          time: null,
+          addressId: null,
+        };
+      });
+      setItemSchedules(initialSchedules);
     }
-  }, [visible]);
+  }, [visible, cartItems]);
 
   useEffect(() => {
     // Reset search query when dropdown changes
@@ -1156,7 +1177,7 @@ const styles = StyleSheet.create({
   calDayActive: { backgroundColor: Colors.primary, borderRadius: 20 },
   calDayText: { fontSize: 13, color: Colors.textMain },
   calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
-  calDayPast: { color: Colors.textMuted },
+  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
 
   // Address selection styles
   addrOptionCard: {

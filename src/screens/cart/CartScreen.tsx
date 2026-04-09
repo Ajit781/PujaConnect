@@ -19,9 +19,10 @@ import {
   Easing,
   RefreshControl,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { decode as base64Decode } from 'base-64';
-import { startPayment_ } from '../../utils/edgePayment';
+import { PluralWebView } from '../../components/payment/PluralWebView';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -87,31 +88,43 @@ export default function CartScreen({ navigation }: any) {
     );
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
-  // --- Edge RN SDK Transaction Handler ---
-  const handleTransactionSuccess = (redirectUrl: string) => {
-    console.log(
-      'Redirect URL inside handleTransactionSuccess is:',
-      redirectUrl,
-    ); // Log the URL before passing it
-    const paymentOptionsData = {
-      options: {
-        redirectUrl: redirectUrl,
-      },
-    };
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentOrderRef, setPaymentOrderRef] = useState<string | null>(null);
 
-    // Call startPayment_ and pass the handleTransaction callback
-    startPayment_(paymentOptionsData, (response: any) => {
-      console.log('Edge Payment Response:', response);
+  const handlePaymentResult = (res: {
+    status: 'response' | 'error';
+    url?: string;
+    reason?: string;
+    encData?: string;
+    orderId?: string;
+  }) => {
+    setPaymentUrl(null); // close WebView
 
-      const statusStr = response?.status || response?.code || 'Unknown';
-
+    if (res.status === 'response') {
+      // Payment succeeded — show booking confirmed
+      setPaymentOrderRef(res.orderId || res.encData || null);
+      setPaymentConfirmed(true);
+    } else {
+      // Payment failed or cancelled
+      const isCancelled = res.reason === 'User Cancelled';
       setAlertConfig({
         visible: true,
-        title: isBn ? 'পেমেন্ট রেসপন্স' : 'Payment Response',
-        message: `Status: ${statusStr}\nMessage: ${
-          response?.message || 'Transaction event resolved.'
-        }`,
+        title: isCancelled
+          ? isBn
+            ? 'পেমেন্ট বাতিল'
+            : 'Payment Cancelled'
+          : isBn
+          ? 'পেমেন্ট ব্যর্থ'
+          : 'Payment Failed',
+        message: isBn
+          ? isCancelled
+            ? 'আপনি পেমেন্ট প্রক্রিয়াটি বাতিল করেছেন।'
+            : 'পেমেন্ট সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।'
+          : isCancelled
+          ? 'The payment process was cancelled by you.'
+          : res.reason || 'Payment could not be completed. Please try again.',
         buttons: [
           {
             text: 'OK',
@@ -120,10 +133,7 @@ export default function CartScreen({ navigation }: any) {
           },
         ],
       });
-
-      // Optionally handle specific status here
-      // onTransactionResponse, internetNotAvailable, onErrorOccured, onPressedBackButton, onCancelTxn
-    });
+    }
   };
 
   useEffect(() => {
@@ -353,20 +363,25 @@ export default function CartScreen({ navigation }: any) {
           bookingData = response.data || {};
         }
 
-        // Handle Payment Redirect via Edge SDK
+        // Handle Payment Redirect via Plural WebView
         if (bookingData.redirect_url) {
           try {
             const redirectUrl = base64Decode(bookingData.redirect_url);
-            console.log('Redirecting to edge payment SDK:', redirectUrl);
+            console.log('Decoded redirect URL:', redirectUrl);
 
-            // Execute the Edge SDK Payment flow
-            handleTransactionSuccess(redirectUrl);
+            // Validate it's a proper HTTPS URL before opening WebView
+            if (!redirectUrl || !redirectUrl.startsWith('http')) {
+              throw new Error('Invalid URL: ' + redirectUrl);
+            }
+
+            // Pass the decoded URL directly to PluralWebView
+            setPaymentUrl(redirectUrl);
           } catch (e) {
-            console.error('Base64 decode failed for edge SDK', e);
+            console.error('Base64 decode or URL validation failed:', e);
             setAlertConfig({
               visible: true,
               title: isBn ? 'পেমেন্ট ত্রুটি' : 'Payment Error',
-              message: 'Failed to parse payment URL for Edge SDK.',
+              message: 'Failed to open the payment page. Please try again.',
               buttons: [
                 {
                   text: 'OK',
@@ -378,7 +393,7 @@ export default function CartScreen({ navigation }: any) {
           }
           dispatch(hideLoader());
           setShowAddressModal(false);
-          return; // Do not show booking confirmed page since payment is pending
+          return; // Payment is pending — do not navigate to booking confirmed
         }
 
         const now = new Date();
@@ -1311,6 +1326,79 @@ export default function CartScreen({ navigation }: any) {
         buttons={alertConfig.buttons}
         onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
+
+      {/* Plural WebView Modal */}
+      <Modal
+        visible={!!paymentUrl}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setPaymentUrl(null)}
+      >
+        {paymentUrl && (
+          <PluralWebView
+            source={{ uri: paymentUrl }}
+            onPaymentResult={handlePaymentResult}
+            stopNavigationOnMatch={true}
+          />
+        )}
+      </Modal>
+
+      {/* Payment / Booking Confirmed Modal */}
+      <Modal
+        visible={paymentConfirmed}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {}}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            {/* Success icon */}
+            <View style={styles.confirmIconCircle}>
+              <Text style={styles.confirmIconText}>✓</Text>
+            </View>
+            <Text style={styles.confirmTitle}>
+              {isBn ? 'বুকিং নিশ্চিত হয়েছে!' : 'Booking Confirmed!'}
+            </Text>
+            <Text style={styles.confirmSub}>
+              {isBn
+                ? 'আপনার পূজা সফলভাবে বুক হয়েছে। আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।'
+                : 'Your puja has been successfully booked. We will get in touch with you shortly.'}
+            </Text>
+            {paymentOrderRef ? (
+              <View style={styles.confirmRefBox}>
+                <Text style={styles.confirmRefLabel}>
+                  {isBn ? 'রেফারেন্স নম্বর' : 'Reference No.'}
+                </Text>
+                <Text style={styles.confirmRefValue}>{paymentOrderRef}</Text>
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={styles.confirmGoOrdersBtn}
+              onPress={() => {
+                setPaymentConfirmed(false);
+                setPaymentOrderRef(null);
+                navigation.navigate('Orders' as never);
+              }}
+            >
+              <Text style={styles.confirmGoOrdersBtnText}>
+                {isBn ? 'অর্ডার দেখুন' : 'View My Orders'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.confirmHomeBtn}
+              onPress={() => {
+                setPaymentConfirmed(false);
+                setPaymentOrderRef(null);
+                navigation.navigate('Dashboard' as never);
+              }}
+            >
+              <Text style={styles.confirmHomeBtnText}>
+                {isBn ? 'হোমে ফিরুন' : 'Go to Home'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1986,5 +2074,98 @@ const styles = StyleSheet.create({
     color: BRAND_PRIMARY,
     fontWeight: '800',
     fontSize: 14,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 30,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  confirmIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.greenVeryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  confirmIconText: {
+    fontSize: 40,
+    color: Colors.greenMedium,
+    fontWeight: 'bold',
+  },
+  confirmTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.textMain,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  confirmSub: {
+    fontSize: 15,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  confirmRefBox: {
+    backgroundColor: Colors.lightOrange,
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  confirmRefLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  confirmRefValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  confirmGoOrdersBtn: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmGoOrdersBtnText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  confirmHomeBtn: {
+    paddingVertical: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  confirmHomeBtnText: {
+    color: Colors.textMuted,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

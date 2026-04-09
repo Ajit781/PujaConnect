@@ -548,5 +548,5 @@ const styles = StyleSheet.create({
   calDayActive: { backgroundColor: Colors.primary, borderRadius: 20 },
   calDayText: { fontSize: 13, color: Colors.textMain },
   calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
-  calDayPast: { color: Colors.textMuted, opacity: 0.3 },
+  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
 });

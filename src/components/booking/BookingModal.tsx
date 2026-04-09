@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   calDayActive: { backgroundColor: BRAND_PRIMARY, borderRadius: 20 },
   calDayText: { fontSize: 13, color: BRAND_TEXT },
   calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
-  calDayPast: { color: Colors.textMuted },
+  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
 
   dropdownMenuVertical: {
     marginTop: -16,
