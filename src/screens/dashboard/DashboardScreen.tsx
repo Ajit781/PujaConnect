@@ -772,19 +772,15 @@ export default function DashboardScreen({ navigation }: any) {
 
     // We now have the definitive result. Check the percentage.
     const rawPct = userDetails?.ctnz_profile_progress_percent;
-    const pct =
-      rawPct !== null && rawPct !== undefined && rawPct !== ''
-        ? parseFloat(String(rawPct))
-        : null;
-
-    console.log('[ProfileModal] check — pct:', pct, 'raw:', rawPct);
+    const pct = parseFloat(String(rawPct || '0'));
 
     // Disable the flag IMMEDIATELY so we never re-evaluate this login
     dispatch(clearNewLoginFlag());
 
-    // If the profile is 100% complete, do NOT show the modal
-    if (pct !== null && !isNaN(pct) && pct >= 100) {
-      return; // done, won't show
+    // If the profile is 100% or more complete, do NOT show the modal
+    if (pct >= 100) {
+      console.log('[ProfileModal] Profile is complete (100%), skipping modal.');
+      return;
     }
 
     // Otherwise, show the modal after a small delay for smooth UX

@@ -44,12 +44,7 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
   }) => {
     if (hasCalledResult.current) return;
     hasCalledResult.current = true;
-    console.log('[PluralWebView] 🏁 FINAL PAYMENT RESULT:');
-    console.log('[PluralWebView]   Status  :', res.status);
-    console.log('[PluralWebView]   Reason  :', res.reason);
-    console.log('[PluralWebView]   URL     :', res.url);
-    console.log('[PluralWebView]   encData :', res.encData);
-    console.log('[PluralWebView]   orderId :', res.orderId);
+    console.log('[PluralWebView]   Full Res :', JSON.stringify(res, null, 2));
     onPaymentResult(res);
   };
 
@@ -64,6 +59,10 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
       if (encData) {
         try {
           const decoded = JSON.parse(base64Decode(encData));
+          console.log(
+            '[PluralWebView] 📦 Decoded enc_data Payload:',
+            JSON.stringify(decoded, null, 2),
+          );
           orderId = String(decoded.order_id || decoded.txn_number || '');
         } catch {}
       }

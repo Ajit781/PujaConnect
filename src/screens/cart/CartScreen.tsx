@@ -92,6 +92,7 @@ export default function CartScreen({ navigation }: any) {
 
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentOrderRef, setPaymentOrderRef] = useState<string | null>(null);
+  const [paymentResult, setPaymentResult] = useState<any>(null);
 
   const handlePaymentResult = (res: {
     status: 'response' | 'error';
@@ -100,10 +101,15 @@ export default function CartScreen({ navigation }: any) {
     encData?: string;
     orderId?: string;
   }) => {
+    console.log(
+      '[CartScreen] 💳 Payment Result Received:',
+      JSON.stringify(res, null, 2),
+    );
     setPaymentUrl(null); // close WebView
 
     if (res.status === 'response') {
       // Payment succeeded — show booking confirmed
+      setPaymentResult(res);
       setPaymentOrderRef(res.orderId || res.encData || null);
       setPaymentConfirmed(true);
     } else {
@@ -351,7 +357,10 @@ export default function CartScreen({ navigation }: any) {
 
       const response = await bookPuja(payload).unwrap();
 
-      console.log('--- API: bookPuja Formatted Response ---', response);
+      console.log(
+        '--- API: bookPuja FULL Response ---',
+        JSON.stringify(response, null, 2),
+      );
 
       if (response?.status === 0 || String(response?.status) === '0') {
         let bookingData: any = {};
@@ -1372,11 +1381,50 @@ export default function CartScreen({ navigation }: any) {
                 <Text style={styles.confirmRefValue}>{paymentOrderRef}</Text>
               </View>
             ) : null}
+
+            {paymentResult && (
+              <View style={styles.paymentDetailsBox}>
+                <Text style={styles.paymentDetailsTitle}>
+                  {isBn ? 'পেমেন্ট বিবরণ' : 'Payment Details'}
+                </Text>
+                <View style={styles.paymentDetailRow}>
+                  <Text style={styles.paymentDetailLabel}>
+                    {isBn ? 'অবস্থা' : 'Status'}:
+                  </Text>
+                  <Text style={styles.paymentDetailValue}>
+                    {paymentResult.status === 'response'
+                      ? '✅ Success'
+                      : '❌ Error'}
+                  </Text>
+                </View>
+                {paymentResult.reason && (
+                  <View style={styles.paymentDetailRow}>
+                    <Text style={styles.paymentDetailLabel}>
+                      {isBn ? 'কারণ' : 'Reason'}:
+                    </Text>
+                    <Text style={styles.paymentDetailValue}>
+                      {paymentResult.reason}
+                    </Text>
+                  </View>
+                )}
+                {paymentResult.orderId && (
+                  <View style={styles.paymentDetailRow}>
+                    <Text style={styles.paymentDetailLabel}>
+                      {isBn ? 'অর্ডার আইডি' : 'Order ID'}:
+                    </Text>
+                    <Text style={styles.paymentDetailValue}>
+                      {paymentResult.orderId}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
             <TouchableOpacity
               style={styles.confirmGoOrdersBtn}
               onPress={() => {
                 setPaymentConfirmed(false);
                 setPaymentOrderRef(null);
+                setPaymentResult(null);
                 navigation.navigate('Orders' as never);
               }}
             >
@@ -1389,6 +1437,7 @@ export default function CartScreen({ navigation }: any) {
               onPress={() => {
                 setPaymentConfirmed(false);
                 setPaymentOrderRef(null);
+                setPaymentResult(null);
                 navigation.navigate('Dashboard' as never);
               }}
             >
@@ -2167,5 +2216,39 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // Payment Details in Success Modal
+  paymentDetailsBox: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  paymentDetailsTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  paymentDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  paymentDetailLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  paymentDetailValue: {
+    fontSize: 12,
+    color: '#1E293B',
+    fontWeight: '700',
   },
 });
