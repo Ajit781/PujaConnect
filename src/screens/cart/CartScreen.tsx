@@ -57,7 +57,7 @@ const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
-export default function CartScreen({ navigation }: any) {
+export default function CartScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
@@ -75,7 +75,7 @@ export default function CartScreen({ navigation }: any) {
   useFocusEffect(
     React.useCallback(() => {
       dispatch(markCartAsSeen());
-      return () => {};
+      return () => { };
     }, [dispatch]),
   );
 
@@ -83,8 +83,8 @@ export default function CartScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const { data: serverAddresses, refetch: refetchAddresses } =
     useGetAddressesQuery(
-      { userId: user?.user_id || 0, pageNo: 1, pageSize: 100 },
-      { skip: !user?.user_id },
+      { userId: user?.auth_id || user?.user_id || 0, pageNo: 1, pageSize: 100 },
+      { skip: !(user?.auth_id || user?.user_id) },
     );
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -93,6 +93,17 @@ export default function CartScreen({ navigation }: any) {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentOrderRef, setPaymentOrderRef] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<any>(null);
+
+  useEffect(() => {
+    if (route?.params?.confirmedSchedules) {
+      const schedules = route.params.confirmedSchedules;
+      setPujaScheduleList(schedules);
+      handleConfirmOrder(schedules);
+      
+      // Clear the param so it doesn't trigger again on subsequent renders
+      navigation.setParams({ confirmedSchedules: undefined });
+    }
+  }, [route?.params?.confirmedSchedules, navigation]);
 
   const handlePaymentResult = (res: {
     status: 'response' | 'error';
@@ -112,6 +123,10 @@ export default function CartScreen({ navigation }: any) {
       setPaymentResult(res);
       setPaymentOrderRef(res.orderId || res.encData || null);
       setPaymentConfirmed(true);
+      // Secretly clear the cart now that payment is done
+      // Call the API to clear server cart, but also force clear local Redux cart
+      handleClearAllCart();
+      dispatch(clearCart());
     } else {
       // Payment failed or cancelled
       const isCancelled = res.reason === 'User Cancelled';
@@ -122,15 +137,15 @@ export default function CartScreen({ navigation }: any) {
             ? 'পেমেন্ট বাতিল'
             : 'Payment Cancelled'
           : isBn
-          ? 'পেমেন্ট ব্যর্থ'
-          : 'Payment Failed',
+            ? 'পেমেন্ট ব্যর্থ'
+            : 'Payment Failed',
         message: isBn
           ? isCancelled
             ? 'আপনি পেমেন্ট প্রক্রিয়াটি বাতিল করেছেন।'
             : 'পেমেন্ট সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।'
           : isCancelled
-          ? 'The payment process was cancelled by you.'
-          : res.reason || 'Payment could not be completed. Please try again.',
+            ? 'The payment process was cancelled by you.'
+            : res.reason || 'Payment could not be completed. Please try again.',
         buttons: [
           {
             text: 'OK',
@@ -156,8 +171,43 @@ export default function CartScreen({ navigation }: any) {
   }, []);
 
   const addresses = useMemo(() => {
-    if (!serverAddresses || !Array.isArray(serverAddresses)) return [];
-    return serverAddresses.map((a: any) => ({
+    if (!serverAddresses) return [];
+
+    let allAddresses: any[] = [];
+    if (Array.isArray(serverAddresses)) {
+      allAddresses = serverAddresses;
+    } else {
+      // Parse Self Addresses
+      if (serverAddresses.citizen_info && Array.isArray(serverAddresses.citizen_info.address_list)) {
+        const citizen = serverAddresses.citizen_info;
+        const selfAddrs = citizen.address_list.map((a: any) => ({
+          ...a,
+          full_name: citizen.full_name,
+          phone: citizen.phone,
+          relation_type_name: 'Self',
+          ctzn_id: citizen.auth_id,
+        }));
+        allAddresses = [...allAddresses, ...selfAddrs];
+      }
+
+      // Parse Relative Addresses
+      if (Array.isArray(serverAddresses.relative_info)) {
+        serverAddresses.relative_info.forEach((rel: any) => {
+          if (Array.isArray(rel.address_list)) {
+            const relAddrs = rel.address_list.map((a: any) => ({
+              ...a,
+              full_name: rel.full_name,
+              phone: rel.phone,
+              relation_type_name: 'Relative',
+              ctzn_id: rel.auth_id,
+            }));
+            allAddresses = [...allAddresses, ...relAddrs];
+          }
+        });
+      }
+    }
+
+    return allAddresses.map((a: any) => ({
       id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
       type: a.address_type || a.address_type_name || 'Home',
       label: a.label || '',
@@ -193,10 +243,13 @@ export default function CartScreen({ navigation }: any) {
     { skip: !user?.user_id },
   );
 
+  const cartId = fullApiCartItems.length > 0 ? fullApiCartItems[0].cart_id : 0;
+
   const { data: cartSummary, refetch: refetchCartSummary } =
-    useGetPujaCartSummaryQuery(user?.user_id || 0, {
-      skip: !user?.user_id,
-    });
+    useGetPujaCartSummaryQuery(
+      { cartId, userId: user?.user_id || 0 },
+      { skip: !cartId || !user?.user_id }
+    );
 
   useEffect(() => {
     console.log('Cart Items Details:', fullApiCartItems);
@@ -247,6 +300,7 @@ export default function CartScreen({ navigation }: any) {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [activeAddressTab, setActiveAddressTab] = useState<'Self' | 'Relative'>('Self');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [pujaScheduleList, setPujaScheduleList] = useState<
     ScheduleItemPayload[]
@@ -338,9 +392,13 @@ export default function CartScreen({ navigation }: any) {
         : parseInt(selectedAddressId || '0', 10);
 
     try {
+      console.log('--- CHECKOUT USER OBJECT ---', user);
+      console.log('--- CHECKOUT AUTH_ID TO SEND ---', user?.auth_id || user?.user_id);
+      
       const payload = {
         in_booking_id: 0,
-        ctzn_id: user?.user_id || 0,
+        auth_id: user?.auth_id || user?.user_id || 0,
+        ctzn_id: user?.auth_id || user?.user_id || 0,
         cart_id: cart_id,
         payment_mode: 1,
         payment_status: 1,
@@ -362,12 +420,17 @@ export default function CartScreen({ navigation }: any) {
         JSON.stringify(response, null, 2),
       );
 
-      if (response?.status === 0 || String(response?.status) === '0') {
+      if (response?.status === 0 || String(response?.status) === '0' || response?.status === 104 || String(response?.status) === '104') {
+        if (response?.status === 104 || String(response?.status) === '104') {
+          // Clear cart immediately if status is 104 as requested
+          handleClearAllCart();
+          dispatch(clearCart());
+        }
         let bookingData: any = {};
         if (typeof response.data === 'string') {
           try {
             bookingData = JSON.parse(response.data);
-          } catch {}
+          } catch { }
         } else {
           bookingData = response.data || {};
         }
@@ -441,6 +504,7 @@ export default function CartScreen({ navigation }: any) {
         };
 
         dispatch(placeOrder(newOrder));
+        handleClearAllCart();
         dispatch(clearCart());
         dispatch(hideLoader());
         setShowAddressModal(false);
@@ -613,7 +677,7 @@ export default function CartScreen({ navigation }: any) {
             }}
             onPress={() => {
               setOrderSuccessRef(null);
-              navigation.navigate('Dashboard');
+              navigation.navigate('MainTabs');
             }}
           >
             <Text
@@ -805,7 +869,7 @@ export default function CartScreen({ navigation }: any) {
                     ]}
                   >
                     {item.imagePlaceholder &&
-                    item.imagePlaceholder.startsWith('http') ? (
+                      item.imagePlaceholder.startsWith('http') ? (
                       <Image
                         source={{ uri: item.imagePlaceholder }}
                         style={{
@@ -998,7 +1062,7 @@ export default function CartScreen({ navigation }: any) {
             style={[
               styles.fixedFooter,
               {
-                paddingBottom: Math.max(20, insets.bottom + 15),
+                paddingBottom: Math.max(120, insets.bottom + 115),
                 paddingTop: 16,
                 marginBottom: isKeyboardVisible ? 20 : 0,
               },
@@ -1018,7 +1082,11 @@ export default function CartScreen({ navigation }: any) {
                 onPress={async () => {
                   const state = await NetInfo.fetch();
                   if (state.isConnected) {
-                    setShowScheduleModal(true);
+                    navigation.navigate('SchedulePujas' as never, {
+                      cartItems: cartItemsMapped,
+                      addresses,
+                      grandTotal,
+                    } as never);
                   } else {
                     showToast({
                       message: t('common.connectionRequired'),
@@ -1028,7 +1096,7 @@ export default function CartScreen({ navigation }: any) {
                 }}
               >
                 <Text style={styles.fixedFooterBtnText}>
-                  {isBn ? 'এগিয়ে যান' : 'Checkout'} ✨
+                  {isBn ? 'এগিয়ে যান' : 'Proceed to checkout'} ✨
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1142,132 +1210,112 @@ export default function CartScreen({ navigation }: any) {
                 style={styles.modalBodyScroll}
                 showsVerticalScrollIndicator={false}
               >
-                <View style={styles.savedAddressesHeaderRow}>
-                  <Text style={styles.savedAddressesTitle}>
-                    {isBn ? 'সংরক্ষিত ঠিকানা' : 'SAVED ADDRESSES'}{' '}
-                    <Text style={{ color: Colors.gray }}>
-                      ({addresses.length})
-                    </Text>
-                  </Text>
+                <View style={{ flexDirection: 'row', marginBottom: 16, alignItems: 'center', backgroundColor: Colors.white, padding: 4, borderRadius: 24, borderWidth: 1, borderColor: Colors.disabled }}>
                   <TouchableOpacity
-                    style={styles.addNewInlineBtn}
-                    onPress={async () => {
-                      const state = await NetInfo.fetch();
-                      if (state.isConnected) {
-                        handleAddAddressNav();
-                      } else {
-                        showToast({
-                          message: t('common.connectionRequired'),
-                          type: 'error',
-                        });
-                      }
-                    }}
+                    style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Self' && { backgroundColor: Colors.primary }]}
+                    onPress={() => setActiveAddressTab('Self')}
                   >
-                    <Text style={styles.addNewInlineBtnTxt}>
-                      + {isBn ? 'নতুন যোগ করুন' : 'Add New'}
+                    <Text style={[{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }, activeAddressTab === 'Self' && { color: Colors.white }]}>
+                      👤 My Addresses
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Relative' && { backgroundColor: Colors.primary }]}
+                    onPress={() => setActiveAddressTab('Relative')}
+                  >
+                    <Text style={[{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }, activeAddressTab === 'Relative' && { color: Colors.white }]}>
+                      👥 Relatives
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                {addresses.length === 0 ? (
-                  <View style={styles.noAddressBox}>
-                    <Text style={styles.noAddressText}>
-                      {isBn
-                        ? 'কোনো সংরক্ষিত ঠিকানা নেই।'
-                        : 'No saved addresses found.'}
-                    </Text>
-                  </View>
-                ) : (
-                  addresses.map(addr => {
-                    const isSelected = selectedAddressId === addr.id;
-                    return (
-                      <TouchableOpacity
-                        key={addr.id}
-                        style={[
-                          styles.addrSelectCard,
-                          isSelected && styles.addrSelectCardActive,
-                        ]}
-                        onPress={() => setSelectedAddressId(addr.id)}
-                      >
-                        <View style={styles.addrSelectHeader}>
-                          <View
-                            style={[
-                              styles.addrSelectIconBox,
-                              isSelected && styles.addrSelectIconBoxActive,
-                            ]}
-                          >
-                            <Text style={styles.addrSelectIcon}>
-                              {addr.type === 'Home'
-                                ? '🏠'
-                                : addr.type === 'Work'
-                                ? '💼'
-                                : addr.type === 'Temple'
-                                ? '🛕'
-                                : '📍'}
-                            </Text>
-                          </View>
-                          <View style={styles.addrSelectInfo}>
-                            {addr.label ? (
-                              <View style={styles.addrLabelChip}>
-                                <Text style={styles.addrLabelChipTxt}>
-                                  🏷 {addr.label}
+                {(() => {
+                  const filteredAddresses = addresses.filter(addr => addr.relationType === activeAddressTab);
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }}>
+                          {filteredAddresses.length} addresses
+                        </Text>
+                        <TouchableOpacity
+                          style={{ backgroundColor: Colors.lightOrange, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+                          onPress={async () => {
+                            const state = await NetInfo.fetch();
+                            if (state.isConnected) {
+                              handleAddAddressNav();
+                            } else {
+                              showToast({ message: t('common.connectionRequired'), type: 'error' });
+                            }
+                          }}
+                        >
+                          <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>+ Add Address</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {filteredAddresses.length === 0 ? (
+                        <View style={styles.noAddressBox}>
+                          <Text style={styles.noAddressText}>
+                            {isBn
+                              ? 'কোনো সংরক্ষিত ঠিকানা নেই।'
+                              : 'No saved addresses found.'}
+                          </Text>
+                        </View>
+                      ) : (
+                        filteredAddresses.map(addr => {
+                          const isSelected = selectedAddressId === addr.id;
+                          return (
+                            <TouchableOpacity
+                              key={addr.id}
+                              style={[
+                                styles.addrSelectCard,
+                                { borderRadius: 16, padding: 16, marginBottom: 16 },
+                                isSelected && styles.addrSelectCardActive,
+                              ]}
+                              onPress={() => setSelectedAddressId(addr.id)}
+                            >
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                <View style={{ backgroundColor: addr.type === 'Home' ? '#FEF3C7' : addr.type === 'Work' ? '#DBEAFE' : '#F3F4F6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: addr.type === 'Home' ? '#D97706' : addr.type === 'Work' ? '#2563EB' : '#4B5563' }}>
+                                    {addr.type === 'Home' ? '🏠' : addr.type === 'Work' ? '💼' : '🏷️'} {addr.type}
+                                  </Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                  <TouchableOpacity onPress={() => {/* Handle Edit API */ }}>
+                                    <Text style={{ fontSize: 16, color: Colors.textMuted }}>✏️</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity onPress={() => {/* Handle Delete API */ }}>
+                                    <Text style={{ fontSize: 16, color: Colors.textMuted }}>🗑️</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+
+                              <View style={{ marginBottom: 12 }}>
+                                <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.textMain, marginBottom: 4 }}>
+                                  {addr.label || addr.contactName}
+                                </Text>
+                                <Text style={{ fontSize: 13, color: Colors.textMuted, lineHeight: 20 }}>
+                                  {addr.addressLine1 ? addr.addressLine1 + '\n' : ''}
+                                  {[addr.streetArea, addr.landmark].filter(Boolean).join(', ')}
+                                  {'\n'}
+                                  {[addr.city, addr.state].filter(Boolean).join(', ')} - {addr.pincode}
+                                </Text>
+                                <Text style={{ fontSize: 13, color: Colors.textMuted, marginTop: 8 }}>
+                                  📞 {addr.contactNumber}
                                 </Text>
                               </View>
-                            ) : null}
-                            <Text style={styles.addrSelectName}>
-                              {addr.contactName}
-                            </Text>
-                            <Text style={styles.addrSelectPhone}>
-                              📞 {addr.contactNumber}
-                            </Text>
-                            <Text style={styles.addrSelectText}>
-                              {addr.addressLine1}
-                            </Text>
-                            <Text style={styles.addrSelectSubText}>
-                              {[
-                                addr.streetArea,
-                                addr.landmark,
-                                addr.city,
-                                addr.state,
-                                addr.pincode,
-                              ]
-                                .filter(Boolean)
-                                .join(', ')}
-                            </Text>
-                          </View>
-                          <View
-                            style={[
-                              styles.radioCircle,
-                              isSelected && { borderColor: Colors.greenMedium },
-                            ]}
-                          >
-                            {isSelected && <View style={styles.radioDot} />}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
 
-                <TouchableOpacity
-                  style={styles.addAnotherBtnDashed}
-                  onPress={() => {
-                    NetInfo.fetch().then(state => {
-                      if (state.isConnected) {
-                        handleAddAddressNav();
-                      } else {
-                        showToast({
-                          message: t('common.connectionRequired'),
-                          type: 'error',
-                        });
-                      }
-                    });
-                  }}
-                >
-                  <Text style={styles.addAnotherBtnDashedTxt}>
-                    + {isBn ? 'আরেকটি ঠিকানা যোগ করুন' : 'Add Another Address'}
-                  </Text>
-                </TouchableOpacity>
+                              <TouchableOpacity style={{ borderWidth: 1, borderColor: Colors.lightOrange, backgroundColor: '#FFF7ED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
+                                <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 14 }}>
+                                  {addr.isDefault ? '★ Default Address' : '☆ Set as Default'}
+                                </Text>
+                              </TouchableOpacity>
+                            </TouchableOpacity>
+                          );
+                        })
+                      )}
+                    </>
+                  );
+                })()}
 
                 <View style={{ height: 4 }} />
               </ScrollView>
@@ -1357,7 +1405,7 @@ export default function CartScreen({ navigation }: any) {
         visible={paymentConfirmed}
         animationType="fade"
         transparent={true}
-        onRequestClose={() => {}}
+        onRequestClose={() => { }}
       >
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>
@@ -1811,7 +1859,7 @@ const styles = StyleSheet.create({
   },
   exploreBtnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
 
-  bottomSpacer: { height: 100 },
+  bottomSpacer: { height: 220 },
 
   modalOverlay: {
     flex: 1,

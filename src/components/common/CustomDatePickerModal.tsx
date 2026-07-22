@@ -225,7 +225,7 @@ export default function CustomDatePickerModal({
                   style={[
                     styles.cellText,
                     isSelected && styles.cellTextSelected,
-                    isDisabled && styles.cellTextDisabled,
+                    isDisabled && styles.cellDisabled,
                   ]}
                 >
                   {d}

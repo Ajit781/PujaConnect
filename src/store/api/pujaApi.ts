@@ -1,15 +1,17 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL, ENDPOINTS } from '../../config/apiConfig';
 import {
-  PujaTag,
   PujaType,
+  PujaTag,
   PujaImage,
   PujaPackage,
   PujaMaterial,
+  SummaryCount,
   PujaFullDetails,
   PujaCartItem,
   BookingSummary,
   BookingDetail,
+  OrderSummary,
 } from '../../service/api/dashboardService';
 import {
   getSystemToken,
@@ -143,12 +145,12 @@ export const pujaApi = createApi({
       providesTags: result =>
         result
           ? [
-              ...result.map((p: any) => ({
-                type: 'Pujas' as const,
-                id: p.puja_id || p.puja_type_id,
-              })),
-              { type: 'Pujas', id: 'LIST' },
-            ]
+            ...result.map((p: any) => ({
+              type: 'Pujas' as const,
+              id: p.puja_id || p.puja_type_id,
+            })),
+            { type: 'Pujas', id: 'LIST' },
+          ]
           : [{ type: 'Pujas', id: 'LIST' }],
     }),
     getPujaImages: builder.query<PujaImage[], string>({
@@ -318,13 +320,14 @@ export const pujaApi = createApi({
         total_booking_amount: number;
         total_payable_amount: number;
       } | null,
-      number | string
+      { cartId: number | string; userId: number | string }
     >({
-      query: userId => ({
+      query: ({ cartId, userId }) => ({
         url: ENDPOINTS.getPujaCartSummary,
         method: 'POST',
         body: {
           enc_data: JSON.stringify({
+            cart_id: Number(cartId),
             ctzn_id: Number(userId),
           }),
         },
@@ -460,12 +463,6 @@ export const pujaApi = createApi({
         console.log('--- API: saveUserProfile FILE ---', file);
         if (file) {
           formData.append('file', file);
-        } else {
-          formData.append('file', {
-            uri: 'file://empty',
-            name: 'empty.txt',
-            type: 'text/plain',
-          });
         }
         return {
           url: ENDPOINTS.saveUserProfile,
@@ -497,6 +494,25 @@ export const pujaApi = createApi({
       },
       invalidatesTags: ['Addresses'],
     }),
+    saveAddressV1: builder.mutation<
+      { status: number; message: string; data: any },
+      { data: string }
+    >({
+      query: ({ data }) => {
+        console.log('--- API: saveAddressV1 PAYLOAD ---', data);
+        return {
+          url: ENDPOINTS.saveAddressV1,
+          method: 'POST',
+          body: data,
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: saveAddressV1 RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Addresses'],
+    }),
     deleteAddress: builder.mutation<
       { status: number; message: string; data: any },
       { data: string }
@@ -517,21 +533,19 @@ export const pujaApi = createApi({
       invalidatesTags: ['Addresses'],
     }),
     getAddresses: builder.query<
-      any[],
+      any,
       {
         userId: string | number;
-        relationTypeId?: number;
         pageNo: number;
         pageSize: number;
       }
     >({
-      query: ({ userId, relationTypeId = 0, pageNo = 1, pageSize = 10 }) => {
+      query: ({ userId, pageNo = 1, pageSize = 10 }) => {
         const payload = {
           enc_data: JSON.stringify({
-            ctzn_id: userId.toString(),
-            relation_type_id: relationTypeId.toString(),
-            page_no: pageNo.toString(),
-            page_size: pageSize.toString(),
+            auth_id: Number(userId),
+            page_no: pageNo,
+            page_size: pageSize,
           }),
         };
         console.log(
@@ -542,6 +556,7 @@ export const pujaApi = createApi({
           url: ENDPOINTS.getAddresses,
           method: 'POST',
           body: payload,
+          headers: { 'Content-Type': 'application/json' },
         };
       },
       transformResponse: (response: any) => {
@@ -551,9 +566,9 @@ export const pujaApi = createApi({
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
-          return Array.isArray(data) ? data : [];
+          return data;
         }
-        return [];
+        return null;
       },
       providesTags: ['Addresses'],
     }),
@@ -623,8 +638,8 @@ export const pujaApi = createApi({
       },
       invalidatesTags: ['Cart'],
     }),
-    getBookingSummary: builder.query<
-      BookingSummary[],
+    getOrderSummary: builder.query<
+      OrderSummary[],
       {
         userId: number;
         status: number;
@@ -644,28 +659,40 @@ export const pujaApi = createApi({
         fromDate,
         toDate,
       }) => ({
-        url: ENDPOINTS.getBookingSummary,
+        url: ENDPOINTS.getOrderSummary,
         method: 'POST',
         body: {
           enc_data: JSON.stringify({
-            ctzn_id: userId,
-            status,
-            payment_status: paymentStatus,
+            citizen_id: userId,
+            order_status: status,
+            start_date: fromDate,
+            end_date: toDate,
             page_no: pageNo,
-            page_size: pageSize,
-            from_date: fromDate,
-            to_date: toDate,
+            limit: pageSize,
           }),
         },
       }),
       transformResponse: (response: any) => {
-        console.log('--- API: getBookingSummary RESPONSE ---', response);
+        console.log('--- API: getOrderSummary RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
           const data =
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
-          return Array.isArray(data) ? data : [];
+
+          if (Array.isArray(data)) {
+            return data.map((item: any) => ({
+              ...item,
+              booking_id: item.booking_id || item.order_id,
+              booking_no: item.booking_no || item.order_no || item.order_ref,
+              booking_create_date: item.booking_create_date || item.order_date || item.created_at,
+              booking_status: item.booking_status || item.order_status_name || item.order_status,
+              total_amount: item.total_amount || item.order_amount || 0,
+              total_amount_paid: item.total_amount_paid || item.paid_amount || 0,
+              payment_status: item.payment_status || item.payment_status_name || 'PENDING',
+            }));
+          }
+          return [];
         }
         return [];
       },
@@ -718,9 +745,10 @@ export const pujaApi = createApi({
         },
       }),
     }),
-    cancelBooking: builder.mutation<
+    cancelPuja: builder.mutation<
       any,
       {
+        order_id: number | string;
         booking_id: number | string;
         package_id: number | string;
         reason: string;
@@ -728,7 +756,7 @@ export const pujaApi = createApi({
       }
     >({
       query: payload => ({
-        url: ENDPOINTS.cancelBooking,
+        url: ENDPOINTS.cancelPuja,
         method: 'POST',
         body: {
           enc_data: JSON.stringify(payload),
@@ -758,7 +786,7 @@ export const pujaApi = createApi({
         return 0;
       },
     }),
-    getBookingSummaryCount: builder.query<
+    getOrderSummaryCount: builder.query<
       number,
       {
         userId: number;
@@ -769,15 +797,14 @@ export const pujaApi = createApi({
       }
     >({
       query: ({ userId, status, paymentStatus, fromDate, toDate }) => ({
-        url: ENDPOINTS.getBookingSummaryCount,
+        url: ENDPOINTS.getOrderSummaryCount,
         method: 'POST',
         body: {
           enc_data: JSON.stringify({
-            ctzn_id: userId,
-            status,
-            payment_status: paymentStatus,
-            from_date: fromDate,
-            to_date: toDate,
+            citizen_id: userId,
+            order_status: status,
+            start_date: fromDate,
+            end_date: toDate,
           }),
         },
       }),
@@ -790,6 +817,132 @@ export const pujaApi = createApi({
           return data?.total_puja_booking_summary_qty || 0;
         }
         return 0;
+      },
+    }),
+    getGotraDetails: builder.query<{ gotra_id: number; gotra_name: string }[], void>({
+      query: () => ({
+        url: ENDPOINTS.getGotraDetails,
+        method: 'POST',
+        body: {},
+      }),
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return Array.isArray(data) ? data : [];
+        }
+        return [];
+      },
+    }),
+    getStateDetails: builder.query<{ state_id: number; state_name: string }[], void>({
+      query: () => ({
+        url: ENDPOINTS.getStateDetails,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({ country_id: '75' }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          return Array.isArray(data) ? data : [];
+        }
+        return [];
+      },
+    }),
+    getStatusType: builder.query<{ status_type_id: number; status_type_name: string }[], void>({
+      query: () => ({
+        url: ENDPOINTS.getStatusType,
+        method: 'POST',
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getStatusType RAW RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          try {
+            const data =
+              typeof response.data === 'string'
+                ? JSON.parse(response.data)
+                : response.data;
+            console.log('--- API: getStatusType PARSED DATA ---', data);
+            return Array.isArray(data) ? data : [];
+          } catch (e) {
+            console.log('--- API: getStatusType PARSE ERROR ---', e);
+            return [];
+          }
+        }
+        return [];
+      },
+    }),
+    getAddressesCount: builder.query<number, { ctznId: number }>({
+      query: ({ ctznId }) => ({
+        url: ENDPOINTS.getAddressesCount,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({ ctzn_id: ctznId }),
+        },
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getAddressesCount RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          if (Array.isArray(data) && data.length > 0) {
+            return data[0].total_address_count || data.length;
+          }
+          return typeof data === 'number' ? data : 0;
+        }
+        return 0;
+      },
+      providesTags: ['Addresses'],
+    }),
+    getCheckoutDetailsByOrderId: builder.query<any, { orderId: number; ctznId: number }>({
+      query: ({ orderId, ctznId }) => {
+        const enc_data = JSON.stringify({
+          order_id: orderId,
+          ctzn_id: ctznId,
+        });
+        console.log('--- API: getCheckoutDetailsByOrderId PAYLOAD ---', { enc_data });
+        return {
+          url: ENDPOINTS.getCheckoutDetailsByOrderId,
+          method: 'POST',
+          body: {
+            enc_data,
+          },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API: getCheckoutDetailsByOrderId RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+        }
+        return null;
+      },
+    }),
+    getInvoiceDetails: builder.query<any, { order_id: number; booking_id: number }>({
+      query: ({ order_id, booking_id }) => ({
+        url: ENDPOINTS.getInvoiceDetails,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            order_id,
+            booking_id,
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getInvoiceDetails RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+        }
+        return null;
       },
     }),
   }),
@@ -812,14 +965,23 @@ export const {
   useSaveUserProfileMutation,
   useGetUserDetailsQuery,
   useSaveAddressMutation,
+  useSaveAddressV1Mutation,
   useGetAddressesQuery,
   useSaveDefaultAddressMutation,
   useDeleteAddressMutation,
   useBookPujaMutation,
-  useGetBookingSummaryQuery,
+  useGetOrderSummaryQuery,
   useGetBookingDetailsQuery,
   useReschedulePujaMutation,
-  useCancelBookingMutation,
+  useCancelPujaMutation,
   useGetAllPujaCountQuery,
-  useGetBookingSummaryCountQuery,
+  useGetOrderSummaryCountQuery,
+  useGetGotraDetailsQuery,
+  useGetStateDetailsQuery,
+  useGetStatusTypeQuery,
+  useGetAddressesCountQuery,
+  useLazyGetCheckoutDetailsByOrderIdQuery,
+  useLazyGetInvoiceDetailsQuery,
 } = pujaApi;
+
+

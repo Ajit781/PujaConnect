@@ -10,16 +10,27 @@ import {
   FlatList,
   Platform,
   RefreshControl,
+  Linking,
+  Modal,
+  SafeAreaView,
 } from 'react-native';
+import { decode as base64Decode } from 'base-64';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import OrderCard from '../../components/orders/OrderCard';
+import InvoiceModal from '../../components/orders/InvoiceModal';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
+import { PluralWebView } from '../../components/payment/PluralWebView';
 import {
-  useGetBookingSummaryQuery,
-  useGetBookingSummaryCountQuery,
+  useGetOrderSummaryQuery,
+  useGetOrderSummaryCountQuery,
+  useCancelPujaMutation,
+  useGetStatusTypeQuery,
+  useLazyGetCheckoutDetailsByOrderIdQuery,
+  useLazyGetInvoiceDetailsQuery,
 } from '../../store/api/pujaApi';
-import { BookingSummary } from '../../service/api/dashboardService';
+import { OrderSummary } from '../../service/api/dashboardService';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
@@ -47,9 +58,8 @@ const formatDate = (isoString: string) => {
     'Nov',
     'Dec',
   ];
-  return `${d.getDate().toString().padStart(2, '0')} ${
-    months[d.getMonth()]
-  } ${d.getFullYear()}`;
+  return `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]
+    } ${d.getFullYear()}`;
 };
 
 const STATUS_CONFIG: Record<
@@ -84,99 +94,6 @@ const sBadge = StyleSheet.create({
   text: { fontSize: 11, fontWeight: '700' },
 });
 
-const OrderCard = React.memo(
-  ({
-    item,
-    isBn,
-    onPressDetails,
-    onPressCancel,
-  }: {
-    item: BookingSummary;
-    isBn: boolean;
-    onPressDetails: (id: string) => void;
-    onPressCancel: (id: string) => void;
-  }) => {
-    const canCancel = ['Upcoming', 'Booking Initiated', 'Pending'].includes(
-      item.booking_status,
-    );
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardTop}>
-          <View style={styles.cardTopLeft}>
-            <View style={styles.pujaIcon}>
-              <Text style={styles.pujaIconText}>🛕</Text>
-            </View>
-            <View style={styles.cardTopInfo}>
-              <Text style={styles.cardRef} numberOfLines={1}>
-                {item.booking_no}
-              </Text>
-              <Text style={styles.cardDate}>
-                📅 {formatDate(item.booking_create_date)}
-              </Text>
-            </View>
-          </View>
-          <StatusBadge status={item.booking_status} />
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
-            <Text
-              style={[
-                styles.statValue,
-                {
-                  color:
-                    item.payment_status === 'PAID'
-                      ? Colors.successGreen
-                      : BRAND_PRIMARY,
-                },
-              ]}
-            >
-              {item.payment_status}
-            </Text>
-          </View>
-          <View style={styles.statDiv} />
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>{isBn ? 'মোট' : 'Amount'}</Text>
-            <Text style={[styles.statValue, { color: BRAND_TEXT }]}>
-              ₹{item.total_amount.toLocaleString('en-IN')}
-            </Text>
-          </View>
-          <View style={styles.statDiv} />
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>{isBn ? 'প্রদত্ত' : 'Paid'}</Text>
-            <Text style={[styles.statValue, { color: Colors.successGreen }]}>
-              ₹{item.total_amount_paid.toLocaleString('en-IN')}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <TouchableOpacity
-            style={styles.btnDetails}
-            onPress={() => onPressDetails(item.booking_id.toString())}
-          >
-            <Text style={styles.btnDetailsText}>
-              {isBn ? 'বিস্তারিত' : 'View Details'}
-            </Text>
-          </TouchableOpacity>
-          {canCancel && (
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => onPressCancel(item.booking_id.toString())}
-            >
-              <Text style={styles.btnCancelText}>
-                {isBn ? 'বাতিল' : 'Cancel'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
-  },
-);
 
 export default function OrdersScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -185,22 +102,12 @@ export default function OrdersScreen({ navigation }: any) {
   const { showToast } = useToast();
   const user = useSelector((state: RootState) => state.auth.user);
 
-  const STATUS_TABS = [
-    { label: 'All', value: 7 },
-    { label: 'Upcoming', value: 1 },
-    { label: 'Completed', value: 2 },
-    { label: 'Pending', value: 5 },
-    { label: 'Partial Cancelled', value: 8 },
-    { label: 'Cancelled', value: 9 },
-    { label: 'Rescheduled', value: 10 },
-  ] as const;
+  const defaultToDate = new Date();
+  const defaultFromDate = new Date();
+  defaultFromDate.setMonth(defaultFromDate.getMonth() - 1);
 
-  const [activeTab, setActiveTab] = useState<(typeof STATUS_TABS)[number]>(
-    STATUS_TABS[0],
-  );
-  const [searchQuery, setSearchQuery] = useState('');
-  const [fromDate, setFromDate] = useState<string | null>(null);
-  const [toDate, setToDate] = useState<string | null>(null);
+  const [fromDate, setFromDate] = useState<string | null>(defaultFromDate.toISOString().split('T')[0]);
+  const [toDate, setToDate] = useState<string | null>(defaultToDate.toISOString().split('T')[0]);
 
   const PAYMENT_OPTIONS = [
     { label: 'All Payments', value: 7 },
@@ -208,13 +115,54 @@ export default function OrdersScreen({ navigation }: any) {
     { label: 'Not Paid', value: 2 },
   ] as const;
 
-  const [paymentFilter, setPaymentFilter] = useState<
-    (typeof PAYMENT_OPTIONS)[number]
-  >(PAYMENT_OPTIONS[0]);
+  const [paymentFilter, setPaymentFilter] = useState<{
+    label: string;
+    value: number;
+  }>(PAYMENT_OPTIONS[0]);
   const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
+  const [currentInvoiceData, setCurrentInvoiceData] = useState<any>(null);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+
+  const [getCheckoutDetails] = useLazyGetCheckoutDetailsByOrderIdQuery();
+  const [getInvoiceDetails] = useLazyGetInvoiceDetailsQuery();
+
+  const statusQueryInfo = useGetStatusTypeQuery(undefined, { refetchOnMountOrArgChange: true });
+  if (statusQueryInfo.isError) {
+    console.log('--- OrdersScreen: API ERROR DETAILS ---', JSON.stringify(statusQueryInfo.error, null, 2));
+  }
+  const { data: statusTypesData } = statusQueryInfo;
+
+  const STATUS_OPTIONS = React.useMemo(() => {
+    const apiData = statusTypesData || [];
+    const options = [
+      { label: isBn ? 'সব স্ট্যাটাস' : 'All Status', value: 0 },
+      ...apiData.map((s: any) => ({
+        label: s.status_type_name,
+        value: s.status_type_id,
+      })),
+    ];
+    return options;
+  }, [statusTypesData, isBn]);
+
+  const [statusFilter, setStatusFilter] = useState(STATUS_OPTIONS[0]);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  React.useEffect(() => {
+    setStatusFilter(prev => {
+      const found = STATUS_OPTIONS.find(o => o.value === prev.value);
+      if (found && found.label === prev.label) return prev;
+      return found || STATUS_OPTIONS[0];
+    });
+  }, [STATUS_OPTIONS]);
+
+  const [cancelDetails, setCancelDetails] = useState<{
+    orderId: string;
+    bookingId: string;
+    packageId: string;
+    title: string;
+  } | null>(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
   const [activeDatePicker, setActiveDatePicker] = useState<
     'from' | 'to' | null
   >(null);
@@ -222,12 +170,11 @@ export default function OrdersScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const PAGE_SIZE = 10;
 
-  // Fetch counts for pagination
   const { data: totalSummaryCountData, refetch: refetchCount } =
-    useGetBookingSummaryCountQuery(
+    useGetOrderSummaryCountQuery(
       {
         userId: user?.user_id || 0,
-        status: activeTab.value,
+        status: statusFilter.value,
         paymentStatus: paymentFilter.value,
         fromDate: fromDate,
         toDate: toDate,
@@ -240,17 +187,16 @@ export default function OrdersScreen({ navigation }: any) {
       ? (totalSummaryCountData as any).total_puja_booking_summary_qty || 0
       : Number(totalSummaryCountData) || 0;
 
-  // Fetch list data
   const {
-    data: bookings = [],
+    data: orders = [],
     isLoading,
     refetch: refetchBookings,
-  } = useGetBookingSummaryQuery(
+  } = useGetOrderSummaryQuery(
     {
       userId: user?.user_id || 0,
-      status: activeTab.value,
+      status: statusFilter.value,
       paymentStatus: paymentFilter.value,
-      pageNo: pageNo,
+      pageNo,
       pageSize: PAGE_SIZE,
       fromDate: fromDate,
       toDate: toDate,
@@ -277,28 +223,19 @@ export default function OrdersScreen({ navigation }: any) {
     }
   }, [refetchBookings, refetchCount, showToast, t]);
 
-  // Reset page when filters change
   React.useEffect(() => {
     setPageNo(1);
-  }, [activeTab, paymentFilter, fromDate, toDate]);
+  }, [paymentFilter, statusFilter, fromDate, toDate]);
 
   const filteredOrders = React.useMemo(() => {
-    if (!searchQuery) return bookings;
-    return bookings.filter(o =>
-      o.booking_no.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [bookings, searchQuery]);
+    return orders;
+  }, [orders]);
 
-  // Pagination Logic
   const showPagination = totalCount > PAGE_SIZE;
   const isNextDisabled = pageNo * PAGE_SIZE >= totalCount;
   const isPrevDisabled = pageNo === 1;
 
-  const selectedOrder =
-    bookings.find(o => o.booking_id.toString() === selectedOrderId) || null;
-
   const handleDateSelect = (d: Date) => {
-    // API expects YYYY-MM-DD
     const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
       2,
       '0',
@@ -308,43 +245,10 @@ export default function OrdersScreen({ navigation }: any) {
     setActiveDatePicker(null);
   };
 
-  const handlePressDetails = React.useCallback(
-    async (id: string) => {
-      const state = await NetInfo.fetch();
-      if (!state.isConnected) {
-        showToast({
-          message: t('common.connectionRequired'),
-          type: 'error',
-        });
-        return;
-      }
-      setSelectedOrderId(id);
-      setShowDetailsModal(true);
-    },
-    [showToast, t],
-  );
-
-  const handlePressCancel = React.useCallback(
-    async (id: string) => {
-      const state = await NetInfo.fetch();
-      if (!state.isConnected) {
-        showToast({
-          message: t('common.connectionRequired'),
-          type: 'error',
-        });
-        return;
-      }
-      setSelectedOrderId(id);
-      setShowCancelModal(true);
-    },
-    [showToast, t],
-  );
-
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
 
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
           style={styles.backBtn}
@@ -357,30 +261,21 @@ export default function OrdersScreen({ navigation }: any) {
             {isBn ? 'আমার অর্ডার' : 'My Orders'}
           </Text>
           <Text style={styles.headerSub}>
-            {bookings.length} {isBn ? 'টি বুকিং' : 'total bookings'}
+            {orders.length} {isBn ? 'টি বুকিং' : 'total bookings'}
           </Text>
         </View>
         <View style={styles.headerRight} />
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsBar}>
-        <FlatList
-          data={STATUS_TABS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={tabObj => tabObj.value.toString()}
-          contentContainerStyle={styles.tabsContent}
-          renderItem={({ item: tab }) => (
+      <View style={styles.filterCard}>
+        <View style={styles.filterControlsRow}>
+          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
             <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab.value === tab.value && styles.tabBtnActive,
-              ]}
+              style={[styles.filterDropdown, { flex: 1, minWidth: 100, paddingHorizontal: 10 }]}
               onPress={async () => {
                 const state = await NetInfo.fetch();
                 if (state.isConnected) {
-                  setActiveTab(tab);
+                  setShowStatusDropdown(true);
                 } else {
                   showToast({
                     message: t('common.connectionRequired'),
@@ -389,66 +284,34 @@ export default function OrdersScreen({ navigation }: any) {
                 }
               }}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab.value === tab.value && styles.tabTextActive,
-                ]}
-              >
-                {tab.label}
+              <Text style={styles.filterDropdownText} numberOfLines={1}>
+                {statusFilter.label}
               </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
             </TouchableOpacity>
-          )}
-        />
-      </View>
 
-      {/* Filter Bar — beautifully designed */}
-      <View style={styles.filterCard}>
-        {/* Top Control Row */}
-        <View style={styles.filterControlsRow}>
-          {/* Search Box */}
-          <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder={isBn ? 'বুকিং নং খুঁজুন...' : 'Search booking no...'}
-              placeholderTextColor={BRAND_MUTED}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                style={styles.clearIconWrap}
-              >
-                <Text style={styles.clearBtn}>✕</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.filterDropdown, { flex: 1, minWidth: 100, paddingHorizontal: 10 }]}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  setShowPaymentDropdown(true);
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
+            >
+              <Text style={styles.filterDropdownText} numberOfLines={1}>
+                {paymentFilter.label}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Payment Filter Dropdown */}
-          <TouchableOpacity
-            style={styles.filterDropdown}
-            onPress={async () => {
-              const state = await NetInfo.fetch();
-              if (state.isConnected) {
-                setShowPaymentDropdown(true);
-              } else {
-                showToast({
-                  message: t('common.connectionRequired'),
-                  type: 'error',
-                });
-              }
-            }}
-          >
-            <Text style={styles.filterDropdownText} numberOfLines={1}>
-              {paymentFilter.label}
-            </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Date Filters Row */}
         <View style={styles.dateFiltersRow}>
           <View style={styles.dateControlWrap}>
             <Text style={styles.dateControlLabel}>
@@ -505,7 +368,6 @@ export default function OrdersScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Results + Clear */}
         <View style={styles.resultsRow}>
           <Text style={styles.resultsText}>
             {filteredOrders.length}{' '}
@@ -514,36 +376,101 @@ export default function OrdersScreen({ navigation }: any) {
           {(fromDate ||
             toDate ||
             searchQuery ||
-            paymentFilter.value !== 7 ||
-            activeTab.value !== 7) && (
-            <TouchableOpacity
-              onPress={() => {
-                setFromDate(null);
-                setToDate(null);
-                setSearchQuery('');
-                setPaymentFilter(PAYMENT_OPTIONS[0]);
-                setActiveTab(STATUS_TABS[0]);
-              }}
-              style={styles.clearAllBtn}
-            >
-              <Text style={styles.clearFilters}>
-                {isBn ? 'ফিল্টার মুছুন' : 'Clear Filters'}
-              </Text>
-            </TouchableOpacity>
-          )}
+            paymentFilter.value !== 7) && (
+              <TouchableOpacity
+                onPress={() => {
+                  setFromDate(defaultFromDate.toISOString().split('T')[0]);
+                  setToDate(defaultToDate.toISOString().split('T')[0]);
+                  setSearchQuery('');
+                  setPaymentFilter(PAYMENT_OPTIONS[0]);
+                }}
+                style={styles.clearAllBtn}
+              >
+                <Text style={styles.clearFilters}>
+                  {isBn ? 'ফিল্টার মুছুন' : 'Clear Filters'}
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
       </View>
 
-      {/* List */}
+      <InvoiceModal
+        visible={invoiceModalVisible}
+        onClose={() => setInvoiceModalVisible(false)}
+        invoiceData={currentInvoiceData}
+      />
+
       <FlatList
         data={filteredOrders}
-        keyExtractor={item => item.booking_id.toString()}
+        keyExtractor={(item: any) => item.order_id.toString()}
         renderItem={({ item }) => (
           <OrderCard
             item={item}
             isBn={isBn}
-            onPressDetails={handlePressDetails}
-            onPressCancel={handlePressCancel}
+            onPressCard={(order) => {
+              if (order.order_status?.toLowerCase().includes('cancel')) {
+                setSelectedOrderDetails(order);
+              }
+            }}
+            onPressCancel={(orderId) => {
+              setCancelDetails({ orderId, bookingId: '0', packageId: '0', title: item.order_reference });
+            }}
+            onPressCancelBooking={(orderId, bookingId) => {
+              setCancelDetails({ orderId, bookingId, packageId: '0', title: 'Cancel Booking' });
+            }}
+            onPressCancelPackage={(orderId, bookingId, packageId) => {
+              setCancelDetails({ orderId, bookingId, packageId, title: 'Cancel Package' });
+            }}
+            onPressReschedule={(orderId, bookingId) => {
+              console.log('Reschedule clicked for', bookingId);
+            }}
+            onPressPayNow={async (orderId) => {
+              try {
+                showToast({ message: isBn ? 'পেমেন্ট প্রসেস হচ্ছে...' : 'Processing payment...', type: 'success' });
+                const res = await getCheckoutDetails({ orderId: parseInt(orderId), ctznId: user?.user_id || 0 }).unwrap();
+                let paymentUrl = '';
+
+                if (res.redirect_url) {
+                  try {
+                    paymentUrl = base64Decode(res.redirect_url);
+                  } catch (err) {
+                    console.error('Base64 decode failed:', err);
+                  }
+                }
+
+                if (!paymentUrl) {
+                  const findUrl = (obj: any): string => {
+                    if (typeof obj === 'string' && obj.startsWith('http')) return obj;
+                    if (typeof obj === 'object' && obj !== null) {
+                      for (const key of Object.keys(obj)) {
+                        const val = findUrl(obj[key]);
+                        if (val) return val;
+                      }
+                    }
+                    return '';
+                  };
+                  paymentUrl = findUrl(res);
+                }
+
+                if (paymentUrl) {
+                  setPaymentUrl(paymentUrl);
+                } else {
+                  showToast({ message: 'Payment URL not available right now', type: 'error' });
+                }
+              } catch (e) {
+                showToast({ message: isBn ? 'চেকআউট ডিটেইলস ফেচ করতে সমস্যা হয়েছে' : 'Failed to fetch checkout details', type: 'error' });
+              }
+            }}
+            onPressInvoice={async (orderId) => {
+              try {
+                showToast({ message: isBn ? 'ইনভয়েস ফেচ হচ্ছে...' : 'Fetching invoice...', type: 'info' });
+                const res = await getInvoiceDetails({ order_id: parseInt(orderId), booking_id: 0 }).unwrap();
+                setCurrentInvoiceData(res);
+                setInvoiceModalVisible(true);
+              } catch (e) {
+                showToast({ message: isBn ? 'ইনভয়েস ফেচ করতে সমস্যা হয়েছে' : 'Failed to fetch invoice details', type: 'error' });
+              }
+            }}
           />
         )}
         contentContainerStyle={[
@@ -634,21 +561,25 @@ export default function OrdersScreen({ navigation }: any) {
         }
       />
 
-      {showDetailsModal && selectedOrder && (
-        <OrderDetailsModal
-          visible={showDetailsModal}
-          order={selectedOrder}
-          onClose={() => setShowDetailsModal(false)}
-        />
-      )}
-      {showCancelModal && selectedOrder && (
+      {cancelDetails && (
         <CancelOrderModal
-          visible={showCancelModal}
-          orderId={selectedOrder.booking_id.toString()}
-          itemTitle={selectedOrder.booking_no}
-          onClose={() => setShowCancelModal(false)}
+          visible={!!cancelDetails}
+          orderId={cancelDetails.orderId}
+          bookingId={cancelDetails.bookingId}
+          packageId={cancelDetails.packageId}
+          itemTitle={cancelDetails.title}
+          onClose={() => setCancelDetails(null)}
+          onSuccess={() => {
+            setCancelDetails(null);
+            onRefresh();
+          }}
         />
       )}
+      <OrderDetailsModal
+        visible={!!selectedOrderDetails}
+        order={selectedOrderDetails}
+        onClose={() => setSelectedOrderDetails(null)}
+      />
       {activeDatePicker && (
         <CustomDatePickerModal
           visible={!!activeDatePicker}
@@ -657,12 +588,8 @@ export default function OrdersScreen({ navigation }: any) {
             activeDatePicker === 'from' && fromDate
               ? new Date(fromDate)
               : activeDatePicker === 'to' && toDate
-              ? new Date(toDate)
-              : activeDatePicker === 'to' && fromDate
-              ? new Date(fromDate)
-              : activeDatePicker === 'from' && toDate
-              ? new Date(toDate)
-              : undefined
+                ? new Date(toDate)
+                : undefined
           }
           minimumDate={
             activeDatePicker === 'to' && fromDate
@@ -677,7 +604,51 @@ export default function OrdersScreen({ navigation }: any) {
         />
       )}
 
-      {/* Payment Filter Popover Menu */}
+      {showStatusDropdown && (
+        <View style={[StyleSheet.absoluteFill, styles.popoverWrapper]}>
+          <TouchableOpacity
+            style={styles.popoverOverlay}
+            activeOpacity={1}
+            onPress={() => setShowStatusDropdown(false)}
+          >
+            <TouchableOpacity activeOpacity={1}>
+              <View style={styles.popoverBox}>
+                <View style={styles.popoverHeader}>
+                  <Text style={styles.popoverTitle}>
+                    {isBn ? 'অর্ডার স্ট্যাটাস' : 'Order Status'}
+                  </Text>
+                </View>
+                <View style={styles.popoverDivider} />
+
+                {STATUS_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setStatusFilter(opt);
+                      setShowStatusDropdown(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.popoverItemText,
+                        statusFilter.value === opt.value &&
+                        styles.popoverItemTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    {statusFilter.value === opt.value && (
+                      <Text style={styles.checkMark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {showPaymentDropdown && (
         <View style={[StyleSheet.absoluteFill, styles.popoverWrapper]}>
           <TouchableOpacity
@@ -707,7 +678,7 @@ export default function OrdersScreen({ navigation }: any) {
                       style={[
                         styles.popoverItemText,
                         paymentFilter.value === opt.value &&
-                          styles.popoverItemTextActive,
+                        styles.popoverItemTextActive,
                       ]}
                     >
                       {opt.label}
@@ -722,7 +693,36 @@ export default function OrdersScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+
+      <Modal
+        visible={!!paymentUrl}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setPaymentUrl(null)}
+      >
+        {paymentUrl && (
+          <PluralWebView
+            source={{ uri: paymentUrl }}
+            onPaymentResult={(res) => {
+              setPaymentUrl(null);
+              if (res.status === 'response') {
+                showToast({ message: isBn ? 'পেমেন্ট সফল হয়েছে!' : 'Payment successful!', type: 'success' });
+                onRefresh();
+              } else {
+                const isCancelled = res.reason === 'User Cancelled';
+                showToast({
+                  message: isCancelled
+                    ? (isBn ? 'পেমেন্ট বাতিল' : 'Payment Cancelled')
+                    : (isBn ? 'পেমেন্ট ব্যর্থ' : 'Payment Failed'),
+                  type: 'error'
+                });
+              }
+            }}
+            stopNavigationOnMatch={true}
+          />
+        )}
+      </Modal>
+    </SafeAreaView>
   );
 }
 

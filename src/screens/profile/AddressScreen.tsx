@@ -36,10 +36,13 @@ import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../constants/Colors';
 import {
-  useSaveAddressMutation,
+  useSaveAddressV1Mutation,
   useGetAddressesQuery,
   useSaveDefaultAddressMutation,
   useDeleteAddressMutation,
+  useGetUserDetailsQuery,
+  useGetStateDetailsQuery,
+  useGetAddressesCountQuery,
 } from '../../store/api/pujaApi';
 
 const ERROR_COLOR = Colors.red;
@@ -57,6 +60,7 @@ const SOCIAL_RELATIONS = [
   { id: 11, name: 'Cousin' },
 ];
 
+// ─── Field Component ──────────────────────────────────────────────────────────
 const Field = ({
   lab,
   req,
@@ -101,98 +105,99 @@ const Field = ({
   </View>
 );
 
-const AddressCard = React.memo(
-  ({ addr, isBn, onEdit, onSetDefault, onDelete }: any) => {
-    const typeIcon = (t: string) =>
-      t === 'Home' ? '🏠' : t === 'Work' ? '💼' : t === 'Temple' ? '🛕' : '📍';
+// ─── Address Type Badge ───────────────────────────────────────────────────────
+const TypeBadge = ({ type }: { type: string }) => {
+  const config: Record<string, { icon: string; bg: string; color: string }> = {
+    Home: { icon: '🏠', bg: '#FFF3E0', color: '#E65100' },
+    Work: { icon: '💼', bg: '#E3F2FD', color: '#1565C0' },
+    Temple: { icon: '🛕', bg: '#F3E5F5', color: '#6A1B9A' },
+    Other: { icon: '📍', bg: '#F5F5F5', color: '#424242' },
+  };
+  const c = config[type] || config.Other;
+  return (
+    <View style={[styles.typeBadge, { backgroundColor: c.bg }]}>
+      <Text style={{ fontSize: 11 }}>{c.icon}</Text>
+      <Text style={[styles.typeBadgeTxt, { color: c.color }]}>{type}</Text>
+    </View>
+  );
+};
 
-    return (
-      <View style={[styles.addrCard, addr.isDefault && styles.addrCardDef]}>
-        {addr.isDefault && (
-          <View style={styles.defBadge}>
-            <Text style={styles.defBadgeTxt}>
-              ★ {isBn ? 'ডিফল্ট' : 'DEFAULT'}
-            </Text>
-          </View>
-        )}
-        <View style={styles.addrTop}>
-          <View
-            style={[
-              styles.addrTypeBox,
-              addr.isDefault && { backgroundColor: Colors.lightOrange },
-            ]}
-          >
-            <Text style={{ fontSize: 18 }}>{typeIcon(addr.type)}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            {addr.label ? (
-              <View style={styles.labelChip}>
-                <Text style={styles.labelChipTxt}>🏷 {addr.label}</Text>
-              </View>
-            ) : null}
-            <Text style={styles.addrName}>
-              {addr.contactName}{' '}
-              {addr.relationType ? (
-                <Text style={styles.relTag}>({addr.relationType})</Text>
-              ) : null}
-            </Text>
-            <Text style={styles.addrPhone}>📞 {addr.contactNumber}</Text>
-          </View>
-        </View>
-        <View style={styles.addrBody}>
-          <Text style={styles.addrMain}>{addr.addressLine1}</Text>
-          <Text style={styles.addrSub}>
-            {[
-              addr.streetArea,
-              addr.landmark,
-              addr.city,
-              addr.state,
-              addr.pincode,
-            ]
-              .filter(Boolean)
-              .join(', ')}
-          </Text>
-          {addr.latitude || addr.longitude ? (
-            <Text style={styles.coords}>
-              📌 {addr.latitude ? `Lat: ${addr.latitude}` : ''}
-              {addr.latitude && addr.longitude ? ', ' : ''}
-              {addr.longitude ? `Lng: ${addr.longitude}` : ''}
-            </Text>
-          ) : null}
-        </View>
-        <View style={styles.addrFooter}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={styles.acBtn} onPress={() => onEdit(addr)}>
-              <Text style={styles.acBtnTxt}>
-                📝 {isBn ? 'সম্পাদনা' : 'Edit'}
-              </Text>
-            </TouchableOpacity>
-            {!addr.isDefault && (
-              <TouchableOpacity
-                style={styles.acBtn}
-                onPress={() => onSetDefault(addr.id)}
-              >
-                <Text style={styles.acBtnTxt}>
-                  ★ {isBn ? 'ডিফল্ট' : 'Set Default'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[styles.acBtn, styles.acBtnRed]}
-              onPress={() => onDelete(addr.id)}
-            >
-              <Text style={[styles.acBtnTxt, { color: Colors.white }]}>
-                🗑 {isBn ? 'মুছুন' : 'Delete'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+// ─── Address Card (Web-style) ─────────────────────────────────────────────────
+const AddressCard = React.memo(
+  ({ addr, isBn, onEdit, onSetDefault, onDelete, isSelectMode, onSelect }: any) => (
+    <TouchableOpacity
+      activeOpacity={isSelectMode ? 0.8 : 1}
+      onPress={() => {
+        if (isSelectMode && onSelect) {
+          onSelect(addr.id);
+        }
+      }}
+      style={[styles.addrCard, addr.isDefault && styles.addrCardDef]}>
+      {/* Top row: type badge + edit/delete icons */}
+      <View style={styles.cardTopRow}>
+        <TypeBadge type={addr.type} />
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => onEdit(addr)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.iconBtnTxt}>✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => onDelete(addr.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.iconBtnTxt}>🗑️</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    );
-  },
+
+      {/* Address text */}
+      <Text style={styles.cardAddrMain} numberOfLines={2}>
+        {addr.addressLine1}
+      </Text>
+      <Text style={styles.cardAddrSub} numberOfLines={2}>
+        {[addr.streetArea, addr.landmark, addr.city].filter(Boolean).join(', ')}
+      </Text>
+      <Text style={styles.cardAddrSub}>
+        {[addr.state, addr.pincode ? `– ${addr.pincode}` : '']
+          .filter(Boolean)
+          .join(' ')}
+      </Text>
+
+      {/* Phone */}
+      {addr.contactNumber ? (
+        <View style={styles.cardPhoneRow}>
+          <Text style={styles.cardPhoneIcon}>📞</Text>
+          <Text style={styles.cardPhone}>{addr.contactNumber}</Text>
+        </View>
+      ) : null}
+
+      {/* Set as Default button */}
+      {!addr.isDefault && (
+        <TouchableOpacity
+          style={styles.setDefaultBtn}
+          onPress={() => onSetDefault(addr.id)}>
+          <Text style={styles.setDefaultBtnTxt}>
+            ☆ {isBn ? 'ডিফল্ট সেট করুন' : 'Set as Default'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Default badge */}
+      {addr.isDefault && (
+        <View style={styles.defaultBadgeRow}>
+          <Text style={styles.defaultBadgeTxt}>★ DEFAULT</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  ),
 );
 
-export default function AddressScreen({ navigation }: any) {
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function AddressScreen({ navigation, route }: any) {
+  const isSelectMode = route?.params?.mode === 'select';
+  const onSelectCallback = route?.params?.onSelect;
   const insets = useSafeAreaInsets();
   const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
@@ -202,12 +207,16 @@ export default function AddressScreen({ navigation }: any) {
   const user = useSelector((state: RootState) => state.auth.user);
   const addresses = useSelector((state: RootState) => state.address.addresses);
 
-  const [saveAddressMutation] = useSaveAddressMutation();
+  // ─── Active tab: 'my' | 'relatives' ───────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'my' | 'relatives'>('my');
+
+  const [saveAddressV1Mutation] = useSaveAddressV1Mutation();
   const [saveDefaultAddressMutation] = useSaveDefaultAddressMutation();
   const [deleteAddressMutation] = useDeleteAddressMutation();
   const [pageNo] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const pageSize = 10;
+
   const {
     data: serverAddresses,
     refetch: refetchAddresses,
@@ -217,21 +226,11 @@ export default function AddressScreen({ navigation }: any) {
     { skip: !user?.user_id },
   );
 
-  useEffect(() => {
-    console.log(
-      '--- AddressScreen: user from state ---',
-      JSON.stringify(user, null, 2),
-    );
-  }, [user]);
-
-  useEffect(() => {
-    if (serverAddresses) {
-      console.log(
-        '--- AddressScreen: serverAddresses from API ---',
-        JSON.stringify(serverAddresses, null, 2),
-      );
-    }
-  }, [serverAddresses, pageNo]);
+  // Address count from new API
+  const { data: addressCount } = useGetAddressesCountQuery(
+    { ctznId: user?.user_id || 0 },
+    { skip: !user?.user_id },
+  );
 
   const [addressTypes, setAddressTypes] = useState<
     { id: number; type: string }[]
@@ -254,6 +253,34 @@ export default function AddressScreen({ navigation }: any) {
   const [longitude, setLongitude] = useState('');
   const [isDefault, setIsDefaultState] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [addressCtznId, setAddressCtznId] = useState<number | null>(null);
+  const [deliveryInstruction, setDeliveryInstruction] = useState('');
+
+  // Selected relative state for the new horizontal list
+  const [selectedRelativeId, setSelectedRelativeId] = useState<number | null>(null);
+
+  // Relative selection modals
+  const [showRelativeSelectModal, setShowRelativeSelectModal] = useState(false);
+
+  const { data: userDetailsRaw } = useGetUserDetailsQuery(user?.user_id || 0, {
+    skip: !user?.user_id,
+  });
+
+  // States dropdown
+  const [stateId, setStateId] = useState<number | null>(null);
+  const { data: statesList = [] } = useGetStateDetailsQuery();
+
+  // Phone option for relative address
+  const [phoneOption, setPhoneOption] = useState<'relative' | 'mine'>('relative');
+
+  useEffect(() => {
+    if (stateName && statesList.length > 0) {
+      const matched = statesList.find(
+        s => s.state_name.toLowerCase() === stateName.toLowerCase(),
+      );
+      if (matched) setStateId(matched.state_id);
+    }
+  }, [stateName, statesList]);
 
   const clearForm = () => {
     setType('Home');
@@ -266,25 +293,48 @@ export default function AddressScreen({ navigation }: any) {
     setLandmark('');
     setCity('');
     setStateName('');
+    setStateId(null);
     setPincode('');
     setLatitude('');
     setLongitude('');
     setIsDefaultState(false);
+    setDeliveryInstruction('');
     setErrors({});
     setEditingId(null);
+    setPhoneOption('relative');
+    setAddressCtznId(null);
   };
 
   const openAdd = async () => {
     const state = await NetInfo.fetch();
     if (!state.isConnected) {
-      showToast({
-        message: t('common.connectionRequired'),
-        type: 'error',
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
+      return;
+    }
+    if (!userDetailsRaw?.ctnz_full_name) {
+      showAlert({
+        title: isBn ? 'অসম্পূর্ণ প্রোফাইল' : 'Profile Incomplete',
+        message: isBn
+          ? 'নতুন ঠিকানা যোগ করতে প্রোফাইল আপগ্রেড/আপডেট করুন'
+          : 'Please complete your profile to add an address',
+        buttons: [
+          {
+            text: isBn ? 'ঠিক আছে' : 'OK',
+            onPress: () => navigation.navigate('EditProfile'),
+          },
+        ],
       });
       return;
     }
-    clearForm();
-    setShowModal(true);
+    if (activeTab === 'relatives') {
+      // Directly open relative selection
+      setShowRelativeSelectModal(true);
+    } else {
+      // Directly open form for Self
+      clearForm();
+      setRelationType('Self');
+      setShowModal(true);
+    }
   };
 
   const handleUseMyLocation = async () => {
@@ -295,7 +345,7 @@ export default function AddressScreen({ navigation }: any) {
           {
             title: isBn ? 'অবস্থান অনুমতি' : 'Location Permission',
             message: isBn
-              ? 'আপনার সঠিক অবস্থান পেতে এই অ্যাপটির অবস্থানের অনুমতি প্রয়োজন'
+              ? 'আপনার সঠিক অবস্থান পেতে এই অ্যাপটির অবস্থানের অনুমতি প্রয়োজন'
               : 'This app needs location permission to get your precise address.',
             buttonNeutral: isBn ? 'পরে' : 'Ask Me Later',
             buttonNegative: isBn ? 'বাতিল' : 'Cancel',
@@ -305,7 +355,7 @@ export default function AddressScreen({ navigation }: any) {
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
           showErrorAlert(
             isBn
-              ? 'অবস্থান অনুমতি ছাড়া ঠিকানা পাওয়া সম্ভব নয়'
+              ? 'অবস্থান অনুমতি ছাড়া ঠিকানা পাওয়া সম্ভব নয়'
               : 'Location permission is required to fetch your position.',
           );
           return;
@@ -314,7 +364,6 @@ export default function AddressScreen({ navigation }: any) {
         console.warn(err);
       }
     }
-
     dispatch(showLoader());
     Geolocation.getCurrentPosition(
       (position: any) => {
@@ -325,9 +374,7 @@ export default function AddressScreen({ navigation }: any) {
         dispatch(hideLoader());
         showAlert({
           title: isBn ? 'লোকেসন পাওয়া গেছে' : 'Location Found',
-          message: isBn
-            ? `অক্ষাংশ: ${lat.toFixed(6)}, দ্রাঘিমাংশ: ${lng.toFixed(6)}`
-            : `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
+          message: `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
         });
       },
       (error: any) => {
@@ -346,10 +393,7 @@ export default function AddressScreen({ navigation }: any) {
   const onRefresh = useCallback(async () => {
     const state = await NetInfo.fetch();
     if (!state.isConnected) {
-      showToast({
-        message: t('common.connectionRequired'),
-        type: 'error',
-      });
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
       return;
     }
     setRefreshing(true);
@@ -383,35 +427,105 @@ export default function AddressScreen({ navigation }: any) {
     fetchTypes();
   }, []);
 
+  // Set default selected relative when data is loaded
+  useEffect(() => {
+    if (activeTab === 'relatives' && !selectedRelativeId && serverAddresses?.relative_info?.length > 0) {
+      setSelectedRelativeId(serverAddresses.relative_info[0].auth_id);
+    }
+  }, [serverAddresses, activeTab, selectedRelativeId]);
+
   const displayAddresses = useMemo(() => {
-    if (!serverAddresses || !Array.isArray(serverAddresses)) return [];
-    return serverAddresses.map((a: any) => ({
-      id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
-      type: a.address_type || a.address_type_name || 'Home',
-      label: a.label || '',
-      contactName: a.full_name || a.name || '',
-      contactNumber: a.phone || a.contact_no || '',
-      relationType: a.relation_type || a.relation_type_name || '',
-      addressLine1: a.address || '',
-      streetArea: a.street || '',
-      landmark: a.landmark || '',
-      city: a.city || '',
-      state: a.state || '',
-      pincode: a.pincode || '',
-      latitude: a.latitude?.toString() || '',
-      longitude: a.longitude?.toString() || '',
-      isDefault: a.is_default === 1 || a.is_default === true,
-    }));
+    if (!serverAddresses) return [];
+
+    let allAddresses: any[] = [];
+
+    // Parse Self Addresses
+    if (
+      serverAddresses.citizen_info &&
+      Array.isArray(serverAddresses.citizen_info.address_list)
+    ) {
+      const citizen = serverAddresses.citizen_info;
+      const selfAddrs = citizen.address_list
+        .filter((a: any) => a && a.address && typeof a.address === 'string' && a.address.trim().length > 0)
+        .map((a: any) => ({
+          id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
+          type: a.address_type || a.address_type_name || 'Home',
+          label: a.label || '',
+          contactName: citizen.full_name || '',
+          contactNumber: a.delivery_contact_no || citizen.phone || '',
+          relationType: 'Self',
+          addressLine1: a.address || '',
+          streetArea: a.street || '',
+          landmark: a.landmark || '',
+          city: a.city || '',
+          state: a.state_name || a.state || '',
+          pincode: a.pincode || '',
+          latitude: a.latitude?.toString() || '',
+          longitude: a.longitude?.toString() || '',
+          isDefault:
+            a.is_default === 1 || a.is_default === true || a.is_default === '1',
+          ctzn_id: citizen.auth_id,
+          deliveryInstruction: a.delivery_instruction || '',
+        }));
+      allAddresses = [...allAddresses, ...selfAddrs];
+    }
+
+    // Parse Relative Addresses
+    if (Array.isArray(serverAddresses.relative_info)) {
+      serverAddresses.relative_info.forEach((rel: any) => {
+        if (Array.isArray(rel.address_list)) {
+          const relAddrs = rel.address_list
+            .filter((a: any) => a && a.address && typeof a.address === 'string' && a.address.trim().length > 0)
+            .map((a: any) => ({
+              id: (a.address_id || a.ctzn_address_id || Date.now()).toString(),
+              type: a.address_type || a.address_type_name || 'Home',
+              label: a.label || '',
+              contactName: rel.full_name || '',
+              contactNumber: a.delivery_contact_no || rel.phone || '',
+              relationType: 'Relative',
+              addressLine1: a.address || '',
+              streetArea: a.street || '',
+              landmark: a.landmark || '',
+              city: a.city || '',
+              state: a.state_name || a.state || '',
+              pincode: a.pincode || '',
+              latitude: a.latitude?.toString() || '',
+              longitude: a.longitude?.toString() || '',
+              isDefault:
+                a.is_default === 1 ||
+                a.is_default === true ||
+                a.is_default === '1',
+              ctzn_id: rel.auth_id,
+              deliveryInstruction: a.delivery_instruction || '',
+            }));
+          allAddresses = [...allAddresses, ...relAddrs];
+        }
+      });
+    }
+
+    return allAddresses;
   }, [serverAddresses]);
 
+  // Filter by tab and selected relative
+  const filteredAddresses = useMemo(() => {
+    if (!userDetailsRaw?.ctnz_full_name) {
+      return [];
+    }
+    if (activeTab === 'relatives') {
+      return displayAddresses.filter(
+        a => a.relationType !== 'Self' && a.ctzn_id === selectedRelativeId
+      );
+    }
+    return displayAddresses.filter(
+      a => !a.relationType || a.relationType === 'Self',
+    );
+  }, [displayAddresses, activeTab, selectedRelativeId]);
+
   const openEdit = useCallback(
-    async (addr: Address) => {
+    async (addr: any) => {
       const state = await NetInfo.fetch();
       if (!state.isConnected) {
-        showToast({
-          message: t('common.connectionRequired'),
-          type: 'error',
-        });
+        showToast({ message: t('common.connectionRequired'), type: 'error' });
         return;
       }
       setType(addr.type);
@@ -419,7 +533,7 @@ export default function AddressScreen({ navigation }: any) {
       setContactName(addr.contactName);
       setContactNumber(addr.contactNumber);
       setRelationType(addr.relationType);
-      addressLine1 && setAddressLine1(addr.addressLine1);
+      setAddressLine1(addr.addressLine1);
       setStreetArea(addr.streetArea);
       setLandmark(addr.landmark);
       setCity(addr.city);
@@ -428,21 +542,39 @@ export default function AddressScreen({ navigation }: any) {
       setLatitude(addr.latitude || '');
       setLongitude(addr.longitude || '');
       setIsDefaultState(addr.isDefault || false);
+      setDeliveryInstruction(addr.deliveryInstruction || '');
       setEditingId(addr.id);
+      setAddressCtznId(addr.ctzn_id || null);
+
+      const loginMobile =
+        user?.mobile ||
+        userDetailsRaw?.ctnz_mobile ||
+        userDetailsRaw?.ctnz_phone ||
+        '';
+      if (
+        addr.relationType !== 'Self' &&
+        loginMobile &&
+        addr.contactNumber === loginMobile
+      ) {
+        setPhoneOption('mine');
+      } else {
+        setPhoneOption('relative');
+      }
+
       setErrors({});
       setShowModal(true);
     },
-    [showToast, t, addressLine1],
+    [showToast, t, user, userDetailsRaw],
   );
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!contactName.trim())
-      e.contactName = isBn ? 'নাম আবশ্যক' : 'Name required';
-    if (!contactNumber.trim() || !/^\d{10}$/.test(contactNumber))
-      e.contactNumber = isBn
-        ? 'সঠিক ১০-সংখ্যার নম্বর লিখুন'
-        : 'Valid 10-digit number required';
+    if (relationType !== 'Self' && phoneOption === 'relative') {
+      if (!contactNumber.trim() || !/^\d{10}$/.test(contactNumber))
+        e.contactNumber = isBn
+          ? 'সঠিক ১০-সংখ্যার নম্বর লিখুন'
+          : 'Valid 10-digit number required';
+    }
     if (!addressLine1.trim())
       e.addressLine1 = isBn ? 'ঠিকানা আবশ্যক' : 'Address line required';
     if (!city.trim()) e.city = isBn ? 'শহর আবশ্যক' : 'City required';
@@ -460,10 +592,7 @@ export default function AddressScreen({ navigation }: any) {
     if (!validate()) return;
     const state = await NetInfo.fetch();
     if (!state.isConnected) {
-      showToast({
-        message: t('common.connectionRequired'),
-        type: 'error',
-      });
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
       return;
     }
 
@@ -474,25 +603,37 @@ export default function AddressScreen({ navigation }: any) {
       const typeId = addressTypes.find(at => at.type === type)?.id || 1;
 
       const payload = {
-        in_ctzn_address_id: editingId ? parseInt(editingId, 10) : 0,
-        ctzn_id: user?.user_id || 0,
-        relation_type_id: relId,
+        in_ctzn_address_id: (editingId && editingId.length < 10) ? parseInt(editingId, 10) : 0,
+        ctzn_auth_id: addressCtznId || user?.user_id || 0,
         address_type_id: typeId,
-        label: label,
-        name: contactName,
-        contact_no: contactNumber,
+        label,
         address: addressLine1,
         street: streetArea,
-        landmark: landmark,
-        city: city,
-        state: stateName,
-        pincode: pincode,
+        landmark,
+        city,
+        state: stateId || 1,
+        pincode,
         is_default: isDefault ? 1 : addresses.length === 0 ? 1 : 0,
         latitude: latitude ? parseFloat(latitude) : 0,
         longitude: longitude ? parseFloat(longitude) : 0,
+        delivery_contact_no:
+          relationType === 'Self'
+            ? user?.mobile ||
+            userDetailsRaw?.ctnz_mobile ||
+            userDetailsRaw?.ctnz_phone ||
+            userDetailsRaw?.mobile_no ||
+            ''
+            : phoneOption === 'mine'
+              ? user?.mobile ||
+              userDetailsRaw?.ctnz_mobile ||
+              userDetailsRaw?.ctnz_phone ||
+              userDetailsRaw?.mobile_no ||
+              ''
+              : contactNumber,
+        delivery_instruction: deliveryInstruction,
       };
 
-      const result = await saveAddressMutation({
+      const result = await saveAddressV1Mutation({
         data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
       }).unwrap();
 
@@ -546,7 +687,7 @@ export default function AddressScreen({ navigation }: any) {
       console.error('Save Address Error:', err);
       showErrorAlert(
         err?.data?.message ||
-          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+        (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
       );
     }
   };
@@ -555,10 +696,7 @@ export default function AddressScreen({ navigation }: any) {
     async (addrId: string) => {
       const state = await NetInfo.fetch();
       if (!state.isConnected) {
-        showToast({
-          message: t('common.connectionRequired'),
-          type: 'error',
-        });
+        showToast({ message: t('common.connectionRequired'), type: 'error' });
         return;
       }
       try {
@@ -582,15 +720,14 @@ export default function AddressScreen({ navigation }: any) {
         } else {
           showErrorAlert(
             result.message ||
-              (isBn ? 'ব্যর্থ হয়েছে' : 'Failed to set default'),
+            (isBn ? 'ব্যর্থ হয়েছে' : 'Failed to set default'),
           );
         }
       } catch (err: any) {
         dispatch(hideLoader());
-        console.error('Save Default Address Error:', err);
         showErrorAlert(
           err?.data?.message ||
-            (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
         );
       }
     },
@@ -655,17 +792,16 @@ export default function AddressScreen({ navigation }: any) {
                 } else {
                   showErrorAlert(
                     result.message ||
-                      (isBn
-                        ? 'ঠিকানা মুছতে ব্যর্থ হয়েছে'
-                        : 'Failed to delete address'),
+                    (isBn
+                      ? 'ঠিকানা মুছতে ব্যর্থ হয়েছে'
+                      : 'Failed to delete address'),
                   );
                 }
               } catch (err: any) {
                 dispatch(hideLoader());
-                console.error('Delete Address Error:', err);
                 showErrorAlert(
                   err?.data?.message ||
-                    (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+                  (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
                 );
               }
             },
@@ -687,97 +823,149 @@ export default function AddressScreen({ navigation }: any) {
     ],
   );
 
+  // ─── Render ────────────────────────────────────────────────────────────────
   const renderHeader = () => (
-    <View>
-      <View style={styles.hero}>
-        <View style={styles.heroInner}>
-          <View style={styles.heroIcon}>
-            <Text style={{ fontSize: 22 }}>📍</Text>
+    <View style={styles.listHeader}>
+      {/* Tab pills */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabPill, activeTab === 'my' && styles.tabPillActive]}
+          onPress={() => setActiveTab('my')}>
+          <Text style={styles.tabPillIcon}>👤</Text>
+          <Text
+            style={[
+              styles.tabPillTxt,
+              activeTab === 'my' && styles.tabPillTxtActive,
+            ]}>
+            {isBn ? 'আমার ঠিকানা' : 'My Addresses'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tabPill,
+            activeTab === 'relatives' && styles.tabPillActive,
+          ]}
+          onPress={() => setActiveTab('relatives')}>
+          <Text style={styles.tabPillIcon}>👥</Text>
+          <Text
+            style={[
+              styles.tabPillTxt,
+              activeTab === 'relatives' && styles.tabPillTxtActive,
+            ]}>
+            {isBn ? 'আত্মীয়' : 'Relatives'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Conditional Content based on Tab */}
+      {activeTab === 'relatives' ? (
+        <View style={styles.relativesSection}>
+          <View style={styles.relativesSectionHeader}>
+            <Text style={styles.secHead}>{isBn ? 'আত্মীয় নির্বাচন করুন' : 'SELECT RELATIVE'}</Text>
+            <TouchableOpacity style={styles.addBtnSmall} onPress={openAdd}>
+              <Text style={styles.addBtnSmallTxt}>+ {isBn ? 'যোগ করুন' : 'Add Address'}</Text>
+            </TouchableOpacity>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroTitle}>
-              {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
-            </Text>
-            <Text style={styles.heroSub} numberOfLines={1}>
-              {isBn
-                ? 'পূজা লোকেশন পরিচালনা করুন'
-                : 'Manage your puja locations'}
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relativesScroll}>
+            {serverAddresses?.relative_info?.map((rel: any) => {
+              const isSelected = selectedRelativeId === rel.auth_id;
+              return (
+                <TouchableOpacity
+                  key={rel.auth_id}
+                  style={[styles.relativeHCard, isSelected && styles.relativeHCardActive]}
+                  onPress={() => setSelectedRelativeId(rel.auth_id)}
+                >
+                  <View style={[styles.relAvatarH, isSelected && styles.relAvatarHActive]}>
+                    <Text style={[styles.relAvatarTxtH, isSelected && styles.relAvatarTxtHActive]}>
+                      {rel.full_name ? rel.full_name.charAt(0).toUpperCase() : 'R'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.relNameH, isSelected && styles.relNameHActive]} numberOfLines={1}>
+                    {rel.full_name}
+                  </Text>
+                  <Text style={[styles.relPhoneH, isSelected && styles.relPhoneHActive]}>
+                    {rel.phone}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.listMeta}>
+            <Text style={styles.addressCount}>
+              {filteredAddresses.length} {isBn ? 'ঠিকানা' : 'addresses'}
             </Text>
           </View>
         </View>
-        <View style={styles.deco1} />
-        <View style={styles.deco2} />
-      </View>
-
-      <View style={styles.listHead}>
-        <Text style={styles.listTitle}>
-          {isBn ? 'আপনার ঠিকানা' : 'Your Addresses'}{' '}
-          <Text style={styles.listCount}>({displayAddresses.length})</Text>
-        </Text>
-        <TouchableOpacity style={styles.addNewBtn} onPress={openAdd}>
-          <Text style={styles.addNewBtnTxt}>+ {isBn ? 'নতুন' : 'Add New'}</Text>
-        </TouchableOpacity>
-      </View>
+      ) : (
+        <View style={styles.listMeta}>
+          <Text style={styles.addressCount}>
+            {filteredAddresses.length} {isBn ? 'ঠিকানা' : 'addresses'}
+          </Text>
+          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+            <Text style={styles.addBtnTxt}>+ {isBn ? 'যোগ করুন' : 'Add Address'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {isFetchingAddresses && pageNo === 1 && (
         <ActivityIndicator
           size="small"
           color={Colors.primary}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 12 }}
         />
       )}
     </View>
   );
 
   const renderFooter = () => (
-    <View>
-      {displayAddresses.length > 0 && (
-        <TouchableOpacity style={styles.addMoreBtn} onPress={openAdd}>
-          <Text style={styles.addMoreBtnTxt}>
-            + {isBn ? 'আরও ঠিকানা যোগ করুন' : 'Add More Address'}
-          </Text>
-        </TouchableOpacity>
-      )}
-      <View style={{ height: 40 }} />
-    </View>
+    <View style={{ height: 40 }} />
   );
 
   return (
     <View style={styles.root}>
       <StatusBar
-        backgroundColor={Colors.background}
-        barStyle="dark-content"
+        backgroundColor="transparent"
+        barStyle="light-content"
         translucent={true}
       />
 
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 12, paddingBottom: 14 },
-        ]}
-      >
+      {/* Orange gradient header */}
+      <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
+        {/* Back button */}
         <TouchableOpacity
-          style={styles.navBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.navBtnIcon}>←</Text>
-          <Text style={styles.navBtnTxt}>{isBn ? 'ফিরে যান' : 'Back'}</Text>
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtnTxt}>←</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navBtn, { borderColor: Colors.border }]}
-          onPress={() => navigation.navigate('Dashboard')}
-        >
-          <Text style={styles.navBtnIcon}>🏠</Text>
-          <Text style={[styles.navBtnTxt, { color: Colors.primary }]}>
-            {isBn ? 'ড্যাশবোর্ড' : 'Dashboard'}
-          </Text>
-        </TouchableOpacity>
+
+        {/* Decorative circles */}
+        <View style={styles.heroDeco1} />
+        <View style={styles.heroDeco2} />
+
+        <View style={styles.heroContent}>
+          <View style={styles.heroIconWrap}>
+            <Text style={{ fontSize: 22 }}>📍</Text>
+          </View>
+          <View>
+            <Text style={styles.heroTitle}>
+              {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
+            </Text>
+            <Text style={styles.heroSub}>
+              {isBn
+                ? 'ডেলিভারি ও পূজা লোকেশন পরিচালনা করুন'
+                : 'Manage your delivery & puja locations'}
+            </Text>
+          </View>
+        </View>
       </View>
 
+      {/* List */}
       <FlatList
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
-        data={displayAddresses}
+        data={filteredAddresses}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <AddressCard
@@ -786,21 +974,27 @@ export default function AddressScreen({ navigation }: any) {
             onEdit={openEdit}
             onSetDefault={handleSetDefault}
             onDelete={handleDeleteAddr}
+            isSelectMode={isSelectMode}
+            onSelect={(id: string) => {
+              if (onSelectCallback) {
+                onSelectCallback(id);
+              }
+              navigation.goBack();
+            }}
           />
         )}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
-          <NoDataFound
-            message={isBn ? 'এখনও কোনো ঠিকানা নেই' : 'No addresses saved yet'}
-            containerHeight={350}
-          >
-            <TouchableOpacity style={styles.addFirstBtn} onPress={openAdd}>
-              <Text style={styles.addFirstBtnTxt}>
-                + {isBn ? 'প্রথম ঠিকানা যোগ করুন' : 'Add First Address'}
-              </Text>
-            </TouchableOpacity>
-          </NoDataFound>
+          !isFetchingAddresses ? (
+            <NoDataFound
+              message={
+                !userDetailsRaw?.ctnz_full_name 
+                  ? (isBn ? 'নতুন ঠিকানা যোগ করতে প্রোফাইল আপডেট করুন' : 'Please complete your profile to view and manage addresses') 
+                  : (isBn ? 'কোনো ঠিকানা সংরক্ষিত নেই' : 'No addresses saved yet')
+              }
+              containerHeight={300} />
+          ) : null
         }
         showsVerticalScrollIndicator={false}
         initialNumToRender={5}
@@ -817,17 +1011,111 @@ export default function AddressScreen({ navigation }: any) {
         }
       />
 
-      {/* Modal for Add/Edit Address */}
+
+      {/* ─── Relative Selection Modal ──────────────────────────────────────── */}
+
+      <Modal
+        visible={showRelativeSelectModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRelativeSelectModal(false)}>
+        <View style={styles.modalBg}>
+          <View style={[styles.sheet, { height: '60%' }]}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetHeadTitle}>
+                {isBn ? 'আত্মীয় নির্বাচন করুন' : 'Select Relative'}
+              </Text>
+              <TouchableOpacity
+                style={styles.sheetClose}
+                onPress={() => setShowRelativeSelectModal(false)}>
+                <Text style={styles.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 20 }}>
+              {userDetailsRaw?.relative_details &&
+                userDetailsRaw.relative_details.length > 0 ? (
+                userDetailsRaw.relative_details.map((rel: any) => (
+                  <TouchableOpacity
+                    key={rel.relative_id || rel.relative_auth_id}
+                    style={styles.relativeRow}
+                    onPress={() => {
+                      clearForm();
+                      setContactName(rel.relative_full_name || '');
+                      setRelationType(
+                        rel.relation_type_name || 'Relative',
+                      );
+                      setContactNumber(
+                        rel.relative_contact_no ||
+                        rel.relative_mobile ||
+                        rel.relative_phone ||
+                        '',
+                      );
+                      setAddressCtznId(
+                        Number(rel.relative_auth_id || rel.relative_id),
+                      );
+                      setShowRelativeSelectModal(false);
+                      setShowModal(true);
+                    }}>
+                    <View style={styles.relAvatar}>
+                      <Text style={styles.relAvatarTxt}>
+                        {rel.relative_full_name
+                          ? rel.relative_full_name.charAt(0).toUpperCase()
+                          : 'R'}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.relName}>
+                        {rel.relative_full_name}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                        <View style={styles.relTypePill}>
+                          <Text style={styles.relTypePillTxt}>
+                            {rel.relation_type_name || 'Relative'}
+                          </Text>
+                        </View>
+                        {(rel.relative_contact_no ||
+                          rel.relative_mobile ||
+                          rel.relative_phone) ? (
+                          <Text style={styles.relPhone}>
+                            •{' '}
+                            {rel.relative_contact_no ||
+                              rel.relative_mobile ||
+                              rel.relative_phone}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={styles.relArrow}>
+                      <Text style={{ fontSize: 12, color: Colors.textMuted }}>
+                        ➔
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text
+                  style={{
+                    textAlign: 'center',
+                    color: Colors.textMuted,
+                    marginTop: 40,
+                  }}>
+                  {isBn ? 'কোনো আত্মীয় পাওয়া যায়নি' : 'No relatives found'}
+                </Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Add / Edit Address Modal ──────────────────────────────────────── */}
       <Modal
         visible={showModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowModal(false)}
-      >
+        onRequestClose={() => setShowModal(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalBg}
-        >
+          style={styles.modalBg}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
               <View style={styles.sheetHeadIcon}>
@@ -839,21 +1127,19 @@ export default function AddressScreen({ navigation }: any) {
                     ? 'ঠিকানা সম্পাদনা'
                     : 'Edit Address'
                   : isBn
-                  ? 'নতুন ঠিকানা'
-                  : 'New Address'}
+                    ? 'নতুন ঠিকানা'
+                    : 'New Address'}
               </Text>
               <TouchableOpacity
                 style={styles.sheetClose}
-                onPress={() => setShowModal(false)}
-              >
+                onPress={() => setShowModal(false)}>
                 <Text style={styles.sheetCloseTxt}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView
               style={styles.sheetScroll}
-              showsVerticalScrollIndicator={false}
-            >
+              showsVerticalScrollIndicator={false}>
               <View style={styles.sheetForm}>
                 <Text style={styles.secHead}>
                   {isBn ? 'ঠিকানার ধরন' : 'ADDRESS TYPE'}
@@ -866,14 +1152,12 @@ export default function AddressScreen({ navigation }: any) {
                         styles.typeChip,
                         type === at.type && styles.typeChipOn,
                       ]}
-                      onPress={() => setType(at.type)}
-                    >
+                      onPress={() => setType(at.type)}>
                       <Text
                         style={[
                           styles.typeChipTxt,
                           type === at.type && styles.typeChipTxtOn,
-                        ]}
-                      >
+                        ]}>
                         {at.type}
                       </Text>
                     </TouchableOpacity>
@@ -891,53 +1175,7 @@ export default function AddressScreen({ navigation }: any) {
                   place="Home / Office"
                 />
 
-                <Text style={styles.secHead}>
-                  {isBn ? 'যোগাযোগের তথ্য' : 'CONTACT INFO'}
-                </Text>
-                <Field
-                  lab={isBn ? 'পুরো নাম' : 'Full Name'}
-                  req
-                  val={contactName}
-                  setVal={txt =>
-                    setContactName(txt.replace(/[^a-zA-Z\s.-]/g, ''))
-                  }
-                  place="John Doe"
-                  err={errors.contactName}
-                  setErrors={setErrors}
-                />
-                <Field
-                  lab={isBn ? 'ফোন নম্বর' : 'Phone Number'}
-                  req
-                  val={contactNumber}
-                  setVal={txt => setContactNumber(txt.replace(/[^0-9]/g, ''))}
-                  place="1234567890"
-                  kbd="phone-pad"
-                  maxLength={10}
-                  err={errors.contactNumber}
-                  setErrors={setErrors}
-                />
 
-                <Text style={styles.fieldLabel}>
-                  {isBn ? 'সম্পর্ক' : 'RELATION'}
-                </Text>
-                <Dropdown
-                  options={SOCIAL_RELATIONS}
-                  value={
-                    SOCIAL_RELATIONS.find(r => r.name === relationType)?.id ||
-                    null
-                  }
-                  onSelect={id => {
-                    const name =
-                      SOCIAL_RELATIONS.find(r => r.id === id)?.name || '';
-                    setRelationType(name);
-                    setErrors(prev => ({ ...prev, relationType: '' }));
-                  }}
-                  placeholder={
-                    isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select Relation'
-                  }
-                />
-
-                <View style={styles.div} />
 
                 <Text style={styles.secHead}>
                   {isBn ? 'ঠিকানার বিবরণ' : 'ADDRESS DETAILS'}
@@ -980,14 +1218,26 @@ export default function AddressScreen({ navigation }: any) {
                     err={errors.city}
                     setErrors={setErrors}
                   />
-                  <Field
-                    lab={isBn ? 'রাজ্য' : 'State'}
-                    val={stateName}
-                    setVal={txt =>
-                      setStateName(txt.replace(/[^a-zA-Z\s.-]/g, ''))
-                    }
-                    place="West Bengal"
-                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>
+                      {isBn ? 'রাজ্য' : 'State'}
+                    </Text>
+                    <Dropdown
+                      options={statesList.map(s => ({
+                        id: s.state_id,
+                        name: s.state_name,
+                      }))}
+                      value={stateId}
+                      onSelect={(val: number) => {
+                        setStateId(val);
+                        const found = statesList.find(s => s.state_id === val);
+                        if (found) setStateName(found.state_name);
+                      }}
+                      placeholder={
+                        isBn ? 'রাজ্য নির্বাচন করুন' : 'Select State'
+                      }
+                    />
+                  </View>
                 </View>
 
                 <Field
@@ -1001,11 +1251,9 @@ export default function AddressScreen({ navigation }: any) {
                   err={errors.pincode}
                   setErrors={setErrors}
                 />
-
                 <TouchableOpacity
                   style={styles.useLocBtn}
-                  onPress={handleUseMyLocation}
-                >
+                  onPress={handleUseMyLocation}>
                   <Text style={styles.useLocBtnIcon}>📍</Text>
                   <Text style={styles.useLocBtnText}>
                     {isBn
@@ -1035,6 +1283,86 @@ export default function AddressScreen({ navigation }: any) {
                   />
                 </View>
 
+                <View style={styles.div} />
+
+                <Field
+                  lab={
+                    isBn ? 'ডেলিভারি নির্দেশাবলী' : 'Delivery Instruction'
+                  }
+                  val={deliveryInstruction}
+                  setVal={setDeliveryInstruction}
+                  place={
+                    isBn ? 'যেমন: আসার আগে কল করুন' : 'e.g. call me before coming'
+                  }
+                />
+
+                {relationType !== 'Self' && (
+                  <>
+                    <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 8 }]}>
+                      {isBn ? 'ফোন নম্বর বিকল্প' : 'Phone Number Option'}
+                    </Text>
+
+                    {/* Relative Phone radio */}
+                    <TouchableOpacity
+                      style={styles.radioRow}
+                      onPress={() => setPhoneOption('relative')}>
+                      <View style={styles.radioOuter}>
+                        {phoneOption === 'relative' && (
+                          <View style={styles.radioInner} />
+                        )}
+                      </View>
+                      <Text style={styles.radioLabel}>
+                        {isBn
+                          ? "আত্মীয়ের ফোন নম্বর"
+                          : "Relative's Phone Number"}{' '}
+                        {contactNumber ? (
+                          <Text style={styles.radioSub}>
+                            ({contactNumber})
+                          </Text>
+                        ) : null}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* My Phone radio */}
+                    <TouchableOpacity
+                      style={[styles.radioRow, { marginBottom: 14 }]}
+                      onPress={() => setPhoneOption('mine')}>
+                      <View style={styles.radioOuter}>
+                        {phoneOption === 'mine' && (
+                          <View style={styles.radioInner} />
+                        )}
+                      </View>
+                      <Text style={styles.radioLabel}>
+                        {isBn ? 'আমার ফোন নম্বর' : 'My Phone Number'}{' '}
+                        <Text style={styles.radioSub}>
+                          (
+                          {user?.mobile ||
+                            userDetailsRaw?.ctnz_mobile ||
+                            userDetailsRaw?.ctnz_phone ||
+                            ''}
+                          )
+                        </Text>
+                      </Text>
+                    </TouchableOpacity>
+
+                    {phoneOption === 'relative' && (
+                      <Field
+                        lab={isBn ? 'ফোন নম্বর' : 'Phone Number'}
+                        req
+                        val={contactNumber}
+                        setVal={txt =>
+                          setContactNumber(txt.replace(/[^0-9]/g, ''))
+                        }
+                        place="1234567890"
+                        kbd="phone-pad"
+                        maxLength={10}
+                        err={errors.contactNumber}
+                        setErrors={setErrors}
+                      />
+                    )}
+                  </>
+                )}
+
                 <View style={styles.defaultRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.defaultTitle}>
@@ -1062,8 +1390,7 @@ export default function AddressScreen({ navigation }: any) {
             <View style={styles.sheetFooter}>
               <TouchableOpacity
                 style={styles.cancelBtn}
-                onPress={() => setShowModal(false)}
-              >
+                onPress={() => setShowModal(false)}>
                 <Text style={styles.cancelTxt}>
                   {isBn ? 'বাতিল' : 'Cancel'}
                 </Text>
@@ -1075,8 +1402,8 @@ export default function AddressScreen({ navigation }: any) {
                       ? 'আপডেট করুন'
                       : 'Update'
                     : isBn
-                    ? 'সংরক্ষণ করুন'
-                    : 'Save'}
+                      ? 'সংরক্ষণ করুন'
+                      : 'Save'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1088,175 +1415,286 @@ export default function AddressScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    // paddingVertical removed to allow insets in component
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  navBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors.disabled,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  navBtnIcon: { fontSize: 16, color: Colors.textMain },
-  navBtnTxt: { fontSize: 13, fontWeight: '700', color: Colors.textMain },
+  root: { flex: 1, backgroundColor: '#F5F5F5' },
 
-  body: { flex: 1 },
-  bodyContent: { padding: 20, paddingBottom: 40 },
-
+  // ─── Hero / Header ──────────────────────────────────────────────────────────
   hero: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: Colors.disabled,
-    overflow: 'hidden',
+    backgroundColor: BRAND_ORANGE,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
     position: 'relative',
+    overflow: 'hidden',
   },
-  heroInner: { flexDirection: 'row', alignItems: 'center', gap: 16, zIndex: 5 },
-  heroIcon: {
-    width: 60,
-    height: 60,
+  backBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.lightOrange,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
   },
-  heroTitle: { fontSize: 24, fontWeight: '900', color: Colors.textMain },
-  heroSub: { fontSize: 14, color: Colors.textMuted, marginTop: 4 },
-  deco1: {
+  backBtnTxt: { fontSize: 20, color: Colors.white, fontWeight: 'bold' },
+  heroDeco1: {
     position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.warningBackground,
-    bottom: -40,
-    right: -20,
-    opacity: 0.6,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    top: -30,
+    right: -40,
   },
-  deco2: {
+  heroDeco2: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.lightOrange,
-    bottom: 20,
-    right: 40,
-    opacity: 0.3,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    bottom: -20,
+    right: 60,
+  },
+  heroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    zIndex: 5,
+  },
+  heroIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: Colors.white,
+  },
+  heroSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 3,
   },
 
-  listHead: {
+  // ─── List ───────────────────────────────────────────────────────────────────
+  body: { flex: 1 },
+  bodyContent: { padding: 16, paddingBottom: 40 },
+
+  listHeader: { marginBottom: 16 },
+
+  // Tab pills
+  tabRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  tabPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    backgroundColor: Colors.white,
+  },
+  tabPillActive: {
+    backgroundColor: BRAND_ORANGE,
+    borderColor: BRAND_ORANGE,
+  },
+  tabPillIcon: { fontSize: 14 },
+  tabPillTxt: { fontSize: 14, fontWeight: '700', color: '#666' },
+  tabPillTxtActive: { color: Colors.white },
+
+  // Count + Add
+  listMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  listTitle: { fontSize: 18, fontWeight: '800', color: Colors.textMain },
-  listCount: { color: Colors.gray, fontWeight: '600' },
-  addNewBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+  addressCount: { fontSize: 14, fontWeight: '600', color: '#555' },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#FFE0B2',
+    backgroundColor: '#FFF9F2',
   },
-  addNewBtnTxt: { color: Colors.white, fontSize: 13, fontWeight: '700' },
+  addBtnTxt: { fontSize: 13, fontWeight: '700', color: BRAND_ORANGE },
 
+  addBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    backgroundColor: '#FFF9F2',
+  },
+  addBtnSmallTxt: { fontSize: 12, fontWeight: '700', color: BRAND_ORANGE },
+
+  // Relative Horizontal Picker
+  relativesSection: {
+    marginBottom: 8,
+  },
+  relativesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  relativesScroll: {
+    paddingBottom: 16,
+    gap: 12,
+  },
+  relativeHCard: {
+    width: 140,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+  },
+  relativeHCardActive: {
+    borderColor: BRAND_ORANGE,
+    backgroundColor: '#FFF9F2',
+  },
+  relAvatarH: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  relAvatarHActive: {
+    backgroundColor: BRAND_ORANGE,
+  },
+  relAvatarTxtH: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#666',
+  },
+  relAvatarTxtHActive: {
+    color: Colors.white,
+  },
+  relNameH: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textMain,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  relNameHActive: {
+    color: Colors.textMain,
+  },
+  relPhoneH: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  relPhoneHActive: {
+    color: '#888',
+  },
+
+  // ─── Address Card ────────────────────────────────────────────────────────────
   addrCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: Colors.disabled,
-    marginBottom: 16,
-    position: 'relative',
+    borderColor: '#E8E8E8',
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
   },
   addrCardDef: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.warningBackground,
+    borderColor: BRAND_ORANGE,
+    backgroundColor: '#FFFAF5',
   },
-  defBadge: {
-    position: 'absolute',
-    top: -12,
-    right: 20,
-    backgroundColor: Colors.primary,
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  typeBadgeTxt: { fontSize: 12, fontWeight: '700' },
+  cardActions: { flexDirection: 'row', gap: 8 },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnTxt: { fontSize: 14 },
+
+  cardAddrMain: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  cardAddrSub: {
+    fontSize: 13,
+    color: '#777',
+    lineHeight: 19,
+  },
+  cardPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  cardPhoneIcon: { fontSize: 13 },
+  cardPhone: { fontSize: 13, color: '#444', fontWeight: '600' },
+
+  setDefaultBtn: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#F0C070',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#FFFBF0',
+  },
+  setDefaultBtnTxt: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#C07800',
+  },
+  defaultBadgeRow: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: BRAND_ORANGE,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  defBadgeTxt: { fontSize: 10, color: Colors.white, fontWeight: '800' },
-  addrTop: { flexDirection: 'row', gap: 14, marginBottom: 14 },
-  addrTypeBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.lightGray,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  labelChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.lightGray,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginBottom: 4,
-  },
-  labelChipTxt: { fontSize: 10, color: Colors.textMuted, fontWeight: '700' },
-  addrName: { fontSize: 16, fontWeight: '800', color: Colors.textMain },
-  relTag: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
-  addrPhone: { fontSize: 13, color: Colors.textMuted, marginTop: 2 },
-  addrBody: { marginBottom: 16 },
-  addrMain: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.textMain,
-    marginBottom: 4,
-  },
-  addrSub: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
-  coords: {
-    fontSize: 11,
-    color: Colors.gray,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  addrFooter: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    paddingTop: 14,
-  },
-  acBtn: {
-    backgroundColor: Colors.inputBg,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  acBtnRed: { backgroundColor: Colors.red },
-  acBtnTxt: { fontSize: 12, fontWeight: '700', color: Colors.textMain },
-
-  addMoreBtn: {
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    borderStyle: 'dashed',
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-  },
-  addMoreBtnTxt: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
+  defaultBadgeTxt: { fontSize: 11, color: Colors.white, fontWeight: '800' },
 
   addFirstBtn: {
     backgroundColor: Colors.primary,
@@ -1267,6 +1705,7 @@ const styles = StyleSheet.create({
   },
   addFirstBtnTxt: { color: Colors.white, fontSize: 14, fontWeight: '700' },
 
+  // ─── Modals ──────────────────────────────────────────────────────────────────
   modalBg: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -1337,6 +1776,94 @@ const styles = StyleSheet.create({
   },
   typeChipTxt: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
   typeChipTxtOn: { color: Colors.primary, fontWeight: '700' },
+
+  // Type selection cards in add modal
+  typeCard: {
+    flex: 1,
+    backgroundColor: '#FFF9F2',
+    borderColor: BRAND_ORANGE,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  typeCardTxt: { fontSize: 15, fontWeight: '800' },
+
+  // Relative list
+  relativeRow: {
+    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  relAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: BRAND_ORANGE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  relAvatarTxt: { color: Colors.white, fontSize: 16, fontWeight: '800' },
+  relName: { fontSize: 15, fontWeight: '800', color: Colors.textMain },
+  relTypePill: {
+    backgroundColor: '#FFEFEB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  relTypePillTxt: { fontSize: 10, color: BRAND_ORANGE, fontWeight: '700' },
+  relPhone: { fontSize: 12, color: Colors.textMuted },
+  relArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F4F4F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Radio buttons
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingVertical: 4,
+  },
+  radioOuter: {
+    height: 18,
+    width: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: BRAND_ORANGE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  radioInner: {
+    height: 10,
+    width: 10,
+    borderRadius: 5,
+    backgroundColor: BRAND_ORANGE,
+  },
+  radioLabel: { fontSize: 14, color: Colors.textMain, fontWeight: '500' },
+  radioSub: { fontSize: 12, color: Colors.textMuted },
+
+  // Fields
   fieldWrap: { flex: 1, marginBottom: 16 },
   fieldLabel: {
     fontSize: 11,
@@ -1372,45 +1899,6 @@ const styles = StyleSheet.create({
   },
   useLocBtnIcon: { fontSize: 16 },
   useLocBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
-
-  mapHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-    gap: 12,
-  },
-  mapBack: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.inputBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapBackIcon: { fontSize: 20, color: Colors.textMain },
-  mapTitle: { fontSize: 16, fontWeight: '800', color: Colors.textMain },
-  mapSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  mapFooter: {
-    padding: 20,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-  },
-  confirmMapBtn: {
-    backgroundColor: Colors.primary,
-    height: 54,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: Colors.black,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-  },
-  confirmMapBtnTxt: { color: Colors.white, fontSize: 16, fontWeight: '800' },
   defaultRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -135,6 +135,44 @@ export interface BookingDetail {
   puja_item_booking_status: string;
 }
 
+export interface OrderPackageDetail {
+  package_id: number;
+  package_name: string;
+  preferred_date: string;
+  preferred_time: string;
+  citizen_address_id: number;
+  citizen_address: string;
+  citizen_city: string;
+  citizen_pin_code: string;
+  citizen_land_mark: string;
+  special_instructions: string;
+  package_amount: number;
+  package_status_id: number;
+  package_status: string;
+  package_cancel_reason: string;
+}
+
+export interface OrderBookingDetail {
+  booking_id: number;
+  booking_no: string;
+  booking_status_id: number;
+  booking_status: string;
+  booking_cancel_reason: string;
+  package_details: OrderPackageDetail[];
+}
+
+export interface OrderSummary {
+  citizen_id: number;
+  order_id: number;
+  order_reference: string;
+  order_payble_amount: number;
+  order_total_amount: number;
+  order_status_id: number;
+  order_status: string;
+  order_cancel_reason: string;
+  booking_details: OrderBookingDetail[];
+}
+
 /**
  * Fetches all puja types from the master API.
  * @param userId The ID of the logged-in user.

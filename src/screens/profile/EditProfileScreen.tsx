@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
@@ -26,6 +27,8 @@ import {
   useGetUserDetailsQuery,
   useSaveRelativeDetailsMutation,
   useDeleteRelativeDetailsMutation,
+  useGetGotraDetailsQuery,
+  useSaveAddressV1Mutation,
 } from '../../store/api/pujaApi';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 import CustomTimePickerModal from '../../components/common/CustomTimePickerModal';
@@ -41,7 +44,8 @@ const ERROR_COLOR = Colors.red;
 type Gender = 'Male' | 'Female' | 'Others';
 
 interface RelativeProfile {
-  id: string;
+  id: string;          // relative_auth_id (UI identifier)
+  dbId?: number;       // relative_id (actual DB row ID — used for update API)
   relationType: string;
   relationTypeId?: number;
   firstName: string;
@@ -51,6 +55,8 @@ interface RelativeProfile {
   timeOfBirth: string;
   placeOfBirth: string;
   gotra: string;
+  gotraId?: number;
+  contact?: string;    // Contact/Mobile number
 }
 
 interface ProfileErrors {
@@ -188,9 +194,11 @@ export default function EditProfileScreen({ navigation }: any) {
   const [timeOfBirth, setTimeOfBirth] = useState('');
   const [gender, setGender] = useState<Gender>('Male');
   const [birthPlace, setBirthPlace] = useState('');
-  const [gotra, setGotra] = useState('');
-  const [address, setAddress] = useState('');
+  const [gotra, setGotra] = useState('');         // display name
+  const [gotraId, setGotraId] = useState<number | null>(null); // numeric ID sent to API
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [address, setAddress] = useState('');
 
   React.useEffect(() => {
     // No logging
@@ -216,6 +224,8 @@ export default function EditProfileScreen({ navigation }: any) {
   const [saveProfile] = useSaveUserProfileMutation();
   const [saveRelativeMutation] = useSaveRelativeDetailsMutation();
   const [deleteRelativeMutation] = useDeleteRelativeDetailsMutation();
+  const [saveAddressV1Mutation] = useSaveAddressV1Mutation();
+  const { data: gotraList = [] } = useGetGotraDetailsQuery();
 
   React.useEffect(() => {
     if (userDetailsRaw) {
@@ -238,12 +248,38 @@ export default function EditProfileScreen({ navigation }: any) {
     if (userDetailsRaw) {
       // Parse main profile
       const fullName = userDetailsRaw.ctnz_full_name || '';
+
+      // If name is not set, automatically open the edit modal
+      if (!fullName.trim()) {
+        setIsEditing(true);
+      }
+
       const nameParts = fullName.split(' ');
       setFirstName(nameParts[0] || '');
       setLastName(nameParts.slice(1).join(' ') || '');
 
-      setGender((userDetailsRaw.ctnz_gender as Gender) || 'Male');
-      setGotra(userDetailsRaw.ctnz_gotra || '');
+      // Robust Gender mapping (handles ctnz_gender_id and ctnz_gender_name)
+      const rawGender = userDetailsRaw.ctnz_gender_id;
+      if (rawGender === 1 || rawGender === '1' || userDetailsRaw.ctnz_gender_name === 'Male') {
+        setGender('Male');
+      } else if (rawGender === 2 || rawGender === '2' || userDetailsRaw.ctnz_gender_name === 'Female') {
+        setGender('Female');
+      } else if (rawGender === 3 || rawGender === '3' || userDetailsRaw.ctnz_gender_name === 'Others') {
+        setGender('Others');
+      } else {
+        setGender('Male');
+      }
+
+      // Robust Gotra mapping (handles ctnz_gotra_id and ctnz_gotra_name)
+      const gotraIdVal = userDetailsRaw.ctnz_gotra_id;
+      const gotraNameVal = userDetailsRaw.ctnz_gotra_name;
+      if (gotraIdVal) {
+        setGotraId(Number(gotraIdVal));
+      }
+      if (gotraNameVal) {
+        setGotra(gotraNameVal);
+      }
+
       setBirthPlace(userDetailsRaw.ctnz_birth_place || '');
       setAddress(userDetailsRaw.ctnz_address || '');
 
@@ -271,8 +307,7 @@ export default function EditProfileScreen({ navigation }: any) {
           let rDob = '';
           let rTime = '';
           if (r.relative_dob && r.relative_dob.trim()) {
-            // Updated to handle space between date and time
-            const parts = r.relative_dob.split(' ');
+            const parts = r.relative_dob.includes('T') ? r.relative_dob.split('T') : r.relative_dob.split(' ');
             if (parts[0]) {
               const [y, m, d] = parts[0].split('-');
               if (y && m && d) rDob = `${d}/${m}/${y}`;
@@ -288,26 +323,42 @@ export default function EditProfileScreen({ navigation }: any) {
             }
           }
           const relParts = (r.relative_full_name || '').split(' ');
-          const masterRelName =
-            SOCIAL_RELATIONS.find(m => m.id === r.relation_type_id)?.name || '';
+          const relativeAuthId = r.relative_auth_id || r.relative_id || '';
+          // API returns relative_auth_id but not relative_id as a DB row ID separately
+          // Use relative_auth_id as the DB ID for update operations
+          const relativeDbId = r.relative_id
+            ? Number(r.relative_id)
+            : r.relative_auth_id
+              ? Number(r.relative_auth_id)
+              : undefined;
+
+          console.log('=== RELATIVE MAPPING ===', {
+            relative_auth_id: r.relative_auth_id,
+            relative_id: r.relative_id,
+            usingAsId: relativeAuthId,
+            dbId: relativeDbId,
+          });
 
           return {
-            id: r.relative_id.toString(),
-            relationType: r.relation_type_name || masterRelName,
+            id: relativeAuthId.toString(),
+            dbId: relativeDbId,
+            relationType: r.relation_type_name || SOCIAL_RELATIONS.find(m => m.id === r.relation_type_id)?.name || '',
             relationTypeId: r.relation_type_id,
             firstName: relParts[0] || '',
             lastName: relParts.slice(1).join(' ') || '',
-            gender: r.relative_gender || 'Male',
+            gender: r.relative_gender_name || (r.relative_gender_id === 1 ? 'Male' : r.relative_gender_id === 2 ? 'Female' : 'Others') || 'Male',
             dob: rDob,
             timeOfBirth: rTime,
             placeOfBirth: r.relative_birth_place || '',
-            gotra: r.relative_gotra || '',
+            gotra: r.relative_gotra_name || r.relative_gotra || '',
+            gotraId: r.relative_gotra_id ? Number(r.relative_gotra_id) : undefined,
+            contact: r.relative_contact_no || r.relative_mobile || r.mobile_no || r.relative_phone || r.delivery_contact_no || '',
           };
         });
         setRelatives(mappedRels);
       }
     }
-  }, [userDetailsRaw]);
+  }, [userDetailsRaw, gotraList]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -407,38 +458,12 @@ export default function EditProfileScreen({ navigation }: any) {
         ? 'শুধুমাত্র অক্ষর ব্যবহার করুন'
         : 'Only letters allowed';
 
-    // Date of Birth
-    if (!dob.trim())
-      errs.dob = isBn ? 'জন্ম তারিখ আবশ্যক' : 'Date of birth is required';
+    // Date of Birth - Optional
+    // Time of Birth - Optional
+    // Birth Place - Optional
+    // Gotra - Optional
 
-    // Time of Birth
-    if (!timeOfBirth.trim())
-      errs.timeOfBirth = isBn
-        ? 'জন্ম সময় আবশ্যক'
-        : 'Time of birth is required';
-
-    // Birth Place
-    if (!birthPlace.trim())
-      errs.birthPlace = isBn ? 'জন্মস্থান আবশ্যক' : 'Birth place is required';
-    else if (birthPlace.trim().length < 2)
-      errs.birthPlace = isBn
-        ? 'অন্তত ২টি অক্ষর আবশ্যক'
-        : 'At least 2 characters required';
-
-    // Gotra
-    if (!gotra.trim()) errs.gotra = isBn ? 'গোত্র আবশ্যক' : 'Gotra is required';
-    else if (gotra.trim().length < 2)
-      errs.gotra = isBn
-        ? 'অন্তত ২টি অক্ষর আবশ্যক'
-        : 'At least 2 characters required';
-
-    // Address
-    if (!address.trim())
-      errs.address = isBn ? 'ঠিকানা আবশ্যক' : 'Address is required';
-    else if (address.trim().length < 5)
-      errs.address = isBn
-        ? 'অন্তত ৫টি অক্ষর আবশ্যক'
-        : 'At least 5 characters required';
+    // Address field has been removed from UI, so skipping validation here.
 
     setProfileErrors(errs);
     return Object.keys(errs).length === 0;
@@ -554,32 +579,40 @@ export default function EditProfileScreen({ navigation }: any) {
 
     try {
       dispatch(showLoader());
+
+      // Gender → numeric: 1=Male, 2=Female, 3=Others
+      const genderNum = gender === 'Male' ? 1 : gender === 'Female' ? 2 : 3;
+
       const payload = {
         auth_id: user?.user_id || 0,
         full_name: `${firstName} ${lastName}`.trim(),
-        gotra: gotra,
-        gender: gender,
+        gotra: gotraId ?? gotra, // send ID if available, else fallback to name
+        gender: genderNum,
         dob: formatApiDate(dob, timeOfBirth),
         birthplace: birthPlace,
         entry_user_id: user?.user_id || 0,
         ctz_address: address,
-        social_relation_id: 18, // 18 is 'Self'
-        // Send blank string ONLY if no user photo exists (removal or never had one)
-        ctnz_profile_image:
-          !profileImageFile && !profileImageUri ? '' : undefined,
+        social_relation_id: 18,
+        ctnz_profile_image: profileImageFile ? undefined : '',
       };
 
-      let fileData = profileImageFile || undefined;
+      // Server always requires a file field in the multipart form.
+      // Send the user's selected image if available, otherwise always send the placeholder.
+      let fileData: any = profileImageFile;
 
-      // If NO image is selected AND no existing photo exists, send the local placeholder asset as a file.
-      // If profileImageUri exists but profileImageFile is null, fileData remains undefined (preserving existing photo).
-      if (!profileImageUri && !profileImageFile) {
-        const placeholderSource = Image.resolveAssetSource(
-          require('../../assets/Placeholder_Person_3A7BFF.png'),
-        );
+      if (!profileImageFile) {
+        const dummyPath = RNFS.DocumentDirectoryPath + '/empty_profile.png';
+        const exists = await RNFS.exists(dummyPath);
+        if (!exists) {
+          await RNFS.writeFile(
+            dummyPath,
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+            'base64',
+          );
+        }
         fileData = {
-          uri: placeholderSource.uri,
-          name: 'Placeholder_Person_3A7BFF.png',
+          uri: 'file://' + dummyPath,
+          name: 'empty_profile.png',
           type: 'image/png',
         };
       }
@@ -590,18 +623,17 @@ export default function EditProfileScreen({ navigation }: any) {
       }).unwrap();
 
       if (result.status === 0) {
+        setIsEditing(false);
         showAlert({
           title: isBn ? 'সফল' : 'Success',
-          message:
-            result.message ||
-            (isBn ? 'সংরক্ষিত হয়েছে' : 'Profile saved successfully'),
+          message: isBn ? 'সফলভাবে সম্পাদনা করা হয়েছে' : 'Edit successfully',
           buttons: [{ text: 'OK' }],
         });
       }
     } catch (err: any) {
       showErrorAlert(
         err?.data?.message ||
-          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+        (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
       );
     } finally {
       dispatch(hideLoader());
@@ -612,6 +644,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [relatives, setRelatives] = useState<RelativeProfile[]>([]);
   const [showAddRelative, setShowAddRelative] = useState(false);
   const [editingRelId, setEditingRelId] = useState<string | null>(null);
+  const [editingDbId, setEditingDbId] = useState<number | null>(null); // actual DB row ID for update API
   const [relationType, setRelationType] = useState<number | null>(null);
   const [relFirstName, setRelFirstName] = useState('');
   const [relLastName, setRelLastName] = useState('');
@@ -619,11 +652,14 @@ export default function EditProfileScreen({ navigation }: any) {
   const [relDob, setRelDob] = useState('');
   const [relTimeOfBirth, setRelTimeOfBirth] = useState('');
   const [relPlaceOfBirth, setRelPlaceOfBirth] = useState('');
-  const [relGotra, setRelGotra] = useState('');
+  const [relGotra, setRelGotra] = useState('');       // display name
+  const [relGotraId, setRelGotraId] = useState<number | null>(null); // numeric ID sent to API
+  const [relContact, setRelContact] = useState(''); // Contact number state for relative
   const [relErrors, setRelErrors] = useState<RelErrors>({});
 
   const handleEditRelative = (rel: RelativeProfile) => {
     setEditingRelId(rel.id);
+    setEditingDbId(rel.dbId ?? null);
     setRelationType(rel.relationTypeId || null);
     setRelFirstName(rel.firstName);
     setRelLastName(rel.lastName);
@@ -632,6 +668,8 @@ export default function EditProfileScreen({ navigation }: any) {
     setRelTimeOfBirth(rel.timeOfBirth);
     setRelPlaceOfBirth(rel.placeOfBirth);
     setRelGotra(rel.gotra);
+    setRelGotraId(rel.gotraId ?? null);
+    setRelContact(rel.contact || '');
     setRelErrors({});
     setShowAddRelative(true);
   };
@@ -677,7 +715,7 @@ export default function EditProfileScreen({ navigation }: any) {
             } catch (err: any) {
               showErrorAlert(
                 err?.data?.message ||
-                  (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+                (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
               );
             } finally {
               dispatch(hideLoader());
@@ -692,11 +730,13 @@ export default function EditProfileScreen({ navigation }: any) {
   const validateRelative = (): boolean => {
     const errs: RelErrors = {};
 
-    // Relation Type
+    // Relation Type - Commented out validation as dropdown is commented in UI
+    /*
     if (relationType === null)
       errs.relationType = isBn
         ? 'সম্পর্কের ধরন নির্বাচন করুন'
         : 'Please select a relation type';
+    */
 
     // First Name
     if (!relFirstName.trim())
@@ -740,13 +780,9 @@ export default function EditProfileScreen({ navigation }: any) {
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
 
-    // Gotra
-    if (!relGotra.trim())
-      errs.gotra = isBn ? 'গোত্র আবশ্যক' : 'Gotra is required';
-    else if (relGotra.trim().length < 2)
-      errs.gotra = isBn
-        ? 'অন্তত ২টি অক্ষর আবশ্যক'
-        : 'At least 2 characters required';
+    // Gotra (dropdown - check numeric ID)
+    if (!relGotraId)
+      errs.gotra = isBn ? 'গোত্র নির্বাচন করুন' : 'Please select a Gotra';
 
     setRelErrors(errs);
     return Object.keys(errs).length === 0;
@@ -769,40 +805,86 @@ export default function EditProfileScreen({ navigation }: any) {
       const relName =
         SOCIAL_RELATIONS.find(r => r.id === relationType)?.name || '';
 
+      // Gender → numeric: 1=Male, 2=Female, 3=Others
+      const relGenderNum = relGender === 'Male' ? 1 : relGender === 'Female' ? 2 : 3;
+
+      // For UPDATE: use actual DB row ID (dbId), NOT the auth_id (editingRelId)
+      const relDbIdForApi = editingDbId ?? 0;
+
       const payload = [
         {
-          relative_id: editingRelId ? parseInt(editingRelId, 10) : 0,
-          relation_type_id: relationType,
+          relative_auth_id: relDbIdForApi || 0,
+          main_auth_id: user?.user_id || 0,
           full_name: `${relFirstName} ${relLastName}`.trim(),
           date_of_birth: formatApiDate(relDob, relTimeOfBirth),
           place_of_birth: relPlaceOfBirth,
-          gender: relGender,
-          gotram: relGotra,
-          created_by: user?.user_id || 0,
+          contact_no: relContact,
+          gender: relGenderNum,
+          gotram: relGotraId,
+          created_by: 3,
         },
       ];
+
+      console.log('=== SAVE RELATIVE ===');
+      console.log('Mode:', editingRelId ? 'UPDATE' : 'ADD');
+      console.log('editingRelId (auth_id):', editingRelId);
+      console.log('editingDbId  (DB row):', editingDbId);
+      console.log('relative_id sent to API:', relDbIdForApi);
+      console.log('Relative Payload:', JSON.stringify(payload, null, 2));
 
       const result = await saveRelativeMutation({
         data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
       }).unwrap();
 
+      console.log('=== SAVE RELATIVE RESULT ===', JSON.stringify(result, null, 2));
+
       if (result.status === 0) {
+        // Call save_address_v1 — same payload for both add AND update
+        try {
+          const addressPayload = {
+            in_ctzn_address_id: 0,
+            ctzn_auth_id: user?.user_id || 0,
+            address_type_id: 1,
+            label: '',
+            address: relPlaceOfBirth,
+            street: '',
+            landmark: '',
+            city: relPlaceOfBirth,
+            state: 1,
+            pincode: '',
+            is_default: 1,
+            latitude: 0,
+            longitude: 0,
+            delivery_contact_no: relContact,
+            delivery_instruction: '',
+          };
+          console.log('=== SAVE ADDRESS V1 PAYLOAD ===', JSON.stringify(addressPayload, null, 2));
+          const addrResult = await saveAddressV1Mutation({
+            data: JSON.stringify({ enc_data: JSON.stringify(addressPayload) }),
+          }).unwrap();
+          console.log('=== SAVE ADDRESS V1 RESULT ===', JSON.stringify(addrResult, null, 2));
+        } catch (addrErr: any) {
+          console.log('=== SAVE ADDRESS V1 ERROR ===', JSON.stringify(addrErr, null, 2));
+        }
+
         if (editingRelId) {
           setRelatives(prev =>
             prev.map(r =>
               r.id === editingRelId
                 ? {
-                    id: editingRelId,
-                    relationType: relName,
-                    relationTypeId: relationType ?? undefined,
-                    firstName: relFirstName,
-                    lastName: relLastName,
-                    gender: relGender,
-                    dob: relDob,
-                    timeOfBirth: relTimeOfBirth,
-                    placeOfBirth: relPlaceOfBirth,
-                    gotra: relGotra,
-                  }
+                  id: editingRelId,
+                  relationType: relName,
+                  relationTypeId: relationType ?? undefined,
+                  firstName: relFirstName,
+                  lastName: relLastName,
+                  gender: relGender,
+                  dob: relDob,
+                  timeOfBirth: relTimeOfBirth,
+                  placeOfBirth: relPlaceOfBirth,
+                  gotra: relGotra,
+                  gotraId: relGotraId ?? undefined,
+                  contact: relContact,
+                }
                 : r,
             ),
           );
@@ -821,19 +903,24 @@ export default function EditProfileScreen({ navigation }: any) {
               timeOfBirth: relTimeOfBirth,
               placeOfBirth: relPlaceOfBirth,
               gotra: relGotra,
+              gotraId: relGotraId ?? undefined,
+              contact: relContact,
             },
           ]);
         }
 
         clearRelForm();
 
+        // Refetch from server so relatives list shows latest data
+        try { await refetchUserDetails(); } catch (_) { }
+
+        const isUpdate = !!editingRelId;
+        const successMsgEn = isUpdate ? 'Edit successfully' : 'New relative successfully added';
+        const successMsgBn = isUpdate ? 'সফলভাবে সম্পাদনা করা হয়েছে' : 'নতুন আত্মীয় সফলভাবে যোগ করা হয়েছে';
+
         showAlert({
           title: isBn ? 'সফল' : 'Success',
-          message:
-            result.message ||
-            (isBn
-              ? 'আত্মীয় প্রোফাইল সংরক্ষিত হয়েছে'
-              : 'Relative profile saved successfully'),
+          message: isBn ? successMsgBn : successMsgEn,
           buttons: [{ text: 'OK' }],
         });
       }
@@ -841,7 +928,7 @@ export default function EditProfileScreen({ navigation }: any) {
       console.log('Save Relative Error:', err);
       showErrorAlert(
         err?.data?.message ||
-          (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
+        (isBn ? 'কিছু ভুল হয়েছে' : 'Something went wrong'),
       );
     } finally {
       dispatch(hideLoader());
@@ -850,6 +937,7 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const clearRelForm = () => {
     setEditingRelId(null);
+    setEditingDbId(null);
     setRelationType(null);
     setRelFirstName('');
     setRelLastName('');
@@ -858,6 +946,8 @@ export default function EditProfileScreen({ navigation }: any) {
     setRelTimeOfBirth('');
     setRelPlaceOfBirth('');
     setRelGotra('');
+    setRelGotraId(null);
+    setRelContact('');
     setRelErrors({});
     setShowAddRelative(false);
   };
@@ -902,8 +992,8 @@ export default function EditProfileScreen({ navigation }: any) {
       >
         <View style={styles.avatarSection}>
           <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleAvatarPress}
+            activeOpacity={isEditing ? 0.8 : 1}
+            onPress={isEditing ? handleAvatarPress : undefined}
             style={styles.avatarOuter}
           >
             <Image
@@ -926,154 +1016,55 @@ export default function EditProfileScreen({ navigation }: any) {
             </View>
           </TouchableOpacity>
 
-          <Text style={styles.avatarName}>{user?.user_name || 'User'}</Text>
+          <Text style={styles.avatarName}>
+            {`${firstName} ${lastName}`.trim() || user?.user_name || 'User'}
+          </Text>
           <Text style={styles.avatarPhone}>{user?.mobile || ''}</Text>
         </View>
 
-        {/* ── Profile Form Card ── */}
+        {/* ── Profile Info Card (read-only, like relative cards) ── */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
-            {isBn ? 'মৌলিক তথ্য' : 'Basic Information'}
-          </Text>
-
-          <View style={styles.rowTwo}>
-            <Field
-              label={isBn ? 'প্রথম নাম' : 'FIRST NAME'}
-              required
-              value={firstName}
-              onChange={v => {
-                setFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                if (profileErrors.firstName)
-                  setProfileErrors(p => ({ ...p, firstName: undefined }));
-              }}
-              placeholder={isBn ? 'প্রথম নাম লিখুন' : 'Enter first name'}
-              error={profileErrors.firstName}
-            />
-            <Field
-              label={isBn ? 'শেষ নাম' : 'LAST NAME'}
-              required
-              value={lastName}
-              onChange={v => {
-                setLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                if (profileErrors.lastName)
-                  setProfileErrors(p => ({ ...p, lastName: undefined }));
-              }}
-              placeholder={isBn ? 'শেষ নাম লিখুন' : 'Enter last name'}
-              error={profileErrors.lastName}
-            />
+          <View style={styles.relationHeader}>
+            <Text style={styles.sectionTitle}>
+              {isBn ? 'আমার প্রোফাইল' : 'My Profile'}
+            </Text>
+            <TouchableOpacity
+              style={styles.addRelBtn}
+              onPress={() => setIsEditing(true)}
+            >
+              <Text style={styles.addRelBtnText}>✏️ {isBn ? 'সম্পাদনা' : 'Edit'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.sectionDivider} />
-          <Text style={styles.sectionTitle}>
-            {isBn ? 'ব্যক্তিগত বিবরণ' : 'Personal Details'}
-          </Text>
-
-          <View style={styles.rowTwo}>
-            <Field
-              label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
-              required
-              value={dob}
-              onChange={() => {}}
-              onPress={() => {
-                setPickerTarget('profile');
-                setShowDatePicker(true);
-              }}
-              placeholder="DD/MM/YYYY"
-              error={profileErrors.dob}
-            />
-            <Field
-              label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
-              required
-              value={timeOfBirth}
-              onChange={() => {}}
-              onPress={() => {
-                setPickerTarget('profile');
-                setShowTimePicker(true);
-              }}
-              placeholder="HH:MM AM/PM"
-              error={profileErrors.timeOfBirth}
-            />
-          </View>
-
-          <Text style={styles.fieldLabel}>{isBn ? 'লিঙ্গ' : 'GENDER'}</Text>
-          <GenderPicker value={gender} onChange={setGender} />
-
-          <View style={styles.rowTwo}>
-            <Field
-              label={isBn ? 'জন্মস্থান' : 'BIRTH PLACE'}
-              required
-              value={birthPlace}
-              onChange={v => {
-                setBirthPlace(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
-                if (profileErrors.birthPlace)
-                  setProfileErrors(p => ({ ...p, birthPlace: undefined }));
-              }}
-              placeholder={isBn ? 'জন্মস্থান লিখুন' : 'Enter birth place'}
-              error={profileErrors.birthPlace}
-            />
-            <Field
-              label={isBn ? 'গোত্র' : 'GOTRA'}
-              required
-              value={gotra}
-              onChange={v => {
-                setGotra(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                if (profileErrors.gotra)
-                  setProfileErrors(p => ({ ...p, gotra: undefined }));
-              }}
-              placeholder={isBn ? 'গোত্র লিখুন' : 'Enter gotra'}
-              error={profileErrors.gotra}
-            />
-          </View>
-
-          <Field
-            label={isBn ? 'ঠিকানা' : 'ADDRESS'}
-            required
-            multiline
-            value={address}
-            onChange={v => {
-              setAddress(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
-              if (profileErrors.address)
-                setProfileErrors(p => ({ ...p, address: undefined }));
-            }}
-            placeholder={isBn ? 'আপনার ঠিকানা লিখুন' : 'Enter your address'}
-            error={profileErrors.address}
-          />
-
-          {/* Save Profile Footer */}
-          <View style={styles.saveBox}>
-            <View style={styles.saveBoxLeft}>
-              <View style={styles.saveIconCircle}>
-                <Text style={styles.saveIcon}>👤</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.saveBoxTitle}>
-                  {isBn ? 'প্রোফাইল সংরক্ষণ' : 'Save Profile'}
-                </Text>
-                <Text style={styles.saveBoxSub}>
-                  {isBn
-                    ? 'শুধু ব্যক্তিগত তথ্য আপডেট হবে।'
-                    : 'Updates your personal information only.'}
+          {/* Profile Info Summary Card */}
+          <View style={styles.relativeCard}>
+            <View style={styles.relCardHeader}>
+              <Text style={styles.relativeCardTitle}>
+                {`${firstName} ${lastName}`.trim() || (isBn ? 'নাম দেওয়া হয়নি' : 'N/A')}
+              </Text>
+            </View>
+            <View style={styles.relCardDetails}>
+              <View style={styles.relPill}>
+                <Text style={styles.relPillText}>
+                  {gender === 'Male' ? '♂ Male' : gender === 'Female' ? '♀ Female' : gender === 'Others' ? '⚧ Others' : 'N/A'}
                 </Text>
               </View>
-            </View>
-            <View style={styles.saveBoxBtns}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => navigation.goBack()}
-              >
-                <Text style={styles.cancelBtnText}>
-                  {isBn ? 'বাতিল' : 'Cancel'}
+              {gotra ? (
+                <Text style={[styles.relativeCardSub, { marginLeft: 8 }]}>
+                  • {gotra}
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSaveProfile}
-              >
-                <Text style={styles.saveBtnText}>
-                  {isBn ? 'সংরক্ষণ' : 'Save Profile'}
+              ) : null}
+              {dob ? (
+                <Text style={styles.relativeCardSub}>
+                  {' '}• {dob}
                 </Text>
-              </TouchableOpacity>
+              ) : null}
             </View>
+            {birthPlace ? (
+              <Text style={[styles.relativeCardSub, { marginTop: 6 }]}>
+                📍 {birthPlace}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -1193,6 +1184,162 @@ export default function EditProfileScreen({ navigation }: any) {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
+      {/* ── Profile Edit Modal ── */}
+      <Modal
+        visible={isEditing}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsEditing(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.addRelFormTitle}>
+                {isBn ? 'প্রোফাইল সম্পাদনা করুন' : 'Edit Profile'}
+              </Text>
+              <TouchableOpacity onPress={() => setIsEditing(false)}>
+                <Text style={styles.closeIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              <View style={styles.rowTwo}>
+                <Field
+                  label={isBn ? 'প্রথম নাম' : 'FIRST NAME'}
+                  required
+                  value={firstName}
+                  onChange={v => {
+                    setFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                    if (profileErrors.firstName)
+                      setProfileErrors(p => ({ ...p, firstName: undefined }));
+                  }}
+                  placeholder={isBn ? 'প্রথম নাম লিখুন' : 'Enter first name'}
+                  error={profileErrors.firstName}
+                />
+                <Field
+                  label={isBn ? 'শেষ নাম' : 'LAST NAME'}
+                  required
+                  value={lastName}
+                  onChange={v => {
+                    setLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                    if (profileErrors.lastName)
+                      setProfileErrors(p => ({ ...p, lastName: undefined }));
+                  }}
+                  placeholder={isBn ? 'শেষ নাম লিখুন' : 'Enter last name'}
+                  error={profileErrors.lastName}
+                />
+              </View>
+
+              <View style={styles.rowTwo}>
+                <Field
+                  label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
+                  required
+                  value={dob}
+                  onChange={() => { }}
+                  onPress={() => {
+                    setPickerTarget('profile');
+                    setShowDatePicker(true);
+                  }}
+                  placeholder="DD/MM/YYYY"
+                  error={profileErrors.dob}
+                />
+                <Field
+                  label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
+                  required
+                  value={timeOfBirth}
+                  onChange={() => { }}
+                  onPress={() => {
+                    setPickerTarget('profile');
+                    setShowTimePicker(true);
+                  }}
+                  placeholder="HH:MM AM/PM"
+                  error={profileErrors.timeOfBirth}
+                />
+              </View>
+
+              <Text style={styles.fieldLabel}>{isBn ? 'লিঙ্গ' : 'GENDER'}</Text>
+              <GenderPicker value={gender} onChange={setGender} />
+
+              <View style={styles.rowTwo}>
+                <Field
+                  label={isBn ? 'জন্মস্থান' : 'BIRTH PLACE'}
+                  required
+                  value={birthPlace}
+                  onChange={v => {
+                    setBirthPlace(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
+                    if (profileErrors.birthPlace)
+                      setProfileErrors(p => ({ ...p, birthPlace: undefined }));
+                  }}
+                  placeholder={isBn ? 'জন্মস্থান লিখুন' : 'Enter birth place'}
+                  error={profileErrors.birthPlace}
+                />
+              </View>
+
+              <View style={{ marginBottom: 8 }}>
+                <Text style={styles.fieldLabel}>
+                  {isBn ? 'গোত্র' : 'GOTRA'}{' '}
+                  <Text style={styles.required}>*</Text>
+                </Text>
+                <Dropdown
+                  options={gotraList.map(g => ({
+                    id: g.gotra_id,
+                    name: g.gotra_name,
+                  }))}
+                  value={gotraId}
+                  onSelect={(val: number) => {
+                    setGotraId(val);
+                    const found = gotraList.find(g => g.gotra_id === val);
+                    if (found) setGotra(found.gotra_name);
+                    if (profileErrors.gotra)
+                      setProfileErrors(p => ({ ...p, gotra: undefined }));
+                  }}
+                  placeholder={isBn ? 'গোত্র নির্বাচন করুন' : 'Select Gotra'}
+                  error={profileErrors.gotra}
+                />
+              </View>
+
+              {/* <Field
+                label={isBn ? 'ঠিকানা' : 'ADDRESS'}
+                required
+                multiline
+                value={address}
+                onChange={v => {
+                  setAddress(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
+                  if (profileErrors.address)
+                    setProfileErrors(p => ({ ...p, address: undefined }));
+                }}
+                placeholder={isBn ? 'আপনার ঠিকানা লিখুন' : 'Enter your address'}
+                error={profileErrors.address}
+              /> */}
+
+
+              <View style={styles.relFormBtnsRow}>
+                <TouchableOpacity
+                  style={styles.relCancelBtn}
+                  onPress={() => setIsEditing(false)}
+                >
+                  <Text style={styles.relCancelBtnText}>
+                    {isBn ? 'বাতিল' : 'Cancel'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.relSaveBtn}
+                  onPress={async () => {
+                    await handleSaveProfile();
+                  }}
+                >
+                  <Text style={styles.relSaveBtnText}>
+                    {isBn ? 'সংরক্ষণ করুন' : 'Save Profile'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Pickers & Modals */}
       <Modal
         visible={showAddRelative}
@@ -1209,8 +1356,8 @@ export default function EditProfileScreen({ navigation }: any) {
                     ? 'আত্মীয় প্রোফাইল আপডেট করুন'
                     : 'Edit Relative Profile'
                   : isBn
-                  ? 'নতুন আত্মীয় প্রোফাইল'
-                  : 'New Relative Profile'}
+                    ? 'নতুন আত্মীয় প্রোফাইল'
+                    : 'New Relative Profile'}
               </Text>
               <TouchableOpacity onPress={clearRelForm}>
                 <Text style={styles.closeIcon}>✕</Text>
@@ -1220,7 +1367,7 @@ export default function EditProfileScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
             >
-              <Dropdown
+              {/* <Dropdown
                 label={isBn ? 'সম্পর্কের ধরন' : 'RELATION TYPE'}
                 required
                 placeholder={isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select relation'}
@@ -1229,7 +1376,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 onSelect={setRelationType}
                 isLoading={false}
                 error={relErrors.relationType}
-              />
+              /> */}
 
               <View style={styles.rowTwo}>
                 <Field
@@ -1266,7 +1413,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
                   required
                   value={relDob}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   onPress={() => {
                     setPickerTarget('relative');
                     setShowDatePicker(true);
@@ -1277,7 +1424,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 <Field
                   label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
                   value={relTimeOfBirth}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   onPress={() => {
                     setPickerTarget('relative');
                     setShowTimePicker(true);
@@ -1300,17 +1447,37 @@ export default function EditProfileScreen({ navigation }: any) {
                   placeholder={isBn ? 'জন্মস্থান' : 'Enter place of birth'}
                   error={relErrors.placeOfBirth}
                 />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>
+                    {isBn ? 'গোত্র' : 'GOTRA'}{' '}
+                    <Text style={styles.required}>*</Text>
+                  </Text>
+                  <Dropdown
+                    options={gotraList.map(g => ({
+                      id: g.gotra_id,
+                      name: g.gotra_name,
+                    }))}
+                    value={relGotraId}
+                    onSelect={(val: number) => {
+                      setRelGotraId(val);
+                      const found = gotraList.find(g => g.gotra_id === val);
+                      if (found) setRelGotra(found.gotra_name);
+                      if (relErrors.gotra)
+                        setRelErrors(p => ({ ...p, gotra: undefined }));
+                    }}
+                    placeholder={isBn ? 'গোত্র নির্বাচন করুন' : 'Select Gotra'}
+                    error={relErrors.gotra}
+                  />
+                </View>
+              </View>
+
+              <View style={{ marginBottom: 16 }}>
                 <Field
-                  label={isBn ? 'গোত্র' : 'GOTRA'}
-                  required
-                  value={relGotra}
-                  onChange={v => {
-                    setRelGotra(v.replace(/[^a-zA-Z\s.-]/g, ''));
-                    if (relErrors.gotra)
-                      setRelErrors(p => ({ ...p, gotra: undefined }));
-                  }}
-                  placeholder={isBn ? 'গোত্র' : 'Enter gotra'}
-                  error={relErrors.gotra}
+                  label={isBn ? 'যোগাযোগ নম্বর' : 'CONTACT NUMBER'}
+                  value={relContact}
+                  onChange={v => setRelContact(v.replace(/[^0-9]/g, ''))}
+                  placeholder={isBn ? 'যোগাযোগ নম্বর লিখুন' : 'Enter contact number'}
+                  keyboardType="numeric"
                 />
               </View>
 
@@ -1333,8 +1500,8 @@ export default function EditProfileScreen({ navigation }: any) {
                         ? 'আপডেট করুন'
                         : 'Update Relative'
                       : isBn
-                      ? 'আত্মীয় সংরক্ষণ করুন'
-                      : 'Save Relative'}
+                        ? 'আত্মীয় সংরক্ষণ করুন'
+                        : 'Save Relative'}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -11,14 +11,16 @@ import {
   ActivityIndicator,
   Keyboard,
   RefreshControl,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { FEATURED_PUJAS } from '../../data/dummyData';
+import { Clock, Users, CheckCircle } from 'lucide-react-native';
 import BookingModal from '../../components/booking/BookingModal';
+import PackageDetailsModal from '../../components/booking/PackageDetailsModal';
 import NoDataFound from '../../components/common/NoDataFound';
 import ImagePlaceholder from '../../components/common/ImagePlaceholder';
 import { useToast } from '../../context/ToastContext';
@@ -39,13 +41,15 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
 
   // Use passed pujaData (Real API) or fallback to FEATURED_PUJAS (Dummy)
-  const puja = pujaData || FEATURED_PUJAS.find(p => p.id === pujaId);
+  const puja = pujaData || {};
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
     null,
   );
+  const [showPackageDropdown, setShowPackageDropdown] = useState(false);
+  const [activeDetailsPkg, setActiveDetailsPkg] = useState<any>(null);
 
   // RTK Query Hooks
   const {
@@ -111,7 +115,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchImages, refetchPackages, refetchMaterials, refetchFullDetails]);
+  }, [refetchImages, refetchPackages, refetchFullDetails]);
 
   // Auto-select first package when loaded
   useEffect(() => {
@@ -149,10 +153,10 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
 
   const benefitItems = fullDetails?.puja_benifit
     ? fullDetails.puja_benifit
-        .replace(/\\n/g, '\n')
-        .split(/[;\n]/)
-        .map(b => b.trim())
-        .filter(b => b.length > 0)
+      .replace(/\\n/g, '\n')
+      .split(/[;\n]/)
+      .map(b => b.trim())
+      .filter(b => b.length > 0)
     : [];
   const history = parseAsBullets(fullDetails?.puja_history_details);
   const significance = parseAsBullets(fullDetails?.puja_significance);
@@ -181,19 +185,19 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const IMAGES =
     imagesData.length > 0
       ? imagesData.map((img: any, idx: number) => ({
-          id: idx,
-          content: img.puja_image,
-          isUrl: true,
-          color: Colors.tagRed,
-        }))
+        id: idx,
+        content: img.puja_image,
+        isUrl: true,
+        color: Colors.tagRed,
+      }))
       : [
-          {
-            id: 0,
-            content: null,
-            isUrl: false,
-            color: Colors.tagRed,
-          },
-        ];
+        {
+          id: 0,
+          content: null,
+          isUrl: false,
+          color: Colors.tagRed,
+        },
+      ];
 
   return (
     <View style={styles.container}>
@@ -264,448 +268,353 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
                   </Text>
                 </View>
               </View>
-              <View style={styles.thumbnailRow}>
-                {IMAGES.map((img, idx) => (
-                  <TouchableOpacity
-                    key={img.id}
-                    activeOpacity={0.8}
-                    onPress={() => setActiveImageIndex(idx)}
-                  >
-                    <View
-                      style={[
-                        styles.thumbnailImg,
-                        { backgroundColor: img.color },
-                        activeImageIndex === idx && styles.thumbnailImgActive,
-                      ]}
-                    >
-                      {img.isUrl ? (
-                        <Image
-                          source={{ uri: img.content }}
-                          style={styles.thumbImgReal}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.thumbPlaceholder}>
-                          <Text style={styles.thumbEmoji}>🛕</Text>
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </>
           )}
         </View>
 
         {/* Quick Details Card */}
         <View style={styles.quickDetailsCard}>
-          <View style={styles.tabRow}>
-            {['OVERVIEW', 'PACKAGES', 'MATERIALS'].map(tab => (
-              <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.tabBtn,
-                  activeTab === tab && styles.tabBtnActive,
-                ]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.tabBtnText,
-                    activeTab === tab && styles.tabBtnTextActive,
-                  ]}
-                >
-                  {tab === 'OVERVIEW'
-                    ? isBn
-                      ? 'ওভারভিউ'
-                      : 'OVERVIEW'
-                    : tab === 'PACKAGES'
-                    ? isBn
-                      ? 'প্যাকেজ'
-                      : 'PACKAGES'
-                    : isBn
-                    ? 'উপকরণ'
-                    : 'MATERIALS'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {activeTab === 'OVERVIEW' && (
-            <View>
-              {isLoadingFull ? (
-                <ActivityIndicator
-                  color={BRAND_PRIMARY}
-                  style={styles.activityIndicatorMargin60}
-                />
-              ) : (
-                <View style={styles.overviewTab}>
-                  <View style={styles.aboutBlock}>
-                    <View style={styles.aboutBadge}>
-                      <Text style={styles.aboutBadgeText}>
-                        🔥 {isBn ? 'পবিত্র আচার' : 'SACRED RITUAL'}
-                      </Text>
-                    </View>
-                    <Text style={styles.aboutTitle}>
-                      {isBn ? 'এই পূজা সম্পর্কে' : 'About This Puja'}
-                    </Text>
-                    <Text style={styles.aboutDesc}>{description}</Text>
-                  </View>
-
-                  <View style={styles.featuresRow}>
-                    <View style={styles.featureCard}>
-                      <View style={styles.featureIconContainer}>
-                        <Text style={styles.featureIcon}>📖</Text>
-                      </View>
-                      <Text style={styles.featureTitle}>
-                        {isBn ? 'ইতিহাস ও ঐতিহ্য' : 'History & Heritage'}
-                      </Text>
-                      <View style={styles.featureList}>
-                        {history.length > 0 ? (
-                          history.slice(0, 5).map((h, i) => (
-                            <View key={i} style={styles.featureItemRow}>
-                              <View style={styles.featureBullet} />
-                              <Text style={styles.featureItem}>{h}</Text>
-                            </View>
-                          ))
-                        ) : (
-                          <Text style={styles.noDataSmall}>
-                            {isBn
-                              ? 'ইতিহাস পাওয়া যায়নি'
-                              : 'History information not available'}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.featureCard}>
-                      <View style={styles.featureIconContainer}>
-                        <Text style={styles.featureIcon}>🙏</Text>
-                      </View>
-                      <Text style={styles.featureTitle}>
-                        {isBn ? 'তাৎপর্য' : 'Significance'}
-                      </Text>
-                      <View style={styles.featureList}>
-                        {significance.length > 0 ? (
-                          significance.slice(0, 5).map((s, i) => (
-                            <View key={i} style={styles.featureItemRow}>
-                              <View style={styles.featureBullet} />
-                              <Text style={styles.featureItem}>{s}</Text>
-                            </View>
-                          ))
-                        ) : (
-                          <Text style={styles.noDataSmall}>
-                            {isBn
-                              ? 'তাৎপর্য পাওয়া যায়নি'
-                              : 'Significance information not available'}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionEmoji}>⚡</Text>
-                    <Text style={styles.sectionTitle}>
-                      {isBn ? 'মূল সুবিধা' : 'Key Benefits'}
-                    </Text>
-                  </View>
-                  {benefitItems.length > 0 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.benefitsCarousel}
-                    >
-                      {benefitItems.map((b, i) => (
-                        <View key={i} style={styles.benefitCard}>
-                          <Text style={styles.benefitNumber}>
-                            {(i + 1).toString().padStart(2, '0')}
-                          </Text>
-                          <Text style={styles.benefitCardDesc}>{b}</Text>
-                          <View style={styles.benefitDecoration}>
-                            <Text style={styles.flowerIconFontSize}>🌸</Text>
-                          </View>
-                        </View>
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    <View
-                      style={[
-                        styles.emptySection,
-                        styles.inlineMarginHorizontal16Padding20,
-                      ]}
-                    >
-                      <Text style={styles.noDataText}>
-                        {isBn
-                          ? 'কোন টেকনিক্যাল সুবিধা পাওয়া যায়নি'
-                          : 'No benefit information available'}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.promiseBox}>
-                    <View style={styles.promiseHeader}>
-                      <Text style={styles.promiseIcon}>📜</Text>
-                      <Text style={styles.promiseTitle}>
-                        {isBn ? 'আমাদের প্রতিশ্রুতি' : 'Our Promise to You'}
-                      </Text>
-                    </View>
-                    <View style={styles.promiseContent}>
-                      {promises.length > 0 ? (
-                        promises.map((p, i) => (
-                          <Text key={i} style={styles.promiseText}>
-                            • {p}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text style={styles.promiseText}>
-                          {isBn
-                            ? 'আমরা যথাযথ নিষ্ঠা ও বিশুদ্ধতার সাথে পূজা সম্পন্ন করার গ্যারান্টি দিই।'
-                            : 'We guarantee to perform the puja with utmost devotion and purity.'}
-                        </Text>
-                      )}
-                    </View>
-
-                    <View style={styles.promiseFooter}>
-                      <View style={styles.promiseBadge}>
-                        <Text style={styles.promiseBadgeText}>
-                          ✅ 100% Authentic
-                        </Text>
-                      </View>
-                      <View style={styles.promiseBadge}>
-                        <Text style={styles.promiseBadgeText}>
-                          📜 Certified Pandits
-                        </Text>
-                      </View>
-                      <View style={styles.promiseBadge}>
-                        <Text style={styles.promiseBadgeText}>
-                          ✨ Vedic Purity
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.quickInfoList}>
-                    <Text style={styles.quickInfoTitle}>
-                      {isBn ? 'বিস্তারিত' : 'Details'}
-                    </Text>
-                    <View style={styles.quickInfoItem}>
-                      <Text>⏱️</Text>
-                      <Text style={styles.quickInfoText}>
-                        {selectedPackage
-                          ? `${selectedPackage.puja_duration} ${
-                              isBn ? 'ঘণ্টা' : 'Hours'
-                            }`
-                          : duration}
-                      </Text>
-                    </View>
-                    <View style={styles.quickInfoItem}>
-                      <Text>🧘</Text>
-                      <Text style={styles.quickInfoText}>
-                        {selectedPackage?.pandit_count || 1}
-                        {isBn ? ' জন পুরোহিত' : ' Experienced Pandits'}
-                      </Text>
-                    </View>
-                    <View style={styles.quickInfoItem}>
-                      <Text>🎁</Text>
-                      <Text style={styles.quickInfoText}>
-                        {isBn
-                          ? 'সব উপকরণ অন্তর্ভুক্ত'
-                          : 'All materials included'}
-                      </Text>
-                    </View>
-                    <View style={styles.quickInfoItem}>
-                      <Text style={styles.flowerIconFontSize}>✨</Text>
-                      <Text style={styles.quickInfoText}>
-                        {isBn
-                          ? '১০০% খাঁটি বৈদিক আচার'
-                          : '100% Authentic Vedic Rituals'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )}
+          {/* PACKAGES SECTION START */}
+          <View style={styles.packagesTabContainer}>
+            <View style={styles.packagesHeader}>
+              <Text style={styles.packagesHeaderTitle}>
+                {isBn ? 'প্যাকেজ নির্বাচন করুন' : 'SELECT A PACKAGE'}
+              </Text>
+              <Text style={styles.packagesHeaderCount}>
+                {packagesData.length} {isBn ? 'বিকল্প' : 'options'}
+              </Text>
             </View>
-          )}
 
-          {activeTab === 'PACKAGES' && (
-            <View style={styles.packagesTab}>
-              {isLoadingPackages ? (
-                <ActivityIndicator
-                  color={BRAND_PRIMARY}
-                  style={styles.inlineMargin40}
-                />
-              ) : isErrorPackages ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorEmoji}>⚠️</Text>
-                  <Text style={styles.errorText}>
-                    {isBn
-                      ? 'প্যাকেজ লোড করতে ব্যর্থ হয়েছে'
-                      : 'Failed to load packages'}
+            {isLoadingPackages ? (
+              <ActivityIndicator
+                color={BRAND_PRIMARY}
+                style={styles.inlineMargin40}
+              />
+            ) : isErrorPackages ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorEmoji}>⚠️</Text>
+                <Text style={styles.errorText}>
+                  {isBn
+                    ? 'প্যাকেজ লোড করতে ব্যর্থ হয়েছে'
+                    : 'Failed to load packages'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.retryBtn}
+                  onPress={() => refetchPackages()}
+                >
+                  <Text style={styles.retryBtnText}>
+                    {isBn ? 'আবার চেষ্টা করুন' : 'Try Again'}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.retryBtn}
-                    onPress={() => refetchPackages()}
-                  >
-                    <Text style={styles.retryBtnText}>
-                      {isBn ? 'আবার চেষ্টা করুন' : 'Try Again'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : packagesData.length > 0 ? (
-                packagesData.map((pkg: any) => {
-                  const isSelected =
-                    selectedPackageId === pkg.puja_package_id.toString();
+                </TouchableOpacity>
+              </View>
+            ) : packagesData.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.packagesScrollContainer}
+              >
+                {packagesData.map((pkg: any) => {
+                  const isSelected = selectedPackageId === pkg.puja_package_id.toString();
                   return (
                     <TouchableOpacity
                       key={pkg.puja_package_id}
                       activeOpacity={0.9}
                       style={[
-                        styles.packageCard,
-                        isSelected && styles.packageCardSelected,
+                        styles.newPackageCard,
+                        isSelected && styles.newPackageCardSelected,
                       ]}
-                      onPress={() =>
-                        setSelectedPackageId(pkg.puja_package_id.toString())
-                      }
+                      onPress={() => setSelectedPackageId(pkg.puja_package_id.toString())}
                     >
-                      <View style={styles.pkgTopRow}>
-                        <View style={styles.pkgTitleCol}>
-                          <Text style={styles.pkgName}>
-                            {pkg.puja_package_name}
-                          </Text>
-                          <Text style={styles.pkgSubtitle}>
-                            {pkg.puja_package_description ||
-                              (isBn
-                                ? 'বিস্তারিত বিবরণ নেই'
-                                : 'No detailed description available')}
-                          </Text>
-                        </View>
-                        <View style={styles.pkgPriceCol}>
-                          <Text style={styles.pkgPrice}>
-                            ₹{pkg.puja_package_price.toLocaleString('en-IN')}
-                          </Text>
-                          <Text style={styles.pkgPriceLabel}>
-                            {isBn ? 'প্যাকেজ মূল্য' : 'PACKAGE PRICE'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.pkgDivider} />
-
-                      <View style={styles.pkgMetaRow}>
-                        <View style={styles.pkgMetaItem}>
-                          <Text style={styles.pkgMetaIcon}>🕒</Text>
-                          <Text style={styles.pkgMetaText}>
-                            {pkg.puja_duration} {isBn ? 'ঘন্টা' : 'hrs'}
-                          </Text>
-                        </View>
-                        <View style={styles.pkgMetaItem}>
-                          <Text style={styles.pkgMetaIcon}>👤</Text>
-                          <Text style={styles.pkgMetaText}>
-                            {pkg.pandit_count} {isBn ? 'পুরোহিত' : 'Pandits'}
-                          </Text>
-                        </View>
-                        <View style={styles.pkgMetaItem}>
-                          <Text style={styles.pkgMetaIcon}>🎁</Text>
-                          <Text style={styles.pkgMetaText}>
-                            {pkg.puja_include_samagri === 1
-                              ? isBn
-                                ? 'উপকরণ সহ'
-                                : 'Materials Inc.'
-                              : isBn
-                              ? 'উপকরণ ছাড়া'
-                              : 'No Materials'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {isSelected && materialsData.length > 0 && (
-                        <View style={styles.pkgIncludesBox}>
-                          <Text style={styles.pkgIncludesLabel}>
-                            {isBn ? 'অন্তর্ভুক্ত:' : 'Includes:'}{' '}
-                            <Text style={styles.pkgIncludesText}>
-                              {materialsData
-                                .slice(0, 3)
-                                .map((m: any) => m.material_name)
-                                .join(', ')}
-                              {materialsData.length > 3 ? '...' : ''}
-                            </Text>
-                          </Text>
-                        </View>
-                      )}
-
                       {isSelected && (
-                        <View style={styles.selectedIndicator}>
-                          <Text style={styles.selectedIndicatorText}>
-                            ✓ {isBn ? 'নির্বাচিত' : 'SELECTED'}
-                          </Text>
+                        <View style={styles.newPackageCheck}>
+                          <CheckCircle size={16} color="#E8711E" strokeWidth={2.5} />
                         </View>
                       )}
+                      <Text style={[styles.newPackageTitle, isSelected && styles.newPackageTitleSelected]}>
+                        {pkg.puja_package_name}
+                      </Text>
+                      <Text style={styles.newPackagePrice}>
+                        ₹{pkg.puja_package_price.toLocaleString('en-IN')}
+                      </Text>
+
+                      <View style={styles.newPackageMetaRow}>
+                        <View style={styles.metaItemWrapper}>
+                          <Clock size={12} color="#E8711E" />
+                          <Text style={[styles.newPackageMetaText, isSelected && styles.newPackageMetaTextSelected]}>
+                            {pkg.puja_duration} {isBn ? 'ঘন্টা' : 'hr'}
+                          </Text>
+                        </View>
+                        <View style={styles.metaItemWrapper}>
+                          <Users size={12} color="#E8711E" />
+                          <Text style={[styles.newPackageMetaText, isSelected && styles.newPackageMetaTextSelected]}>
+                            {pkg.puja_count || pkg.pandit_count || 1} {isBn ? 'পুরোহিত' : 'pandit'}{((pkg.puja_count || pkg.pandit_count || 1) > 1 && !isBn) ? 's' : ''}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity style={styles.newPackageDetailsBtn} onPress={() => setActiveDetailsPkg(pkg)}>
+                        <Text style={styles.newPackageDetailsText}>
+                          {isBn ? 'আরও বিস্তারিত' : 'More details'}
+                        </Text>
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   );
-                })
-              ) : (
-                <NoDataFound
-                  message={
-                    isBn
-                      ? 'এই পূজার জন্য কোনো বিশেষ প্যাকেজ পাওয়া যায়নি।'
-                      : 'No packages found for this puja'
-                  }
-                  containerHeight={200}
-                />
-              )}
-            </View>
-          )}
+                })}
+              </ScrollView>
+            ) : (
+              <NoDataFound
+                message={
+                  isBn
+                    ? 'এই পূজার জন্য কোনো বিশেষ প্যাকেজ পাওয়া যায়নি।'
+                    : 'No packages found for this puja'
+                }
+                containerHeight={200}
+              />
+            )}
+          </View>
+          {/* PACKAGES SECTION END */}
 
-          {activeTab === 'MATERIALS' && (
-            <View style={styles.materialsTab}>
-              {isLoadingMaterials ? (
-                <ActivityIndicator
-                  color={Colors.primary}
-                  style={styles.activityIndicatorMargin60}
-                />
-              ) : !selectedPackageId ? (
-                <NoDataFound
-                  message={
-                    isBn
-                      ? 'সামগ্রীর তালিকা দেখতে প্যাকেজ ট্যাব থেকে একটি প্যাকেজ নির্বাচন করুন।'
-                      : 'Please select a package to see materials.'
-                  }
-                  containerHeight={250}
-                />
-              ) : materialsData.length > 0 ? (
-                <View style={styles.matList}>
-                  {materialsData.map((mat: any, idx: number) => (
-                    <View key={idx} style={styles.matRow}>
-                      <View style={styles.matInfo}>
-                        <Text style={styles.matName}>{mat.material_name}</Text>
-                        <Text style={styles.matQty}>
-                          {isBn ? 'পরিমাণ' : 'Qty'}: {mat.quantity}{' '}
-                          {mat.material_unit}
-                        </Text>
-                      </View>
-                      <View style={styles.matBadge}>
-                        <Text style={styles.matCategory}>
-                          {mat.category_name}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
+          {/* OVERVIEW SECTION START */}
+          <View>
+            {isLoadingFull ? (
+              <ActivityIndicator
+                color={BRAND_PRIMARY}
+                style={styles.activityIndicatorMargin60}
+              />
+            ) : (
+              <View style={styles.overviewTab}>
+                <View style={styles.aboutBlock}>
+                  <View style={styles.aboutBadge}>
+                    <Text style={styles.aboutBadgeText}>
+                      🔥 {isBn ? 'পবিত্র আচার' : 'SACRED RITUAL'}
+                    </Text>
+                  </View>
+                  <Text style={styles.aboutTitle}>
+                    {isBn ? 'এই পূজা সম্পর্কে' : 'About This Puja'}
+                  </Text>
+                  <Text style={styles.aboutDesc}>{description}</Text>
                 </View>
-              ) : (
-                <NoDataFound
-                  message={
-                    isBn ? 'কোন উপকরণ পাওয়া যায়নি' : 'No materials found'
-                  }
-                  containerHeight={200}
-                />
-              )}
-            </View>
-          )}
+
+                <View style={styles.featuresRow}>
+                  <View style={styles.featureCard}>
+                    <View style={styles.featureIconContainer}>
+                      <Text style={styles.featureIcon}>📖</Text>
+                    </View>
+                    <Text style={styles.featureTitle}>
+                      {isBn ? 'ইতিহাস ও ঐতিহ্য' : 'History & Heritage'}
+                    </Text>
+                    <View style={styles.featureList}>
+                      {history.length > 0 ? (
+                        history.slice(0, 5).map((h, i) => (
+                          <View key={i} style={styles.featureItemRow}>
+                            <View style={styles.featureBullet} />
+                            <Text style={styles.featureItem}>{h}</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.noDataSmall}>
+                          {isBn
+                            ? 'ইতিহাস পাওয়া যায়নি'
+                            : 'History information not available'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.featureCard}>
+                    <View style={styles.featureIconContainer}>
+                      <Text style={styles.featureIcon}>🙏</Text>
+                    </View>
+                    <Text style={styles.featureTitle}>
+                      {isBn ? 'তাৎপর্য' : 'Significance'}
+                    </Text>
+                    <View style={styles.featureList}>
+                      {significance.length > 0 ? (
+                        significance.slice(0, 5).map((s, i) => (
+                          <View key={i} style={styles.featureItemRow}>
+                            <View style={styles.featureBullet} />
+                            <Text style={styles.featureItem}>{s}</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.noDataSmall}>
+                          {isBn
+                            ? 'তাৎপর্য পাওয়া যায়নি'
+                            : 'Significance information not available'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionEmoji}>⚡</Text>
+                  <Text style={styles.sectionTitle}>
+                    {isBn ? 'মূল সুবিধা' : 'Key Benefits'}
+                  </Text>
+                </View>
+                {benefitItems.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.benefitsCarousel}
+                  >
+                    {benefitItems.map((b, i) => (
+                      <View key={i} style={styles.benefitCard}>
+                        <Text style={styles.benefitNumber}>
+                          {(i + 1).toString().padStart(2, '0')}
+                        </Text>
+                        <Text style={styles.benefitCardDesc}>{b}</Text>
+                        <View style={styles.benefitDecoration}>
+                          <Text style={styles.flowerIconFontSize}>🌸</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View
+                    style={[
+                      styles.emptySection,
+                      styles.inlineMarginHorizontal16Padding20,
+                    ]}
+                  >
+                    <Text style={styles.noDataText}>
+                      {isBn
+                        ? 'কোন টেকনিক্যাল সুবিধা পাওয়া যায়নি'
+                        : 'No benefit information available'}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.promiseBox}>
+                  <View style={styles.promiseHeader}>
+                    <Text style={styles.promiseIcon}>📜</Text>
+                    <Text style={styles.promiseTitle}>
+                      {isBn ? 'আমাদের প্রতিশ্রুতি' : 'Our Promise to You'}
+                    </Text>
+                  </View>
+                  <View style={styles.promiseContent}>
+                    {promises.length > 0 ? (
+                      promises.map((p, i) => (
+                        <Text key={i} style={styles.promiseText}>
+                          • {p}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text style={styles.promiseText}>
+                        {isBn
+                          ? 'আমরা যথাযথ নিষ্ঠা ও বিশুদ্ধতার সাথে পূজা সম্পন্ন করার গ্যারান্টি দিই।'
+                          : 'We guarantee to perform the puja with utmost devotion and purity.'}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.promiseFooter}>
+                    <View style={styles.promiseBadge}>
+                      <Text style={styles.promiseBadgeText}>
+                        ✅ 100% Authentic
+                      </Text>
+                    </View>
+                    <View style={styles.promiseBadge}>
+                      <Text style={styles.promiseBadgeText}>
+                        📜 Certified Pandits
+                      </Text>
+                    </View>
+                    <View style={styles.promiseBadge}>
+                      <Text style={styles.promiseBadgeText}>
+                        ✨ Vedic Purity
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.quickInfoList}>
+                  <Text style={styles.quickInfoTitle}>
+                    {isBn ? 'বিস্তারিত' : 'Details'}
+                  </Text>
+                  <View style={styles.quickInfoItem}>
+                    <Text>⏱️</Text>
+                    <Text style={styles.quickInfoText}>
+                      {selectedPackage
+                        ? `${selectedPackage.puja_duration} ${isBn ? 'ঘণ্টা' : 'Hours'
+                        }`
+                        : duration}
+                    </Text>
+                  </View>
+                  <View style={styles.quickInfoItem}>
+                    <Text>🧘</Text>
+                    <Text style={styles.quickInfoText}>
+                      {selectedPackage?.pandit_count || 1}
+                      {isBn ? ' জন পুরোহিত' : ' Experienced Pandits'}
+                    </Text>
+                  </View>
+                  <View style={styles.quickInfoItem}>
+                    <Text>🎁</Text>
+                    <Text style={styles.quickInfoText}>
+                      {isBn
+                        ? 'সব উপকরণ অন্তর্ভুক্ত'
+                        : 'All materials included'}
+                    </Text>
+                  </View>
+                  <View style={styles.quickInfoItem}>
+                    <Text style={styles.flowerIconFontSize}>✨</Text>
+                    <Text style={styles.quickInfoText}>
+                      {isBn
+                        ? '১০০% খাঁটি বৈদিক আচার'
+                        : '100% Authentic Vedic Rituals'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+          {/* OVERVIEW SECTION END */}
         </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Package Dropdown Menu Backdrop */}
+      {showPackageDropdown && packagesData.length > 0 && (
+        <TouchableWithoutFeedback onPress={() => setShowPackageDropdown(false)}>
+          <View style={styles.dropdownBackdrop} />
+        </TouchableWithoutFeedback>
+      )}
+
+      {/* Package Dropdown Menu */}
+      {showPackageDropdown && packagesData.length > 0 && (
+        <View style={[styles.packageDropdownContainer, { bottom: Math.max(20, insets.bottom + 15) + 80 }]}>
+          <View style={styles.dropdownHeaderBox}>
+            <Text style={styles.dropdownHeaderTitle}>{isBn ? 'প্যাকেজ নির্বাচন করুন' : 'Select a Package'}</Text>
+          </View>
+          <ScrollView style={styles.dropdownScroll} bounces={false}>
+            {packagesData.map((pkg: any) => {
+              const isSelected = selectedPackageId === pkg.puja_package_id.toString();
+              return (
+                <TouchableOpacity
+                  key={pkg.puja_package_id}
+                  style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
+                  onPress={() => {
+                    setSelectedPackageId(pkg.puja_package_id.toString());
+                    setShowPackageDropdown(false);
+                  }}
+                >
+                  <View style={styles.dropdownItemLeft}>
+                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                      {isSelected && <View style={styles.radioInner} />}
+                    </View>
+                    <View>
+                      <Text style={[styles.dropdownItemName, isSelected && styles.dropdownItemNameSelected]}>{pkg.puja_package_name}</Text>
+                      <Text style={styles.dropdownItemMeta}>🕒 {pkg.puja_duration} {isBn ? 'ঘন্টা' : 'hr'}  •  👨‍💼 {pkg.pandit_count}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.dropdownItemPrice, isSelected && styles.dropdownItemPriceSelected]}>₹{pkg.puja_package_price.toLocaleString('en-IN')}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Sticky Footer */}
       <View
@@ -718,26 +627,34 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           } as any,
         ]}
       >
-        <View>
-          <Text style={styles.footerLabel}>
-            {isBn
-              ? 'প্যাকেজ মূল্য (সামগ্রী সহ)'
-              : 'PACKAGE PRICE (WITH SAMAGRI)'}
-          </Text>
-          <Text style={styles.footerPrice}>
-            {selectedPackage
-              ? `₹${selectedPackage.puja_package_price.toLocaleString('en-IN')}`
-              : pujaData
-              ? `₹${(
-                  pujaData.puja_with_samagri_amount ||
-                  pujaData.minimum_price ||
-                  0
-                ).toLocaleString('en-IN')}`
-              : isBn
-              ? puja.exactPriceBn
-              : `₹${(puja.exactPrice || 0).toLocaleString()}`}
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownTriggerBtn}
+          onPress={() => setShowPackageDropdown(!showPackageDropdown)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.dropdownTriggerContent}>
+            <Text style={styles.dropdownTriggerLabel}>
+              {selectedPackage ? selectedPackage.puja_package_name : (isBn ? 'প্যাকেজ নির্বাচন করুন' : 'Select Package')}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.dropdownTriggerPrice}>
+                {selectedPackage
+                  ? `₹${selectedPackage.puja_package_price.toLocaleString('en-IN')}`
+                  : pujaData
+                    ? `₹${(
+                      pujaData.puja_with_samagri_amount ||
+                      pujaData.minimum_price ||
+                      0
+                    ).toLocaleString('en-IN')}`
+                    : isBn
+                      ? puja.exactPriceBn
+                      : `₹${(puja.exactPrice || 0).toLocaleString()}`}
+              </Text>
+              <Text style={styles.dropdownChevron}>{showPackageDropdown ? '▼' : '▲'}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.footerBtn,
@@ -758,16 +675,32 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           }}
         >
           <Text style={styles.footerBtnText}>
-            🛒 {isBn ? 'পূজা বুক করুন' : 'Book Puja'}
+            🛒 {isBn ? 'কার্টে যোগ করুন' : 'Add to Cart'}
           </Text>
         </TouchableOpacity>
       </View>
+
 
       <BookingModal
         visible={showBookingModal}
         onClose={() => setShowBookingModal(false)}
         puja={puja}
         selectedPackage={selectedPackage}
+        isBn={isBn}
+        packagesData={packagesData}
+        onSelectPackage={(id) => setSelectedPackageId(id)}
+      />
+
+      <PackageDetailsModal
+        visible={!!activeDetailsPkg}
+        pkg={activeDetailsPkg}
+        onClose={() => setActiveDetailsPkg(null)}
+        onSelect={() => {
+          if (activeDetailsPkg) {
+            setSelectedPackageId(activeDetailsPkg.puja_package_id.toString());
+          }
+          setActiveDetailsPkg(null);
+        }}
         isBn={isBn}
       />
     </View>
@@ -1002,8 +935,10 @@ const styles = StyleSheet.create({
   footerBtn: {
     backgroundColor: BRAND_PRIMARY,
     paddingHorizontal: 24,
-    paddingVertical: 12,
     borderRadius: 12,
+    height: 54,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   footerBtnDisabled: { backgroundColor: Colors.disabled },
   footerBtnText: { color: Colors.white, fontSize: 14, fontWeight: '800' },
@@ -1309,5 +1244,222 @@ const styles = StyleSheet.create({
   thumbEmoji: {
     fontSize: 16,
     opacity: 0.6,
+  },
+  packagesTabContainer: {
+    paddingVertical: 16,
+    backgroundColor: '#FAF9F6', // slight off-white for the section
+  },
+  packagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  packagesHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: '#2A1F18',
+    textTransform: 'uppercase',
+  },
+  packagesHeaderCount: {
+    fontSize: 12,
+    color: '#8A7A71',
+  },
+  packagesScrollContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  newPackageCard: {
+    width: 140,
+    height: 95,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 8,
+    position: 'relative',
+    justifyContent: 'space-between',
+  },
+  newPackageCardSelected: {
+    backgroundColor: '#FFF8F3', // very light orange
+    borderColor: '#E8711E', // orange border
+  },
+  newPackageCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metaItemWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  newPackageTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#3b2416',
+    marginBottom: 2,
+    paddingRight: 18,
+  },
+  newPackageTitleSelected: {
+    color: '#E8711E', // dark orange text for selected title
+  },
+  newPackagePrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2A1F18',
+    marginBottom: 2,
+  },
+  newPackageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  newPackageMetaText: {
+    fontSize: 9,
+    color: '#666666', // grey when unselected
+    fontWeight: '600',
+  },
+  newPackageMetaTextSelected: {
+    color: '#E8711E', // orange when selected
+  },
+  newPackageDetailsBtn: {
+    alignSelf: 'flex-start',
+  },
+  newPackageDetailsText: {
+    fontSize: 9,
+    color: '#E8711E',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 90,
+  },
+  packageDropdownContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    zIndex: 100,
+    maxHeight: 350,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  dropdownHeaderBox: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dropdownHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  dropdownScroll: {
+    padding: 8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#fff3eb',
+  },
+  dropdownItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ccc',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: '#f97316',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#f97316',
+  },
+  dropdownItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2,
+  },
+  dropdownItemNameSelected: {
+    color: '#d95d14',
+  },
+  dropdownItemMeta: {
+    fontSize: 11,
+    color: '#777',
+  },
+  dropdownItemPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#333',
+  },
+  dropdownItemPriceSelected: {
+    color: '#d95d14',
+  },
+  dropdownTriggerBtn: {
+    flex: 1.5,
+    marginRight: 12,
+    backgroundColor: '#FFF8F3',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#F97316',
+    paddingHorizontal: 12,
+    height: 54,
+    justifyContent: 'center',
+  },
+  dropdownTriggerContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  dropdownTriggerLabel: {
+    fontSize: 10,
+    color: '#A68A7A',
+    marginBottom: 2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  dropdownTriggerPrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#E8711E',
+  },
+  dropdownChevron: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#A68A7A',
+    fontWeight: 'bold',
   },
 });

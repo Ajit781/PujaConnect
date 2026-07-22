@@ -208,8 +208,8 @@ export default function WishlistScreen({ navigation }: any) {
               <Text style={styles.bookBtnText}>
                 {puja.puja_active_status !== 0
                   ? isBn
-                    ? 'বুক করুন →'
-                    : 'Book Now →'
+                    ? 'প্যাকেজ দেখুন →'
+                    : 'View packages →'
                   : isBn
                   ? 'উপলব্ধ নেই'
                   : 'Not Available'}

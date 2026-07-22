@@ -11,7 +11,9 @@ export interface OrderItem {
   color: string;
   scheduledDate: string;
   scheduledTime: string;
-  status: 'Upcoming' | 'Completed' | 'Cancelled' | 'Rescheduled';
+  status: string;
+  bookingId?: number;
+  packageId?: number;
 }
 
 export interface Order {

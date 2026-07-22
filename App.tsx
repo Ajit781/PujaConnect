@@ -40,7 +40,7 @@ function RootNavigator() {
   );
 
   React.useEffect(() => {
-    const timer = setTimeout(() => setIsSplashVisible(false), 1800);
+    const timer = setTimeout(() => setIsSplashVisible(false), 2500);
     return () => clearTimeout(timer);
   }, []);
 

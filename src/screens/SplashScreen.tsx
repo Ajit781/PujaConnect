@@ -179,6 +179,7 @@ export default function SplashScreen() {
       <View style={styles.bgGradientMid} />
       <View style={styles.bgGradientInner} />
 
+
       {/* Animated decorative rings */}
       <Animated.View
         style={[
@@ -318,11 +319,12 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   logoBadge: {
-    width: 120,
-    height: 120,
+    width: 160,
+    height: 70,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
+    marginTop: 80,
     position: 'relative',
   },
   logoBadgeInner: {
@@ -406,9 +408,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   logoImage: {
-    width: 260,
-    height: 120,
+    width: 160,
+    height: 70,
     resizeMode: 'contain',
-    marginBottom: 20,
   },
 });

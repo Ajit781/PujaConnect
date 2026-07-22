@@ -6,6 +6,7 @@ interface AlertOptions {
   title: string;
   message?: string;
   buttons?: AlertButton[];
+  type?: 'success' | 'error' | 'warning' | 'info' | 'default';
 }
 
 interface AlertContextValue {
@@ -22,10 +23,25 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const [visible, setVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<AlertOptions>({
     title: '',
+    type: 'default',
   });
 
   const showAlert = useCallback((options: AlertOptions) => {
-    setAlertConfig(options);
+    let autoType = options.type;
+    if (!autoType) {
+      const lowerTitle = options.title.toLowerCase();
+      if (lowerTitle.includes('success') || lowerTitle.includes('সফল')) {
+        autoType = 'success';
+      } else if (lowerTitle.includes('error') || lowerTitle.includes('ত্রুটি')) {
+        autoType = 'error';
+      } else if (lowerTitle.includes('warning') || lowerTitle.includes('সতর্কতা')) {
+        autoType = 'warning';
+      } else {
+        autoType = 'default';
+      }
+    }
+
+    setAlertConfig({ ...options, type: autoType });
     setVisible(true);
   }, []);
 
@@ -48,6 +64,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     setAlertConfig({
       title: 'Something went wrong',
       message: finalMessage,
+      type: 'error',
       buttons: [{ text: 'OK' }],
     });
     setVisible(true);
@@ -61,18 +78,18 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const resolvedButtons: AlertButton[] =
     alertConfig.buttons && alertConfig.buttons.length > 0
       ? alertConfig.buttons.map(btn => ({
-          ...btn,
-          onPress: () => {
-            hideAlert();
-            btn.onPress?.();
-          },
-        }))
+        ...btn,
+        onPress: () => {
+          hideAlert();
+          btn.onPress?.();
+        },
+      }))
       : [
-          {
-            text: 'OK',
-            onPress: () => hideAlert(),
-          },
-        ];
+        {
+          text: 'OK',
+          onPress: () => hideAlert(),
+        },
+      ];
 
   return (
     <AlertContext.Provider value={{ showAlert, showErrorAlert, hideAlert }}>
@@ -82,6 +99,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         title={alertConfig.title}
         message={alertConfig.message}
         buttons={resolvedButtons}
+        type={alertConfig.type}
         onDismiss={hideAlert}
       />
     </AlertContext.Provider>

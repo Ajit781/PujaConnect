@@ -16,7 +16,9 @@ import {
   ActivityIndicator,
   Platform,
   RefreshControl,
+  TextInput,
 } from 'react-native';
+import { Search } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -59,6 +61,35 @@ const BRAND_MUTED = Colors.textMuted;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BRAND_BG },
+  
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 10,
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    color: Colors.textMain,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
 
   // Header
   header: {
@@ -195,6 +226,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: 8,
+  },
+  bannerImage: {
+    width: 100,
+    height: 100,
   },
   paginationRow: {
     flexDirection: 'row',
@@ -662,6 +697,30 @@ const DASHBOARD_BANNERS = [
     btnBn: 'পূজা বুক করুন',
     icon: '🌺',
   },
+  {
+    id: '4',
+    titleEn: 'Ganesh Utsav',
+    titleBn: 'গণেশ উৎসব',
+    subEn: 'Celebrate the grand festival of Lord Ganesha',
+    subBn: 'ভগবান গণেশের মহোৎসব উদযাপন করুন',
+    btnEn: 'Join Now',
+    btnBn: 'এখনই যোগ দিন',
+    image: require('../../assets/images/ganesh_slider_3.png'),
+    offerTextEn: '🔥 FESTIVE 20% OFF',
+    offerTextBn: '🔥 উৎসব ২০% ছাড়',
+  },
+  {
+    id: '5',
+    titleEn: 'Lakshmi Puja',
+    titleBn: 'লক্ষ্মী পূজা',
+    subEn: 'Seek blessings of wealth and prosperity',
+    subBn: 'ধন ও সমৃদ্ধির আশীর্বাদ পান',
+    btnEn: 'View packages',
+    btnBn: 'প্যাকেজ দেখুন',
+    image: require('../../assets/images/ganesh_slider_1.png'), // Placeholder until lakshmi_slider_1.png is saved
+    offerTextEn: '✨ SPECIAL OFFER',
+    offerTextBn: '✨ বিশেষ অফার',
+  },
 ];
 
 const NAV_ITEMS = [
@@ -696,29 +755,76 @@ const NAV_ITEMS = [
   },
 ];
 
-const BannerItem = React.memo(({ item, isBn, navigation }: any) => (
-  <View style={styles.bannerWrapper}>
-    <View style={[styles.banner, styles.bannerZeroMargin]}>
-      <View style={styles.bannerContent}>
-        <Text style={styles.bannerTitle}>
-          {isBn ? item.titleBn : item.titleEn}
-        </Text>
-        <Text style={styles.bannerSub}>{isBn ? item.subBn : item.subEn}</Text>
+const BannerItem = React.memo(({ item, isBn, navigation, width }: any) => {
+  if (item.image) {
+    return (
+      <View style={{ width: width, paddingHorizontal: 16 }}>
         <TouchableOpacity
-          style={styles.bannerBtn}
+          activeOpacity={0.9}
           onPress={() => navigation.navigate('AllPujas')}
+          style={{ width: '100%', height: 164, borderRadius: 20, overflow: 'hidden', backgroundColor: '#000', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5 }}
         >
-          <Text style={styles.bannerBtnText}>
-            {isBn ? item.btnBn : item.btnEn}
-          </Text>
+          <Image source={item.image} style={{ width: '100%', height: '100%', position: 'absolute' }} resizeMode="cover" />
+
+          {item.offerTextEn && (
+            <>
+              {/* Transparent Glass Top Right Tag */}
+              <View style={{ position: 'absolute', top: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderBottomLeftRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', borderTopWidth: 0, borderRightWidth: 0 }}>
+                <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  {isBn ? item.offerTextBn : item.offerTextEn}
+                </Text>
+              </View>
+
+              {/* Bottom Left Content */}
+              <View style={{ position: 'absolute', bottom: 16, left: 16, right: 120 }}>
+                <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                  {isBn ? 'মেগা অফার' : 'MEGA OFFER'}
+                </Text>
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 18, letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }} numberOfLines={1}>
+                  {isBn ? item.titleBn : item.titleEn}
+                </Text>
+                <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 11, marginTop: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }} numberOfLines={1}>
+                  {isBn ? item.subBn : item.subEn}
+                </Text>
+              </View>
+
+              {/* Bottom Right Transparent Glass Button */}
+              <View style={{ position: 'absolute', bottom: 16, right: 16, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' }}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+                  {isBn ? item.btnBn : item.btnEn}
+                </Text>
+              </View>
+            </>
+          )}
         </TouchableOpacity>
       </View>
-      <View style={styles.bannerDecor}>
-        <Text style={styles.bannerIcon}>{item.icon}</Text>
+    );
+  }
+
+  return (
+    <View style={{ width: width, paddingHorizontal: 16 }}>
+      <View style={[styles.banner, { margin: 0 }]}>
+        <View style={styles.bannerContent}>
+          <Text style={styles.bannerTitle}>
+            {isBn ? item.titleBn : item.titleEn}
+          </Text>
+          <Text style={styles.bannerSub}>{isBn ? item.subBn : item.subEn}</Text>
+          <TouchableOpacity
+            style={styles.bannerBtn}
+            onPress={() => navigation.navigate('AllPujas')}
+          >
+            <Text style={styles.bannerBtnText}>
+              {isBn ? item.btnBn : item.btnEn}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.bannerDecor}>
+          <Text style={styles.bannerIcon}>{item.icon}</Text>
+        </View>
       </View>
     </View>
-  </View>
-));
+  );
+});
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -737,6 +843,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [pujas, setPujas] = useState<PujaType[]>([]);
   const [pujaTags, setPujaTags] = useState<PujaTag[]>([]);
   const [selectedTagId, setSelectedTagId] = useState<number>(1); // Default to 'All'
+  const [searchQuery, setSearchQuery] = useState('');
   const [summaryData, setSummaryData] = useState<SummaryCount | null>(null);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
@@ -880,8 +987,8 @@ export default function DashboardScreen({ navigation }: any) {
             ? 'ফেভারিট থেকে সরানো হয়েছে'
             : 'Removed from favourite'
           : isBn
-          ? 'ফেভারিটে যোগ করা হয়েছে'
-          : 'Added to favourite',
+            ? 'ফেভারিটে যোগ করা হয়েছে'
+            : 'Added to favourite',
         type: 'success',
       });
     } catch (error) {
@@ -987,7 +1094,7 @@ export default function DashboardScreen({ navigation }: any) {
 
     requestAnimationFrame(() => {
       flatListRef.current?.scrollToOffset({
-        offset: START_INDEX * (width - 32),
+        offset: START_INDEX * width,
         animated: false,
       });
     });
@@ -1022,12 +1129,12 @@ export default function DashboardScreen({ navigation }: any) {
       if (idx >= CAROUSEL_DATA.length - 1) {
         idx = START_INDEX + (idx % DASHBOARD_BANNERS.length);
         flatListRef.current?.scrollToOffset({
-          offset: idx * (width - 32),
+          offset: idx * width,
           animated: false,
         });
       } else {
         flatListRef.current?.scrollToOffset({
-          offset: idx * (width - 32),
+          offset: idx * width,
           animated: true,
         });
       }
@@ -1104,7 +1211,14 @@ export default function DashboardScreen({ navigation }: any) {
   // Filtering logic - since the API now does the heavy lifting, we just show what we got
   // However, we still need to handle 'Favourite' locally if the API doesn't filter it correctly
   // but the server should handle it based on puja_tag_id: 3.
-  const filteredPujas = pujas;
+  const filteredPujas = React.useMemo(() => {
+    if (!searchQuery.trim()) return pujas;
+    const query = searchQuery.toLowerCase().trim();
+    return pujas.filter((p) => {
+      const pName = (p.puja_name || p.puja_type_name || '').toLowerCase();
+      return pName.includes(query);
+    });
+  }, [pujas, searchQuery]);
 
   const getTagName = (tagId: number) => {
     const tagObj = pujaTags.find((tag: PujaTag) => tag.tag_id === tagId);
@@ -1201,10 +1315,10 @@ export default function DashboardScreen({ navigation }: any) {
                 source={
                   userDetails?.ctnz_profile_image || user?.profile_image
                     ? {
-                        uri:
-                          userDetails?.ctnz_profile_image ||
-                          user?.profile_image,
-                      }
+                      uri:
+                        userDetails?.ctnz_profile_image ||
+                        user?.profile_image,
+                    }
                     : require('../../assets/Placeholder_Person_3A7BFF.png')
                 }
                 style={styles.avatarImage}
@@ -1274,11 +1388,10 @@ export default function DashboardScreen({ navigation }: any) {
             data={CAROUSEL_DATA}
             horizontal
             pagingEnabled
-            style={styles.horizontalScroll}
             keyExtractor={item => item.id}
             getItemLayout={(data, index) => ({
-              length: width - 32,
-              offset: (width - 32) * index,
+              length: width,
+              offset: width * index,
               index,
             })}
             renderItem={({ item }) => (
@@ -1297,7 +1410,7 @@ export default function DashboardScreen({ navigation }: any) {
             onScrollEndDrag={() => setIsPaused(false)}
             onMomentumScrollEnd={e => {
               const index = Math.round(
-                e.nativeEvent.contentOffset.x / (width - 32),
+                e.nativeEvent.contentOffset.x / width,
               );
               currentIndexRef.current = index;
               setActiveBanner(index % DASHBOARD_BANNERS.length);
@@ -1321,54 +1434,22 @@ export default function DashboardScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Stats row */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroll}
-          contentContainerStyle={styles.statsScrollContent}
-        >
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>👨‍👩‍👧‍👦</Text>
-            <Text style={styles.statValue}>
-              {summaryData?.total_user_qty || 0}
-            </Text>
-            <Text style={styles.statLabel}>
-              {isBn ? 'সুখী পরিবার' : 'Happy Families'}
-            </Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>🧘</Text>
-            <Text style={styles.statValue}>
-              {summaryData?.total_registered_priest_qty || 0}
-            </Text>
-            <Text style={styles.statLabel}>
-              {isBn ? 'যাচাইকৃত পুরোহিত' : 'Verified Priests'}
-            </Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>🛕</Text>
-            <Text style={styles.statValue}>
-              {summaryData?.total_temple_qty || 0}
-            </Text>
-            <Text style={styles.statLabel}>
-              {isBn ? 'পার্টনার মন্দির' : 'Partner Temples'}
-            </Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>⭐</Text>
-            <Text style={styles.statValue}>
-              {summaryData?.total_astrologer_qty || 0}
-            </Text>
-            <Text style={styles.statLabel}>
-              {isBn ? 'জ্যোতিষী' : 'Astrologers'}
-            </Text>
-          </View>
-        </ScrollView>
-
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search size={22} color={BRAND_PRIMARY} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={isBn ? 'পূজা অনুসন্ধান করুন...' : 'Search for pujas...'}
+            placeholderTextColor={BRAND_MUTED}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+              <Text style={{ fontSize: 16, color: BRAND_MUTED }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {/* Featured Pujas Header */}
         <View style={[styles.sectionHeader, styles.sectionHeaderRow]}>
           <View style={{ flex: 1 }}>
@@ -1429,8 +1510,8 @@ export default function DashboardScreen({ navigation }: any) {
                 pMinPrice === pMaxPrice
                   ? `₹${pMinPrice.toLocaleString('en-IN')}`
                   : `₹${pMinPrice.toLocaleString(
-                      'en-IN',
-                    )} - ₹${pMaxPrice.toLocaleString('en-IN')}`;
+                    'en-IN',
+                  )} - ₹${pMaxPrice.toLocaleString('en-IN')}`;
               const pDuration =
                 puja.duration ||
                 (puja.puja_duration ? puja.puja_duration.toString() : '');
@@ -1520,7 +1601,7 @@ export default function DashboardScreen({ navigation }: any) {
                         style={[
                           styles.bookBtnText,
                           puja.puja_active_status === 0 &&
-                            styles.bookBtnTextDisabled,
+                          styles.bookBtnTextDisabled,
                         ]}
                       >
                         {puja.puja_active_status === 0
@@ -1528,8 +1609,8 @@ export default function DashboardScreen({ navigation }: any) {
                             ? 'উপলব্ধ নেই'
                             : 'Not Available'
                           : isBn
-                          ? 'বুক করুন →'
-                          : 'Book Now →'}
+                            ? 'প্যাকেজ দেখুন →'
+                            : 'View packages →'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1579,7 +1660,7 @@ export default function DashboardScreen({ navigation }: any) {
         <View
           style={[
             styles.bottomSpacer,
-            { height: Math.max(60, insets.bottom + 10) },
+            { height: Math.max(160, insets.bottom + 120) },
           ]}
         />
       </ScrollView>
@@ -1741,12 +1822,12 @@ export default function DashboardScreen({ navigation }: any) {
                         {isBn && tag.tag_value === 'All'
                           ? 'সব'
                           : isBn && tag.tag_value === 'Featured'
-                          ? 'বৈশিষ্ট্যযুক্ত'
-                          : isBn && tag.tag_value === 'Favourite'
-                          ? 'প্রিয়'
-                          : isBn && tag.tag_value === 'Popular'
-                          ? 'জনপ্রিয়'
-                          : tag.tag_value}
+                            ? 'বৈশিষ্ট্যযুক্ত'
+                            : isBn && tag.tag_value === 'Favourite'
+                              ? 'প্রিয়'
+                              : isBn && tag.tag_value === 'Popular'
+                                ? 'জনপ্রিয়'
+                                : tag.tag_value}
                       </Text>
                       {selectedTagId === tag.tag_id && (
                         <Text

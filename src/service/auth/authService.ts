@@ -10,6 +10,9 @@ export interface GenerateOtpResponse {
 export interface ValidateOtpResponse {
   user_id: number;
   user_name: string;
+  mobile?: string;
+  mobile_no?: string;
+  contact_no?: string;
 }
 
 /**
@@ -48,5 +51,6 @@ export async function validateOtp(
   // Requirement: fetch token strictly AFTER validate_otp succeeds
   await fetchFreshToken();
 
-  return parsed;
+  // Always include the mobileNumber used for login in the returned object
+  return { ...parsed, mobile: parsed.mobile || parsed.mobile_no || mobileNumber };
 }

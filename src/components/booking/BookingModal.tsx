@@ -15,6 +15,7 @@ import { useAddPujaToCartMutation } from '../../store/api/pujaApi';
 import { RootState } from '../../store';
 
 import CustomTimePickerModal from '../common/CustomTimePickerModal';
+import PackageDetailsModal from './PackageDetailsModal';
 
 const { width } = Dimensions.get('window');
 import { Colors } from '../../constants/Colors';
@@ -29,6 +30,8 @@ interface BookingModalProps {
   puja: any;
   selectedPackage?: any;
   isBn: boolean;
+  packagesData?: any[];
+  onSelectPackage?: (id: string) => void;
 }
 
 export default function BookingModal({
@@ -37,6 +40,8 @@ export default function BookingModal({
   puja,
   selectedPackage,
   isBn,
+  packagesData,
+  onSelectPackage,
 }: BookingModalProps) {
   const dispatch = useDispatch();
   const navigation = useNavigation<any>();
@@ -49,6 +54,8 @@ export default function BookingModal({
   const [selectedTime, setSelectedTime] = useState<string | null>('12:00 PM');
   const [showCalendar, setShowCalendar] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showPackageDropdown, setShowPackageDropdown] = useState(false);
+  const [activeDetailsPkg, setActiveDetailsPkg] = useState<any>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const MONTHS_EN = [
@@ -486,9 +493,103 @@ export default function BookingModal({
                   </Text>
                 </View>
 
-                <Text style={styles.sectionHeading}>
-                  {isBn ? 'প্যাকেজের বিশদ' : 'Package Details'}
-                </Text>
+                {packagesData && packagesData.length > 0 && (
+                  <View style={{ marginBottom: 24, zIndex: 10, marginTop: 8 }}>
+                    <View style={styles.packageSelectorHeader}>
+                      <Text style={styles.packageSelectorTitle}>
+                        {isBn ? 'প্যাকেজ নির্বাচন করুন' : 'Select package'}
+                      </Text>
+                      <Text style={styles.packageSelectorCount}>
+                        {packagesData.length} {isBn ? 'উপলব্ধ' : 'available'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.dropdownTriggerBtn}
+                      onPress={() => setShowPackageDropdown(!showPackageDropdown)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.dropdownTriggerContent}>
+                        <View style={styles.triggerIconBox}>
+                          <Text style={styles.triggerIconText}>🎁</Text>
+                        </View>
+                        <View style={styles.triggerTextCol}>
+                          <Text style={styles.triggerLabel}>
+                            {isBn ? 'নির্বাচিত প্যাকেজ' : 'SELECTED PACKAGE'}
+                          </Text>
+                          <Text style={styles.triggerTitle} numberOfLines={1}>
+                            {pPackageNameEn}
+                          </Text>
+                        </View>
+                        <View style={styles.triggerPriceRow}>
+                          <Text style={styles.dropdownTriggerPrice}>
+                            {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
+                          </Text>
+                          <Text style={styles.dropdownChevron}>{showPackageDropdown ? '▲' : '▼'}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.packageSelectorFooter}>
+                      {isBn ? 'প্যাকেজের বিবরণ এবং মোট মূল্য সাথে সাথে আপডেট হয়।' : 'Package details and total update instantly.'}
+                    </Text>
+
+                    {showPackageDropdown && (
+                      <>
+                        <TouchableOpacity 
+                          style={styles.dropdownBackdrop} 
+                          onPress={() => setShowPackageDropdown(false)}
+                          activeOpacity={1}
+                        />
+                        <View style={styles.packageDropdownContainer}>
+                          <View style={styles.dropdownHeaderBox}>
+                            <Text style={styles.dropdownHeaderTitle}>
+                              {isBn ? 'প্যাকেজ পরিবর্তন করুন' : 'Change Package'}
+                            </Text>
+                          </View>
+                          <ScrollView style={styles.dropdownScroll} bounces={false}>
+                            {packagesData.map((pkg) => {
+                              const isSelected = selectedPackage && selectedPackage.puja_package_id === pkg.puja_package_id;
+                              return (
+                                <TouchableOpacity
+                                  key={pkg.puja_package_id}
+                                  style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
+                                  onPress={() => {
+                                    if (onSelectPackage) onSelectPackage(pkg.puja_package_id.toString());
+                                    setShowPackageDropdown(false);
+                                  }}
+                                >
+                                  <View style={styles.dropdownItemLeft}>
+                                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                                      {isSelected && <View style={styles.radioInner} />}
+                                    </View>
+                                    <View>
+                                      <Text style={[styles.dropdownItemName, isSelected && styles.dropdownItemNameSelected]}>{pkg.puja_package_name}</Text>
+                                      <Text style={styles.dropdownItemMeta}>🕒 {pkg.puja_duration} {isBn ? 'ঘন্টা' : 'hr'}  •  👨‍💼 {pkg.pandit_count}</Text>
+                                      <TouchableOpacity
+                                        onPress={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDetailsPkg(pkg);
+                                        }}
+                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                      >
+                                        <Text style={{ fontSize: 10, color: '#f97316', marginTop: 4, textDecorationLine: 'underline', fontWeight: '600' }}>
+                                          {isBn ? 'আরও বিস্তারিত' : 'More details'}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                  <Text style={[styles.dropdownItemPrice, isSelected && styles.dropdownItemPriceSelected]}>₹{pkg.puja_package_price.toLocaleString('en-IN')}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                )}
+
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>
                     🎁 {isBn ? 'প্যাকেজ' : 'Package'}
@@ -619,6 +720,20 @@ export default function BookingModal({
           )}
         </View>
       </View>
+
+      <PackageDetailsModal
+        visible={!!activeDetailsPkg}
+        pkg={activeDetailsPkg}
+        onClose={() => setActiveDetailsPkg(null)}
+        onSelect={() => {
+          if (activeDetailsPkg && onSelectPackage) {
+            onSelectPackage(activeDetailsPkg.puja_package_id.toString());
+          }
+          setActiveDetailsPkg(null);
+          setShowPackageDropdown(false);
+        }}
+        isBn={isBn}
+      />
     </View>
   );
 }
@@ -971,4 +1086,193 @@ const styles = StyleSheet.create({
   },
   scTotalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_MUTED },
   scTotalValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: -50,
+    bottom: -150,
+    left: -20,
+    right: -20,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    zIndex: 98,
+  },
+  packageDropdownContainer: {
+    position: 'absolute',
+    top: 105,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    zIndex: 100,
+    maxHeight: 250,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+    overflow: 'hidden',
+  },
+  dropdownHeaderBox: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  dropdownHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#333',
+  },
+  dropdownScroll: {
+    flexGrow: 0,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#FFF8F3',
+  },
+  dropdownItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    flexShrink: 1,
+  },
+  dropdownItemTextCol: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ccc',
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: '#f97316',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#f97316',
+  },
+  dropdownItemName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  dropdownItemNameSelected: {
+    color: '#d95d14',
+  },
+  dropdownItemMeta: {
+    fontSize: 11,
+    color: '#666',
+  },
+  dropdownItemPrice: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#333',
+  },
+  dropdownItemPriceSelected: {
+    color: '#d95d14',
+  },
+  packageSelectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  packageSelectorTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#2A3441',
+  },
+  packageSelectorCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#A68A7A',
+  },
+  dropdownTriggerBtn: {
+    backgroundColor: '#FFF8F3',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: '#F97316',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  dropdownTriggerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  triggerIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E8711E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  triggerIconText: {
+    fontSize: 16,
+    color: '#FFF',
+  },
+  triggerTextCol: {
+    flex: 1,
+    flexShrink: 1,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  triggerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#A68A7A',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  triggerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#3b2416',
+  },
+  triggerPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  dropdownTriggerPrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#E8711E',
+  },
+  dropdownChevron: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#A68A7A',
+    fontWeight: 'bold',
+  },
+  packageSelectorFooter: {
+    fontSize: 12,
+    color: '#A68A7A',
+    paddingHorizontal: 4,
+  }
+
 });
+

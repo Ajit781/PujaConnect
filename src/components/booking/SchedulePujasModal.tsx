@@ -70,6 +70,7 @@ export default function SchedulePujasModal({
   const [activeAddressDropdown, setActiveAddressDropdown] = useState<
     string | null
   >(null);
+  const [activeAddressTab, setActiveAddressTab] = useState<'Self' | 'Relative'>('Self');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [kbHeight, setKbHeight] = useState(0);
@@ -334,101 +335,131 @@ export default function SchedulePujasModal({
     selectedId: string | null,
     onSelect: (addrId: string) => void,
   ) => {
-    if (!addresses || addresses.length === 0) {
-      return (
-        <View style={styles.dropdownMenu}>
-          <Text style={styles.noAddressInfo}>
-            {isBn
-              ? 'কোনো সংরক্ষিত ঠিকানা নেই। অনুগ্রহ করে প্রথমে একটি যোগ করুন।'
-              : 'No saved address found. Please add one first.'}
-          </Text>
-          <TouchableOpacity
-            style={styles.addAddressInlineBtn}
-            onPress={() => {
-              onClose();
-              onAddNewAddress();
-            }}
-          >
-            <Text style={styles.addAddressInlineText}>
-              + {isBn ? 'নতুন ঠিকানা যোগ করুন' : 'Add New Address'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    const q = searchQuery.toLowerCase();
-    const filteredAddresses = addresses.filter(
-      addr =>
-        (addr.contactName && addr.contactName.toLowerCase().includes(q)) ||
-        (addr.addressLine1 && addr.addressLine1.toLowerCase().includes(q)) ||
-        (addr.city && addr.city.toLowerCase().includes(q)),
-    );
+    const filteredAddresses = addresses?.filter(
+      addr => addr.relationType === activeAddressTab
+    ) || [];
 
     return (
-      <View style={[styles.dropdownMenu, styles.addressDropdownMax]}>
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder={
-              isBn
-                ? 'নাম বা ঠিকানা দিয়ে খুঁজুন...'
-                : 'Search by name or address...'
-            }
-            placeholderTextColor={Colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-          />
-        </View>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+        <View style={{ backgroundColor: Colors.extraLightWarm, width: '100%', height: '90%', borderRadius: 24, overflow: 'hidden' }}>
+          {/* Header */}
+          <View style={{ backgroundColor: Colors.primary, padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16 }}>📍</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: Colors.white }}>
+                  {isBn ? 'ডেলিভারি ঠিকানা' : 'Saved Addresses'}
+                </Text>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
+                  {isBn ? 'আপনার পূজা কোথায় হবে নির্বাচন করুন' : 'Manage your delivery & puja locations'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => setActiveAddressDropdown(null)} style={{ padding: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: Colors.white, fontSize: 14, fontWeight: 'bold' }}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={true}
-          nestedScrollEnabled={true}
-        >
-          {filteredAddresses.length === 0 ? (
-            <Text style={[styles.noAddressInfo, styles.noAddressInfoSearch]}>
-              {isBn ? 'কোনো ফলাফল পাওয়া যায়নি' : 'No results found'}
-            </Text>
-          ) : (
-            filteredAddresses.map(addr => {
-              const isSelected = selectedId === addr.id;
-              return (
-                <TouchableOpacity
-                  key={addr.id}
-                  style={[
-                    styles.addrOptionCard,
-                    isSelected && styles.addrOptionActive,
-                  ]}
-                  onPress={() => {
-                    onSelect(addr.id);
-                    setActiveAddressDropdown(null);
-                  }}
-                >
-                  <View style={styles.addrOptionHeader}>
-                    <Text style={styles.addrIcon}>
-                      {addr.type === 'Home'
-                        ? '🏠'
-                        : addr.type === 'Work'
-                        ? '💼'
-                        : '📍'}
-                    </Text>
-                    <View style={styles.addrTextContainer}>
-                      <Text style={styles.addrName} numberOfLines={1}>
-                        {addr.contactName}
+          <ScrollView style={{ padding: 20, flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            {/* Tabs */}
+            <View style={{ flexDirection: 'row', marginBottom: 16, alignItems: 'center', backgroundColor: Colors.white, padding: 4, borderRadius: 24, borderWidth: 1, borderColor: Colors.disabled }}>
+              <TouchableOpacity 
+                style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Self' && { backgroundColor: Colors.primary }]}
+                onPress={() => setActiveAddressTab('Self')}
+              >
+                <Text style={[{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }, activeAddressTab === 'Self' && { color: Colors.white }]}>
+                  👤 {isBn ? 'আমার ঠিকানা' : 'My Addresses'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Relative' && { backgroundColor: Colors.primary }]}
+                onPress={() => setActiveAddressTab('Relative')}
+              >
+                <Text style={[{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }, activeAddressTab === 'Relative' && { color: Colors.white }]}>
+                  👥 {isBn ? 'আত্মীয়' : 'Relatives'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Add Address & count */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.textMuted }}>
+                {filteredAddresses.length} {isBn ? 'ঠিকানা' : 'addresses'}
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: Colors.lightOrange, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+                onPress={() => {
+                  onClose();
+                  onAddNewAddress();
+                }}
+              >
+                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>+ {isBn ? 'নতুন যোগ করুন' : 'Add Address'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {filteredAddresses.length === 0 ? (
+              <View style={{ padding: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.ultraLightGray, borderRadius: 12, borderWidth: 1, borderColor: Colors.disabled, borderStyle: 'dashed' }}>
+                <Text style={{ color: Colors.gray, fontSize: 14, fontWeight: '600' }}>
+                  {isBn ? 'কোনো সংরক্ষিত ঠিকানা নেই।' : 'No saved addresses found.'}
+                </Text>
+              </View>
+            ) : (
+              filteredAddresses.map(addr => {
+                const isSelected = selectedId === addr.id;
+                return (
+                  <TouchableOpacity
+                    key={addr.id}
+                    style={[{ borderWidth: 1, borderColor: Colors.disabled, backgroundColor: Colors.white, borderRadius: 16, padding: 16, marginBottom: 16 }, isSelected && { borderColor: Colors.greenMedium, borderWidth: 2, backgroundColor: Colors.greenLight }]}
+                    onPress={() => {
+                      onSelect(addr.id);
+                      setActiveAddressDropdown(null);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <View style={{ backgroundColor: addr.type === 'Home' ? '#FEF3C7' : addr.type === 'Work' ? '#DBEAFE' : '#F3F4F6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: addr.type === 'Home' ? '#D97706' : addr.type === 'Work' ? '#2563EB' : '#4B5563' }}>
+                          {addr.type === 'Home' ? '🏠' : addr.type === 'Work' ? '💼' : '🏷️'} {addr.type}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <TouchableOpacity onPress={() => {/* Handle Edit API */}}>
+                          <Text style={{ fontSize: 16, color: Colors.textMuted }}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => {/* Handle Delete API */}}>
+                          <Text style={{ fontSize: 16, color: Colors.textMuted }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    
+                    <View style={{ marginBottom: 12 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.textMain, marginBottom: 4 }}>
+                        {addr.label || addr.contactName}
                       </Text>
-                      <Text style={styles.addrDetail} numberOfLines={2}>
-                        {addr.addressLine1}, {addr.city}
+                      <Text style={{ fontSize: 13, color: Colors.textMuted, lineHeight: 20 }}>
+                        {addr.addressLine1 ? addr.addressLine1 + '\n' : ''}
+                        {[addr.streetArea, addr.landmark].filter(Boolean).join(', ')}
+                        {'\n'}
+                        {[addr.city, addr.state].filter(Boolean).join(', ')} - {addr.pincode}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.textMuted, marginTop: 8 }}>
+                        📞 {addr.contactNumber}
                       </Text>
                     </View>
-                    {isSelected && <Text style={styles.checkIcon}>✅</Text>}
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
+                    
+                    <TouchableOpacity style={{ borderWidth: 1, borderColor: Colors.lightOrange, backgroundColor: '#FFF7ED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 14 }}>
+                        {addr.isDefault ? '★ Default Address' : '☆ Set as Default'}
+                      </Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
       </View>
     );
   };
@@ -440,9 +471,8 @@ export default function SchedulePujasModal({
         : 'Select a delivery address';
     const found = addresses?.find((a: any) => a.id === addrId);
     if (!found) return 'Address not found';
-    return `${found.type === 'Home' ? '🏠' : '📍'} ${found.addressLine1}, ${
-      found.city
-    }`;
+    return `${found.type === 'Home' ? '🏠' : '📍'} ${found.addressLine1}, ${found.city
+      }`;
   };
 
   const handleApplySameAddressToAll = () => {
@@ -588,8 +618,8 @@ export default function SchedulePujasModal({
                     ? 'আপনার পূজা নির্ধারণ করুন'
                     : 'Schedule Your Pujas'
                   : isBn
-                  ? 'শিডিউল রিভিউ'
-                  : 'Review Schedule'}
+                    ? 'শিডিউল রিভিউ'
+                    : 'Review Schedule'}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -674,7 +704,7 @@ export default function SchedulePujasModal({
                       style={[
                         styles.inputBox,
                         activeDateDropdown === 'GLOBAL' &&
-                          styles.inputBoxActive,
+                        styles.inputBoxActive,
                       ]}
                       onPress={() =>
                         setActiveDateDropdown(
@@ -713,7 +743,7 @@ export default function SchedulePujasModal({
                       style={[
                         styles.inputBox,
                         activeTimeDropdown === 'GLOBAL' &&
-                          styles.inputBoxActive,
+                        styles.inputBoxActive,
                         !globalDate && styles.inputBoxDisabled,
                       ]}
                       disabled={!globalDate}
@@ -746,7 +776,7 @@ export default function SchedulePujasModal({
                       style={[
                         styles.inputBox,
                         activeAddressDropdown === 'GLOBAL' &&
-                          styles.inputBoxActive,
+                        styles.inputBoxActive,
                       ]}
                       onPress={() =>
                         setActiveAddressDropdown(
@@ -814,7 +844,7 @@ export default function SchedulePujasModal({
                             style={[
                               styles.inputBox,
                               activeDateDropdown === id &&
-                                styles.inputBoxActive,
+                              styles.inputBoxActive,
                             ]}
                             onPress={() =>
                               setActiveDateDropdown(
@@ -848,7 +878,7 @@ export default function SchedulePujasModal({
                             style={[
                               styles.inputBox,
                               activeTimeDropdown === id &&
-                                styles.inputBoxActive,
+                              styles.inputBoxActive,
                               !itemState.date && styles.inputBoxDisabled,
                             ]}
                             disabled={!itemState.date}
@@ -884,7 +914,7 @@ export default function SchedulePujasModal({
                             style={[
                               styles.inputBox,
                               activeAddressDropdown === id &&
-                                styles.inputBoxActive,
+                              styles.inputBoxActive,
                             ]}
                             onPress={() =>
                               setActiveAddressDropdown(
@@ -940,8 +970,8 @@ export default function SchedulePujasModal({
                     ? 'সূচি নিশ্চিত করুন এবং অর্ডার পর্যালোচনা করুন'
                     : 'Confirm Schedule & Review Order'
                   : isBn
-                  ? 'সব কিছু ঠিক আছে, অর্ডার নিশ্চিত করুন'
-                  : 'Everything looks good, Confirm Order'}
+                    ? 'সব কিছু ঠিক আছে, অর্ডার নিশ্চিত করুন'
+                    : 'Everything looks good, Confirm Order'}
               </Text>
             </TouchableOpacity>
           </View>

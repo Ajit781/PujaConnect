@@ -259,7 +259,7 @@ export default function LoginPage({ navigation: _navigation }: Props) {
     try {
       const result = await validateOtp(mobile, code);
       if (result) {
-        dispatch(login({ user: result, token: 'session_active' }));
+        dispatch(login({ user: { ...result, mobile }, token: 'session_active' }));
       }
     } catch (err: any) {
       showErrorAlert(

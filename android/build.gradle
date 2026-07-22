@@ -19,3 +19,17 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// ---- Humne ye niche wala block add kiya hai ----
+allprojects {
+    repositories {
+        mavenCentral()
+        google()
+        mavenLocal()
+        
+        // Jitpack configuration
+        maven {
+            url 'https://jitpack.io'
+        }
+    }
+}

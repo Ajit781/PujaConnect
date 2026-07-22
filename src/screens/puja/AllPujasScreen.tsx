@@ -320,8 +320,8 @@ export default function AllPujasScreen({ navigation, route }: any) {
                     ? 'উপলব্ধ নেই'
                     : 'Not Available'
                   : isBn
-                  ? 'বুক করুন →'
-                  : 'Book Now →'}
+                  ? 'প্যাকেজ দেখুন →'
+                  : 'View packages →'}
               </Text>
             </TouchableOpacity>
           </View>

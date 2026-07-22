@@ -34,8 +34,10 @@ export async function fetchFreshToken(): Promise<string> {
 }
 
 /**
- * Returns a valid system Bearer token from cache.
- * Returns null if missing or expired.
+ * Returns a valid system Bearer token.
+ * - If a fresh cached token exists, returns it immediately.
+ * - If missing or expired, auto-fetches a new one from the server.
+ * - Returns null only if the fetch itself fails (network error, etc.).
  */
 export async function getSystemToken(): Promise<string | null> {
   const cachedToken = await AsyncStorage.getItem(TOKEN_KEY);
@@ -53,8 +55,16 @@ export async function getSystemToken(): Promise<string | null> {
     }
   }
 
-  // Token missing or expired
-  return null;
+  // Token missing or expired — auto-fetch a fresh one silently
+  try {
+    console.log('[TokenService] No valid token found — fetching fresh token...');
+    const freshToken = await fetchFreshToken();
+    console.log('[TokenService] Fresh token fetched successfully.');
+    return freshToken;
+  } catch (err) {
+    console.warn('[TokenService] Failed to fetch fresh token:', err);
+    return null;
+  }
 }
 
 /**

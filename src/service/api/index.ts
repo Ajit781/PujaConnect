@@ -32,8 +32,12 @@ api.interceptors.response.use(
   response => {
     // HTTP 200 — still validate the business-level status field
     const body = response.data;
+    const url = response.config.url;
 
     if (body && typeof body.status === 'number') {
+      if (body.status !== 0) {
+        console.warn(`[API Response Error] URL: ${url}, Status: ${body.status}, Message: ${body.message}`);
+      }
       handleApiBusinessError(body);
     }
 

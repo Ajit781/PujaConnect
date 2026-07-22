@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,20 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import {
-  BookingSummary,
-  BookingDetail,
-} from '../../service/api/dashboardService';
-import { useGetBookingDetailsQuery } from '../../store/api/pujaApi';
-import { OrderItem } from '../../store/slices/orderSlice';
-import RescheduleOrderModal from './RescheduleOrderModal';
-import RescheduleSuccessModal from './RescheduleSuccessModal';
-import CancelOrderModal from './CancelOrderModal';
-import CancelSuccessModal from './CancelSuccessModal';
-
-const { height } = Dimensions.get('window');
-
+  Calendar,
+  Clock,
+  MapPin,
+  X,
+  Package,
+  ClipboardList,
+  AlertTriangle,
+} from 'lucide-react-native';
+import { OrderSummary, OrderBookingDetail, OrderPackageDetail } from '../../service/api/dashboardService';
 import { Colors } from '../../constants/Colors';
 import { formatTo12Hr } from '../../utils/timeUtils';
+
+const { height } = Dimensions.get('window');
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -31,41 +29,22 @@ const BRAND_MUTED = Colors.textMuted;
 
 interface Props {
   visible: boolean;
-  order: BookingSummary;
+  order: OrderSummary | null;
   onClose: () => void;
 }
 
 export default function OrderDetailsModal({ visible, order, onClose }: Props) {
-  const { i18n } = useTranslation();
-  const isBn = i18n.language === 'bn';
-  const [activeRescheduleItem, setActiveRescheduleItem] =
-    useState<OrderItem | null>(null);
-  const [rescheduledItem, setRescheduledItem] = useState<OrderItem | null>(
-    null,
-  );
+  if (!order) return null;
 
-  const [activeCancelItem, setActiveCancelItem] = useState<OrderItem | null>(
-    null,
-  );
-  const [showCancelSuccess, setShowCancelSuccess] = useState(false);
+  const isOrderCancelled = order.order_status?.toLowerCase().includes('cancel');
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     try {
       const d = new Date(dateString);
       const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
       ];
       return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
     } catch {
@@ -73,121 +52,112 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     }
   };
 
-  // Fetch booking details (puja items)
-  const {
-    data: pujaItems = [],
-    isLoading,
-    refetch,
-  } = useGetBookingDetailsQuery(order.booking_id, {
-    skip: !visible,
-  });
+  // Count total packages across all bookings
+  const totalPackages = order.booking_details?.reduce(
+    (acc, booking) => acc + (booking.package_details?.length || 0),
+    0
+  ) || 0;
 
-  const handleReschedule = (item: OrderItem) => {
-    setActiveRescheduleItem(item);
-  };
+  const renderPackageRow = (
+    booking: OrderBookingDetail,
+    pkg: OrderPackageDetail,
+    index: number
+  ) => {
+    const isCancelled = isOrderCancelled || 
+      booking.booking_status?.toLowerCase().includes('cancel') || 
+      pkg.package_status?.toLowerCase().includes('cancel');
 
-  const handleCancelItem = (item: OrderItem) => {
-    setActiveCancelItem(item);
-  };
-
-  const renderPujaItemDetail = (item: BookingDetail, index: number) => {
     return (
-      <View style={styles.itemBox} key={index}>
-        <View style={styles.itemHeader}>
-          <View style={styles.itemTitleRow}>
-            <View style={styles.itemIndexBox}>
-              <Text style={styles.itemIndexText}>{index + 1}</Text>
-            </View>
-            <View style={styles.itemTitleContainer}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
-                {item.puja_name}
-              </Text>
-              <Text style={styles.itemSubTitle} numberOfLines={1}>
-                {item.package_name}
-              </Text>
-            </View>
+      <View style={styles.tableRow} key={`${booking.booking_id}-${pkg.package_id}-${index}`}>
+        {/* PACKAGE */}
+        <View style={[styles.col, { width: 180, flexDirection: 'row', alignItems: 'flex-start' }]}>
+          <Package color="#D46B08" size={16} style={{ marginRight: 6, marginTop: 2 }} />
+          <Text style={styles.tableValueBold} numberOfLines={2}>
+            {pkg.package_name}
+          </Text>
+        </View>
+
+        {/* SCHEDULE */}
+        <View style={[styles.col, { width: 120 }]}>
+          <View style={styles.scheduleRow}>
+            <Calendar color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
+            <Text style={styles.tableValue}>{pkg.preferred_date ? formatDate(pkg.preferred_date) : '-'}</Text>
           </View>
-          <View style={styles.priceContainer}>
-            <Text style={styles.itemPriceText}>
-              ₹{item.package_total_amount.toLocaleString('en-IN')}
-            </Text>
+          <View style={[styles.scheduleRow, { marginTop: 4 }]}>
+            <Clock color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
+            <Text style={styles.tableValue}>{pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : '-'}</Text>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statIcon}>👥</Text>
-            <Text style={styles.statLabel}>PANDITS</Text>
-            <Text style={styles.statValue}>{item.pandit_count}</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statIcon}>🕒</Text>
-            <Text style={styles.statLabel}>DURATION</Text>
-            <Text style={styles.statValue}>{item.duration_hours}h</Text>
-          </View>
+        {/* ADDRESS */}
+        <View style={[styles.col, { width: 140, flexDirection: 'row' }]}>
+          <MapPin color={BRAND_MUTED} size={14} style={{ marginRight: 4, marginTop: 2 }} />
+          <Text style={styles.tableValue} numberOfLines={2}>
+            {pkg.citizen_address || 'Not provided'}
+          </Text>
         </View>
 
-        <View style={styles.descBox}>
-          <Text style={styles.descIcon}>📖</Text>
-          <Text style={styles.descText}>{item.package_description}</Text>
+        {/* AMOUNT */}
+        <View style={[styles.col, { width: 100 }]}>
+          <Text style={styles.tableValueBold}>₹{pkg.package_amount.toLocaleString('en-IN')}</Text>
         </View>
 
-        <View style={styles.sessionsBox}>
-          <Text style={styles.sessionsHeader}>📅 SCHEDULED SESSION</Text>
-          <View style={styles.sessionRow}>
-            <View style={styles.sessionIndex}>
-              <Text style={styles.itemIndexText}>1</Text>
+        {/* STATUS */}
+        <View style={[styles.col, { width: 120 }]}>
+          {isCancelled ? (
+            <View style={styles.pillRed}>
+              <Text style={styles.pillRedText}>Package Cancel</Text>
             </View>
-            <View style={styles.flexOne}>
-              <Text style={styles.sessionDate}>{item.preferred_date}</Text>
-              <Text style={styles.sessionTime}>
-                {formatTo12Hr(item.preferred_time)}
-              </Text>
+          ) : (
+            <View style={styles.pillYellow}>
+              <Text style={styles.pillYellowText}>{order.order_status}</Text>
             </View>
-            <Text style={[styles.statLabel, styles.statusWeight]}>
-              {item.puja_item_booking_status}
-            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderBookingCard = (booking: OrderBookingDetail) => {
+    const isCancelled = isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel');
+
+    return (
+      <View style={styles.bookingCard} key={booking.booking_id}>
+        {/* Booking Header */}
+        <View style={styles.bookingHeader}>
+          <View style={styles.bookingHeaderLeft}>
+            <View style={styles.iconBoxLight}>
+              <ClipboardList color="#D46B08" size={16} />
+            </View>
+            <View>
+              <Text style={styles.bookingLabel}>BOOKING NUMBER</Text>
+              <Text style={styles.bookingValue}>{booking.booking_no}</Text>
+            </View>
           </View>
+
+          {isCancelled && (
+            <View style={styles.pillRed}>
+              <Text style={styles.pillRedText}>Puja Booking Cancel</Text>
+            </View>
+          )}
         </View>
 
-        {/* Action Buttons for every item */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.rescheduleBtn}
-            onPress={() => {
-              // Convert BookingDetail to OrderItem-like structure for the existing modal logic
-              const legacyItem: any = {
-                id: item.puja_id.toString(),
-                titleEn: item.puja_name,
-                titleBn: item.puja_name,
-                price: item.package_total_amount,
-                scheduledDate: item.preferred_date,
-                scheduledTime: item.preferred_time,
-                status: item.puja_item_booking_status,
-                pandits: item.pandit_count,
-                duration: `${item.duration_hours}h`,
-                bookingId: item.booking_id,
-                packageId: item.package_id,
-              };
-              handleReschedule(legacyItem);
-            }}
-          >
-            <Text style={styles.rescheduleBtnText}>🔄 Reschedule</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => {
-              const legacyItem: any = {
-                id: item.puja_id.toString(),
-                titleEn: item.puja_name,
-                titleBn: item.puja_name,
-              };
-              handleCancelItem(legacyItem);
-            }}
-          >
-            <Text style={styles.cancelBtnText}>✖ Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Booking Table (Horizontal Scroll) */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableContainer}>
+          <View>
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.thText, { width: 180 }]}>PACKAGE</Text>
+              <Text style={[styles.thText, { width: 120 }]}>SCHEDULE</Text>
+              <Text style={[styles.thText, { width: 140 }]}>ADDRESS</Text>
+              <Text style={[styles.thText, { width: 100 }]}>AMOUNT</Text>
+              <Text style={[styles.thText, { width: 120 }]}>STATUS</Text>
+            </View>
+
+            {/* Table Rows */}
+            {booking.package_details?.map((pkg, idx) => renderPackageRow(booking, pkg, idx))}
+          </View>
+        </ScrollView>
       </View>
     );
   };
@@ -201,106 +171,77 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          {/* Header */}
+          {/* Modal Header */}
           <View style={styles.headerBox}>
             <View style={styles.headerLeft}>
-              <View style={styles.iconCircle}>
-                <Text style={styles.iconText}>🔥</Text>
-              </View>
-              <View>
-                <View style={styles.badgeRow}>
-                  <Text style={styles.modalTitleLabel}>BOOKING DETAILS</Text>
-                  <View style={styles.badgeSm}>
-                    <Text style={styles.badgeSmText}>
-                      ✨ {order.booking_status}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.modalTitleRef}>{order.booking_no}</Text>
-                <Text style={styles.modalSubRef}>
-                  Booked on {formatDate(order.booking_create_date)}
-                </Text>
-              </View>
+              <Text style={styles.headerLabelText}>ORDER DETAILS</Text>
+              <Text style={styles.headerTitleText}>{order.order_reference}</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeBtnText}>✖</Text>
-            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              {isOrderCancelled && (
+                <View style={styles.pillWhiteRed}>
+                  <Text style={styles.pillWhiteRedText}>Order Cancel</Text>
+                </View>
+              )}
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+                <X color="#FFF" size={18} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <ScrollView
-            style={styles.scrollBody}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {isLoading ? (
-              <View style={styles.loadingBox}>
-                <Text style={styles.loadingText}>Fetching items...</Text>
+          {/* Modal Body */}
+          <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
+            {/* Key Stats Cards */}
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>TOTAL AMOUNT</Text>
+                <Text style={styles.statValue}>₹{order.order_total_amount.toLocaleString('en-IN')}</Text>
               </View>
-            ) : pujaItems.length > 0 ? (
-              pujaItems.map((item, idx) => renderPujaItemDetail(item, idx))
-            ) : (
-              <View style={styles.noItemsBox}>
-                <Text style={styles.noItemsText}>
-                  No puja items found for this booking.
-                </Text>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>BOOKINGS</Text>
+                <Text style={styles.statValue}>{order.booking_details?.length || 0}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>PACKAGES</Text>
+                <Text style={styles.statValue}>{totalPackages}</Text>
+              </View>
+            </View>
+
+            {/* Cancellation Reason Box */}
+            {isOrderCancelled && order.order_cancel_reason && (
+              <View style={styles.cancelReasonBox}>
+                <AlertTriangle color="#EF4444" size={20} style={styles.warningIcon} />
+                <View style={styles.cancelReasonTextWrap}>
+                  <Text style={styles.cancelReasonLabel}>ORDER CANCELLATION REASON</Text>
+                  <Text style={styles.cancelReasonText}>{order.order_cancel_reason}</Text>
+                </View>
               </View>
             )}
+
+            {/* Booking Overview Section */}
+            <View style={styles.overviewSection}>
+              <Text style={styles.overviewLabel}>BOOKING OVERVIEW</Text>
+              <View style={styles.overviewHeaderRow}>
+                <Text style={styles.overviewTitle}>Booking details</Text>
+                <Text style={styles.overviewCount}>
+                  {order.booking_details?.length || 0} {order.booking_details?.length === 1 ? 'booking' : 'bookings'}
+                </Text>
+              </View>
+
+              {/* Bookings List */}
+              {order.booking_details?.map(renderBookingCard)}
+            </View>
           </ScrollView>
 
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.footerBtn} onPress={onClose}>
-              <Text style={styles.footerBtnText}>Close</Text>
+          {/* Modal Footer */}
+          <View style={styles.footerBox}>
+            <Text style={styles.footerRefText}>Order reference: {order.order_reference}</Text>
+            <TouchableOpacity style={styles.footerCloseBtn} onPress={onClose}>
+              <Text style={styles.footerCloseBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
-
-      {activeRescheduleItem && (
-        <RescheduleOrderModal
-          visible={!!activeRescheduleItem}
-          orderId={order.booking_id.toString()}
-          item={activeRescheduleItem}
-          onClose={() => setActiveRescheduleItem(null)}
-          onSuccess={updated => {
-            setActiveRescheduleItem(null);
-            setRescheduledItem(updated);
-            refetch(); // Refresh the list to show new date/time
-          }}
-        />
-      )}
-
-      {rescheduledItem && (
-        <RescheduleSuccessModal
-          visible={!!rescheduledItem}
-          item={rescheduledItem}
-          onClose={() => setRescheduledItem(null)}
-        />
-      )}
-
-      {activeCancelItem && (
-        <CancelOrderModal
-          visible={!!activeCancelItem}
-          orderId={order.booking_id.toString()}
-          itemId={activeCancelItem.id}
-          itemTitle={isBn ? activeCancelItem.titleBn : activeCancelItem.titleEn}
-          onClose={() => setActiveCancelItem(null)}
-          onSuccess={() => {
-            setActiveCancelItem(null);
-            setShowCancelSuccess(true);
-          }}
-        />
-      )}
-
-      <CancelSuccessModal
-        visible={showCancelSuccess}
-        itemTitle={
-          activeCancelItem
-            ? isBn
-              ? activeCancelItem.titleBn
-              : activeCancelItem.titleEn
-            : ''
-        }
-        onClose={() => setShowCancelSuccess(false)}
-      />
     </Modal>
   );
 }
@@ -312,227 +253,275 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: height * 0.9,
+    backgroundColor: '#FAF9F6',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    height: height * 0.85,
     overflow: 'hidden',
   },
   headerBox: {
-    backgroundColor: Colors.lightOrange,
-    padding: 20,
+    backgroundColor: '#D46B08',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    alignItems: 'center',
   },
-  headerLeft: {
+  headerLeft: {},
+  headerLabelText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  headerTitleText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: BRAND_PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
+  pillWhiteRed: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
-  iconText: { fontSize: 24 },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+  pillWhiteRedText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
-  modalTitleLabel: { fontSize: 12, fontWeight: 'bold', color: BRAND_PRIMARY },
-  badgeSm: {
-    backgroundColor: Colors.lightOrange,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  badgeSmText: { fontSize: 10, color: BRAND_PRIMARY, fontWeight: 'bold' },
-  modalTitleRef: { fontSize: 18, fontWeight: 'bold', color: BRAND_TEXT },
-  modalSubRef: { fontSize: 12, color: Colors.gray, marginTop: 2 },
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
-  },
-  closeBtnText: { color: BRAND_MUTED, fontSize: 14 },
-
-  scrollBody: { flex: 1, backgroundColor: Colors.ultraLightGray },
-
-  itemBox: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 16,
-    marginBottom: 16,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  itemTitleRow: { flex: 1, flexDirection: 'row', gap: 12 },
-  itemTitleContainer: { flex: 1, paddingRight: 8 },
-  priceContainer: { alignItems: 'flex-end', justifyContent: 'flex-start' },
-  itemIndexBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: BRAND_PRIMARY,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 2,
   },
-  itemIndexText: { color: Colors.white, fontWeight: 'bold', fontSize: 12 },
-  itemTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: BRAND_TEXT,
-    lineHeight: 20,
-  },
-  itemSubTitle: {
-    fontSize: 11,
-    color: BRAND_PRIMARY,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  itemPriceText: { fontSize: 15, fontWeight: 'bold', color: Colors.red },
-
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 16,
-  },
-  statBox: {
+  scrollBody: {
     flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    alignItems: 'center',
   },
-  statIcon: { fontSize: 16, marginBottom: 4 },
-  statLabel: {
-    fontSize: 10,
-    color: Colors.gray,
-    fontWeight: 'bold',
-    marginBottom: 2,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
   },
-  statValue: { fontSize: 14, fontWeight: 'bold', color: BRAND_TEXT },
-
-  descBox: {
+  statsGrid: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFF',
     padding: 12,
     borderRadius: 8,
-    backgroundColor: Colors.warningBackground,
     borderWidth: 1,
-    borderColor: Colors.warningBorder,
-    marginBottom: 16,
+    borderColor: '#E5E7EB',
   },
-  descIcon: { fontSize: 14 },
-  descText: { fontSize: 12, color: Colors.warningText, flex: 1 },
-
-  sessionsBox: { marginBottom: 16 },
-  sessionsHeader: {
-    fontSize: 12,
+  statLabel: {
+    color: '#8A8A8A',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  statValue: {
+    color: '#333',
+    fontSize: 16,
     fontWeight: 'bold',
-    color: BRAND_TEXT,
-    marginBottom: 8,
+    marginTop: 4,
   },
-  sessionRow: {
+  cancelReasonBox: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  warningIcon: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  cancelReasonTextWrap: {
+    flex: 1,
+  },
+  cancelReasonLabel: {
+    color: '#EF4444',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  cancelReasonText: {
+    color: '#333',
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  overviewSection: {},
+  overviewLabel: {
+    color: '#8A8A8A',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  overviewHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  overviewTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  overviewCount: {
+    fontSize: 12,
+    color: '#8A8A8A',
+    fontWeight: '500',
+  },
+  bookingCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  bookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FCFAF7',
+  },
+  bookingHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  sessionIndex: {
+  iconBoxLight: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.lightOrange,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 6,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sessionDate: { fontSize: 14, fontWeight: 'bold', color: BRAND_TEXT },
-  sessionTime: { fontSize: 12, color: Colors.gray },
-
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  rescheduleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    marginRight: 12,
     borderWidth: 1,
-    borderColor: Colors.blueBorder,
-    backgroundColor: Colors.blueLight,
-    alignItems: 'center',
+    borderColor: '#FFE0B2',
   },
-  rescheduleBtnText: { color: Colors.blue, fontSize: 14, fontWeight: 'bold' },
-  cancelBtn: {
-    flex: 1,
+  bookingLabel: {
+    fontSize: 10,
+    color: '#8A8A8A',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  bookingValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  tableContainer: {
+    paddingBottom: 8,
+  },
+  tableHeader: {
+    flexDirection: 'row',
     paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.tagRed,
-    backgroundColor: Colors.tagRed,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FDFBF7',
+  },
+  thText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8A8A8A',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
     alignItems: 'center',
   },
-  cancelBtnText: { color: Colors.red, fontSize: 14, fontWeight: 'bold' },
-
-  footer: {
-    padding: 20,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
+  col: {
+    justifyContent: 'center',
   },
-  footerBtn: {
-    width: '100%',
-    paddingVertical: 14,
+  tableValueBold: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  tableValue: {
+    fontSize: 12,
+    color: '#555',
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pillRed: {
+    backgroundColor: '#FEF2F2',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  },
+  pillRedText: {
+    color: '#EF4444',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  pillYellow: {
+    backgroundColor: '#FFF8E1',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pillYellowText: {
+    color: '#D46B08',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  footerBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FCFAF7',
   },
-  footerBtnText: { fontSize: 16, fontWeight: 'bold', color: BRAND_TEXT },
-  flexOne: { flex: 1 },
-  scrollContent: { padding: 20 },
-  loadingBox: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  footerRefText: {
+    fontSize: 12,
+    color: '#8A8A8A',
+    fontWeight: '500',
   },
-  loadingText: {
-    fontSize: 14,
-    color: BRAND_MUTED,
-    fontWeight: '600',
+  footerCloseBtn: {
+    backgroundColor: '#D46B08',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 6,
   },
-  noItemsBox: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  footerCloseBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
-  noItemsText: {
-    fontSize: 14,
-    color: BRAND_MUTED,
-    textAlign: 'center',
-  },
-  statusWeight: { color: BRAND_PRIMARY, fontWeight: '800' },
 });

@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import { useCancelBookingMutation } from '../../store/api/pujaApi';
+import { useCancelPujaMutation } from '../../store/api/pujaApi';
 import { useAlert } from '../../context/AlertContext';
 import { Colors } from '../../constants/Colors';
 
@@ -19,8 +20,9 @@ const BRAND_MUTED = Colors.textMuted;
 interface Props {
   visible: boolean;
   orderId: string;
+  bookingId: string;
+  packageId: string;
   itemTitle: string;
-  itemId?: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
@@ -28,42 +30,52 @@ interface Props {
 export default function CancelOrderModal({
   visible,
   orderId,
+  bookingId,
+  packageId,
   itemTitle,
-  itemId,
   onClose,
   onSuccess,
 }: Props) {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showAlert, showErrorAlert } = useAlert();
-  const [cancelBookingApi, { isLoading }] = useCancelBookingMutation();
+  const [cancelPujaApi, { isLoading }] = useCancelPujaMutation();
 
   const [reason, setReason] = useState('');
 
   const handleConfirmCancel = async () => {
     try {
       const payload = {
-        booking_id: orderId,
-        package_id: itemId || 0,
-        ctzn_id: user?.user_id || 0,
+        order_id: parseInt(orderId, 10) || 0,
+        package_id: parseInt(packageId, 10) || 0,
+        booking_id: parseInt(bookingId, 10) || 0,
         reason: reason,
+        ctzn_id: user?.user_id || 0,
       };
 
-      const res = await cancelBookingApi(payload).unwrap();
-      console.log('Cancel Booking Response: ', res);
+      console.log('Cancel Payload Details:', JSON.stringify(payload, null, 2));
+
+      const res = await cancelPujaApi(payload).unwrap();
+      console.log('Cancel Puja Response: ', res);
 
       if (res && (res.status === 0 || res.status === '0')) {
         showAlert({
           title: 'Success',
-          message: res.message || 'Cancelled successfully',
+          message: 'Cancelled successfully!',
         });
         if (onSuccess) onSuccess();
         onClose();
       } else {
-        showErrorAlert(res?.message || 'Could not cancel booking');
+        onClose();
+        setTimeout(() => {
+          Alert.alert('Error', res?.message || 'Could not cancel booking');
+        }, 500);
       }
     } catch (e: any) {
       console.log('Cancel Booking Error: ', e);
-      showErrorAlert(e?.data?.message || 'Server error occurred');
+      onClose();
+      setTimeout(() => {
+        Alert.alert('Error', e?.data?.message || 'Server error occurred');
+      }, 500);
     }
   };
 

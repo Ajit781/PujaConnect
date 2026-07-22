@@ -141,8 +141,10 @@ export default function OtpPage({ navigation, route }: Props) {
     dispatch(showLoader());
     try {
       const result = await validateOtp(mobileNumber, code);
+      console.log('--- LOGIN OTP VALIDATION RESULT ---', result);
+      //console.log('--- RECEIVED AUTH_ID AT LOGIN ---', result?.auth_id);
       if (result) {
-        dispatch(login({ user: result, token: 'session_active' }));
+        dispatch(login({ user: { ...result, mobile: mobileNumber }, token: 'session_active' }));
       }
     } catch {
       showErrorAlert('Unable to verify OTP. Please try again.');
