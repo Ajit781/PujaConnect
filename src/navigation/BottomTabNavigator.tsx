@@ -46,7 +46,7 @@ export function BottomTabNavigator() {
         tabBarStyle: {
           backgroundColor: '#ffffff',
           position: 'absolute',
-          bottom: insets.bottom > 10 ? insets.bottom + 8 : 0,
+          bottom: insets.bottom > 10 ? insets.bottom : 0,
           left: insets.bottom > 10 ? 15 : 0,
           right: insets.bottom > 10 ? 15 : 0,
           borderRadius: insets.bottom > 10 ? 20 : 0,
