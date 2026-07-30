@@ -1,10 +1,10 @@
 export const Colors = {
   // Brand Core
-  primary: '#F97316', // Orange
-  secondary: '#4A2A18', // Deep Brown
-  background: '#FDF8F0', // Cream/Beige
-  textMain: '#291811', // Dark Brown
-  textMuted: '#6B5E59', // Muted Brown
+  primary: '#D46B08', // Web Navbar / Primary Brand Color
+  secondary: '#C85A06', // Web Dashboard Darker Orange
+  background: '#FFF3E5', // Web Dashboard Cream Background
+  textMain: '#2C1810', // Web Dashboard Dark
+  textMuted: '#7A5A48', // Web Dashboard Muted
 
   // UI States
   white: '#FFFFFF',
@@ -12,14 +12,14 @@ export const Colors = {
   transparent: 'transparent',
 
   // Accents & Borders
-  border: '#FED7AA',
-  lightOrange: '#FFF7ED',
-  gold: '#F59E0B',
+  border: '#F1D8C2', // Web Card Border
+  lightOrange: '#FFF7ED', // Web Card Hover
+  gold: '#FACC15', // Popular badge
   green: '#10B981',
   greenMedium: '#16A34A',
   greenLight: '#F0FDF4',
   greenVeryLight: '#DCFCE7',
-  red: '#EF4444',
+  red: '#E11D48', // Wishlist Active
   tagYellow: '#FDE68A',
   tagRed: '#FECACA',
   tagGreen: '#6EE7B7',
@@ -37,7 +37,7 @@ export const Colors = {
   splashRedDeep: '#991B1B',
 
   // Inputs
-  inputBg: '#F9FAFB',
+  inputBg: '#FFFFFF',
   placeholder: '#9CA3AF',
   shadow: '#000000',
 
@@ -66,8 +66,8 @@ export const Colors = {
   statusWarningText: '#B45309',
 
   // UI Helpers
-  cardBorder: '#FED7AA',
-  cardBg: '#FAFAF9',
+  cardBorder: '#F1D8C2',
+  cardBg: '#FFFFFF',
   extraLightWarm: '#FDFCF4',
   successGreen: '#16A34A',
   dangerRed: '#DC2626',

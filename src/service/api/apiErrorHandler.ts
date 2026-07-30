@@ -48,13 +48,16 @@ function isAuthEndpoint(url: string | undefined): boolean {
  * Checks `data.status` — if non-zero, shows the API's own message.
  * Returns true if the response is clean (status === 0).
  */
-export function handleApiBusinessError(data: {
-  status: number;
-  message: string;
-}): boolean {
+export function handleApiBusinessError(
+  data: { status: number; message?: string },
+  url?: string,
+): boolean {
   if (data.status === 0) return true; // All good
+  if (isAuthEndpoint(url)) return false; // Auth endpoints like Login handle their own specific messages
 
-  _showErrorAlert?.(data.message || 'Internal server error');
+  if (data.message) {
+    _showErrorAlert?.(data.message);
+  }
   return false;
 }
 

@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { Colors } from '../constants/Colors';
-import appLogo from '../assets/images/Logo.png';
+import appLogo from '../assets/images/Logo.webp';
 
 const { width, height } = Dimensions.get('window');
 
@@ -169,8 +169,8 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <StatusBar
-        backgroundColor={Colors.splashBg}
-        barStyle="light-content"
+        backgroundColor="#fffdfa"
+        barStyle="dark-content"
         translucent
       />
 
@@ -210,7 +210,7 @@ export default function SplashScreen() {
             { transform: [{ scale: logoScale }], opacity: logoOpacity },
           ]}
         >
-          <Image source={appLogo} style={styles.logoImage} />
+          <Image source={appLogo} style={[styles.logoImage, { tintColor: '#e65011' }]} />
         </Animated.View>
 
         {/* Divider line */}
@@ -254,7 +254,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.splashBg,
+    backgroundColor: '#fffdfa',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     width: width * 1.8,
     height: width * 1.8,
     borderRadius: width * 0.9,
-    backgroundColor: Colors.splashMid,
+    backgroundColor: '#ffedd5',
     top: height * 0.5 - width * 0.9,
     left: width * 0.5 - width * 0.9,
   },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     width: width * 1.2,
     height: width * 1.2,
     borderRadius: width * 0.6,
-    backgroundColor: Colors.splashInner,
+    backgroundColor: '#fed7aa',
     top: height * 0.5 - width * 0.6,
     left: width * 0.5 - width * 0.6,
   },
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     width: width * 0.7,
     height: width * 0.7,
     borderRadius: width * 0.35,
-    backgroundColor: Colors.splashCenter,
+    backgroundColor: '#fdba74',
     top: height * 0.5 - width * 0.35,
     left: width * 0.5 - width * 0.35,
   },
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   ring: {
     position: 'absolute',
     borderRadius: 9999,
-    borderColor: Colors.background,
+    borderColor: '#e65011',
     borderWidth: 1,
   },
   ringOuter: {
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   },
   omDecor: {
     fontSize: 64,
-    color: Colors.background,
+    color: '#e65011',
   },
   // Main content
   content: {
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 52,
     fontWeight: '900',
-    color: Colors.background,
+    color: '#281b16',
     letterSpacing: -1,
     marginBottom: 16,
   },
@@ -364,23 +364,23 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(253, 248, 240, 0.3)',
+    backgroundColor: 'rgba(230, 80, 17, 0.3)',
   },
   dividerDot: {
-    color: Colors.primary,
+    color: '#e65011',
     fontSize: 14,
     marginHorizontal: 8,
   },
   tagline: {
     fontSize: 16,
     fontWeight: '500',
-    color: 'rgba(253, 248, 240, 0.85)',
+    color: '#281b16',
     letterSpacing: 1,
     marginBottom: 8,
   },
   subTagline: {
     fontSize: 11,
-    color: 'rgba(253, 248, 240, 0.45)',
+    color: '#b9360b',
     letterSpacing: 0.5,
     textAlign: 'center',
     paddingHorizontal: 32,
@@ -397,14 +397,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#e65011',
     marginHorizontal: 4,
   },
   bottomText: {
     position: 'absolute',
     bottom: 40,
     fontSize: 12,
-    color: 'rgba(253, 248, 240, 0.5)',
+    color: '#6d625d',
     letterSpacing: 0.5,
   },
   logoImage: {

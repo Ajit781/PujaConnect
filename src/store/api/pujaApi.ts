@@ -28,6 +28,7 @@ import { logout } from '../slices/authSlice';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
+  timeout: 30000,
   prepareHeaders: async headers => {
     // Priority 1: System token from AsyncStorage (used by existing logic)
     const token = await getSystemToken();
@@ -953,6 +954,7 @@ export const {
   useGetTagPujasQuery,
   useGetPujaImagesQuery,
   useGetPujaPackagesQuery,
+  useLazyGetPujaPackagesQuery,
   useGetPackageMaterialsQuery,
   useGetPujaFullDetailsQuery,
   useAddPujaToCartMutation,

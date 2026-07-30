@@ -15,9 +15,14 @@ import {
   X,
   Package,
   ClipboardList,
+  FileText,
   AlertTriangle,
 } from 'lucide-react-native';
-import { OrderSummary, OrderBookingDetail, OrderPackageDetail } from '../../service/api/dashboardService';
+import {
+  OrderSummary,
+  OrderBookingDetail,
+  OrderPackageDetail,
+} from '../../service/api/dashboardService';
 import { Colors } from '../../constants/Colors';
 import { formatTo12Hr } from '../../utils/timeUtils';
 
@@ -36,7 +41,9 @@ interface Props {
 export default function OrderDetailsModal({ visible, order, onClose }: Props) {
   if (!order) return null;
 
-  const isOrderCancelled = order.order_status?.toLowerCase().includes('cancel');
+  const isOrderCancelled = order.order_status
+    ?.toLowerCase()
+    .includes('cancel');
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -44,7 +51,7 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
       const d = new Date(dateString);
       const months = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
       return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
     } catch {
@@ -52,74 +59,16 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     }
   };
 
-  // Count total packages across all bookings
-  const totalPackages = order.booking_details?.reduce(
-    (acc, booking) => acc + (booking.package_details?.length || 0),
-    0
-  ) || 0;
-
-  const renderPackageRow = (
-    booking: OrderBookingDetail,
-    pkg: OrderPackageDetail,
-    index: number
-  ) => {
-    const isCancelled = isOrderCancelled || 
-      booking.booking_status?.toLowerCase().includes('cancel') || 
-      pkg.package_status?.toLowerCase().includes('cancel');
-
-    return (
-      <View style={styles.tableRow} key={`${booking.booking_id}-${pkg.package_id}-${index}`}>
-        {/* PACKAGE */}
-        <View style={[styles.col, { width: 180, flexDirection: 'row', alignItems: 'flex-start' }]}>
-          <Package color="#D46B08" size={16} style={{ marginRight: 6, marginTop: 2 }} />
-          <Text style={styles.tableValueBold} numberOfLines={2}>
-            {pkg.package_name}
-          </Text>
-        </View>
-
-        {/* SCHEDULE */}
-        <View style={[styles.col, { width: 120 }]}>
-          <View style={styles.scheduleRow}>
-            <Calendar color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
-            <Text style={styles.tableValue}>{pkg.preferred_date ? formatDate(pkg.preferred_date) : '-'}</Text>
-          </View>
-          <View style={[styles.scheduleRow, { marginTop: 4 }]}>
-            <Clock color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
-            <Text style={styles.tableValue}>{pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : '-'}</Text>
-          </View>
-        </View>
-
-        {/* ADDRESS */}
-        <View style={[styles.col, { width: 140, flexDirection: 'row' }]}>
-          <MapPin color={BRAND_MUTED} size={14} style={{ marginRight: 4, marginTop: 2 }} />
-          <Text style={styles.tableValue} numberOfLines={2}>
-            {pkg.citizen_address || 'Not provided'}
-          </Text>
-        </View>
-
-        {/* AMOUNT */}
-        <View style={[styles.col, { width: 100 }]}>
-          <Text style={styles.tableValueBold}>₹{pkg.package_amount.toLocaleString('en-IN')}</Text>
-        </View>
-
-        {/* STATUS */}
-        <View style={[styles.col, { width: 120 }]}>
-          {isCancelled ? (
-            <View style={styles.pillRed}>
-              <Text style={styles.pillRedText}>Package Cancel</Text>
-            </View>
-          ) : (
-            <View style={styles.pillYellow}>
-              <Text style={styles.pillYellowText}>{order.order_status}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
+  const totalPackages =
+    order.booking_details?.reduce(
+      (acc, booking) => acc + (booking.package_details?.length || 0),
+      0,
+    ) || 0;
 
   const renderBookingCard = (booking: OrderBookingDetail) => {
-    const isCancelled = isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel');
+    const isCancelled =
+      isOrderCancelled ||
+      booking.booking_status?.toLowerCase().includes('cancel');
 
     return (
       <View style={styles.bookingCard} key={booking.booking_id}>
@@ -134,30 +83,61 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
               <Text style={styles.bookingValue}>{booking.booking_no}</Text>
             </View>
           </View>
-
-          {isCancelled && (
-            <View style={styles.pillRed}>
-              <Text style={styles.pillRedText}>Puja Booking Cancel</Text>
-            </View>
-          )}
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>
+              {isCancelled ? 'Booking Cancelled' : booking.booking_status || order.order_status}
+            </Text>
+          </View>
         </View>
 
-        {/* Booking Table (Horizontal Scroll) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableContainer}>
-          <View>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.thText, { width: 180 }]}>PACKAGE</Text>
-              <Text style={[styles.thText, { width: 120 }]}>SCHEDULE</Text>
-              <Text style={[styles.thText, { width: 140 }]}>ADDRESS</Text>
-              <Text style={[styles.thText, { width: 100 }]}>AMOUNT</Text>
-              <Text style={[styles.thText, { width: 120 }]}>STATUS</Text>
+        {/* Package Items */}
+        {booking.package_details?.map((pkg, idx) => (
+          <View
+            style={styles.packageBlock}
+            key={`${booking.booking_id}-${pkg.package_id}-${idx}`}
+          >
+            {/* Package Row */}
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>PACKAGE</Text>
+              <View style={styles.fieldValueWrap}>
+                <Package color="#D46B08" size={16} style={{ marginRight: 6 }} />
+                <Text style={styles.packageNameText} numberOfLines={2}>
+                  {pkg.package_name}
+                </Text>
+              </View>
             </View>
 
-            {/* Table Rows */}
-            {booking.package_details?.map((pkg, idx) => renderPackageRow(booking, pkg, idx))}
+            {/* Schedule Row */}
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>SCHEDULE</Text>
+              <View style={styles.scheduleWrap}>
+                <View style={styles.scheduleSubRow}>
+                  <Calendar color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
+                  <Text style={styles.scheduleText}>
+                    {pkg.preferred_date ? formatDate(pkg.preferred_date) : '-'}
+                  </Text>
+                </View>
+                <View style={[styles.scheduleSubRow, { marginTop: 4 }]}>
+                  <Clock color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
+                  <Text style={styles.scheduleText}>
+                    {pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : '-'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Address Row */}
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>ADDRESS</Text>
+              <View style={styles.fieldValueWrap}>
+                <MapPin color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
+                <Text style={styles.addressText} numberOfLines={2}>
+                  {pkg.citizen_address || 'Not provided'}
+                </Text>
+              </View>
+            </View>
           </View>
-        </ScrollView>
+        ))}
       </View>
     );
   };
@@ -171,49 +151,69 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          {/* Modal Header */}
+          {/* Modal Header Banner */}
           <View style={styles.headerBox}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerLabelText}>ORDER DETAILS</Text>
-              <Text style={styles.headerTitleText}>{order.order_reference}</Text>
+              <View style={styles.headerIconWrap}>
+                <FileText color="#FFF" size={22} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.headerLabelText}>ORDER DETAILS</Text>
+                <Text style={styles.headerTitleText} numberOfLines={1}>
+                  {order.order_reference}
+                </Text>
+              </View>
             </View>
-            <View style={styles.headerRight}>
-              {isOrderCancelled && (
-                <View style={styles.pillWhiteRed}>
-                  <Text style={styles.pillWhiteRedText}>Order Cancel</Text>
-                </View>
-              )}
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-                <X color="#FFF" size={18} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <X color="#FFF" size={20} />
+            </TouchableOpacity>
           </View>
 
           {/* Modal Body */}
-          <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
-            {/* Key Stats Cards */}
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>TOTAL AMOUNT</Text>
-                <Text style={styles.statValue}>₹{order.order_total_amount.toLocaleString('en-IN')}</Text>
+          <ScrollView
+            style={styles.scrollBody}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Top Combined Card: Total Amount + Bookings + Packages */}
+            <View style={styles.combinedCard}>
+              <View style={styles.amountSection}>
+                <Text style={styles.combinedLabel}>TOTAL AMOUNT</Text>
+                <Text style={styles.amountValue}>
+                  ₹{order.order_total_amount.toLocaleString('en-IN')}
+                </Text>
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>BOOKINGS</Text>
-                <Text style={styles.statValue}>{order.booking_details?.length || 0}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>PACKAGES</Text>
-                <Text style={styles.statValue}>{totalPackages}</Text>
+              <View style={styles.combinedDivider} />
+              <View style={styles.countsSection}>
+                <View style={styles.countCol}>
+                  <Text style={styles.combinedLabel}>BOOKINGS</Text>
+                  <Text style={styles.countValue}>
+                    {order.booking_details?.length || 0}
+                  </Text>
+                </View>
+                <View style={styles.countVerticalDivider} />
+                <View style={styles.countCol}>
+                  <Text style={styles.combinedLabel}>PACKAGES</Text>
+                  <Text style={styles.countValue}>{totalPackages}</Text>
+                </View>
               </View>
             </View>
 
             {/* Cancellation Reason Box */}
             {isOrderCancelled && order.order_cancel_reason && (
               <View style={styles.cancelReasonBox}>
-                <AlertTriangle color="#EF4444" size={20} style={styles.warningIcon} />
+                <AlertTriangle
+                  color="#EF4444"
+                  size={20}
+                  style={styles.warningIcon}
+                />
                 <View style={styles.cancelReasonTextWrap}>
-                  <Text style={styles.cancelReasonLabel}>ORDER CANCELLATION REASON</Text>
-                  <Text style={styles.cancelReasonText}>{order.order_cancel_reason}</Text>
+                  <Text style={styles.cancelReasonLabel}>
+                    ORDER CANCELLATION REASON
+                  </Text>
+                  <Text style={styles.cancelReasonText}>
+                    {order.order_cancel_reason}
+                  </Text>
                 </View>
               </View>
             )}
@@ -224,7 +224,8 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
               <View style={styles.overviewHeaderRow}>
                 <Text style={styles.overviewTitle}>Booking details</Text>
                 <Text style={styles.overviewCount}>
-                  {order.booking_details?.length || 0} {order.booking_details?.length === 1 ? 'booking' : 'bookings'}
+                  {order.booking_details?.length || 0}{' '}
+                  {order.booking_details?.length === 1 ? 'booking' : 'bookings'}
                 </Text>
               </View>
 
@@ -235,7 +236,9 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
 
           {/* Modal Footer */}
           <View style={styles.footerBox}>
-            <Text style={styles.footerRefText}>Order reference: {order.order_reference}</Text>
+            <Text style={styles.footerRefText}>
+              Order reference: {order.order_reference}
+            </Text>
             <TouchableOpacity style={styles.footerCloseBtn} onPress={onClose}>
               <Text style={styles.footerCloseBtnText}>Close</Text>
             </TouchableOpacity>
@@ -253,96 +256,120 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FAF9F6',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    height: height * 0.85,
+    backgroundColor: '#F9FAFB',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.9,
     overflow: 'hidden',
   },
   headerBox: {
     backgroundColor: '#D46B08',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 18,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  headerLeft: {},
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    marginRight: 12,
+  },
+  headerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
   headerLabelText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
   headerTitleText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginTop: 2,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  pillWhiteRed: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-  },
-  pillWhiteRedText: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   scrollBody: {
-    flex: 1,
+    flexGrow: 0,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
+  combinedCard: {
     backgroundColor: '#FFF',
-    padding: 12,
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    marginBottom: 20,
+    overflow: 'hidden',
   },
-  statLabel: {
-    color: '#8A8A8A',
+  amountSection: {
+    padding: 16,
+  },
+  combinedLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    color: BRAND_MUTED,
+    letterSpacing: 0.6,
+    marginBottom: 4,
   },
-  statValue: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 4,
+  amountValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+  },
+  combinedDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  countsSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  countCol: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  countValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginTop: 2,
+  },
+  countVerticalDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#F3F4F6',
   },
   cancelReasonBox: {
     flexDirection: 'row',
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FCA5A5',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     alignItems: 'flex-start',
     marginBottom: 20,
   },
@@ -356,21 +383,21 @@ const styles = StyleSheet.create({
   cancelReasonLabel: {
     color: '#EF4444',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   cancelReasonText: {
-    color: '#333',
+    color: BRAND_TEXT,
     fontSize: 13,
     marginTop: 4,
     fontWeight: '500',
   },
   overviewSection: {},
   overviewLabel: {
-    color: '#8A8A8A',
+    color: BRAND_MUTED,
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
     marginBottom: 4,
   },
   overviewHeaderRow: {
@@ -380,148 +407,142 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   overviewTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: BRAND_TEXT,
   },
   overviewCount: {
-    fontSize: 12,
-    color: '#8A8A8A',
-    fontWeight: '500',
+    fontSize: 13,
+    color: BRAND_MUTED,
+    fontWeight: '600',
   },
   bookingCard: {
     backgroundColor: '#FFF',
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 16,
+    marginBottom: 14,
     overflow: 'hidden',
   },
   bookingHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FDFBF7',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FCFAF7',
+    borderBottomColor: '#F3F4F6',
   },
   bookingHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
   },
   iconBoxLight: {
     width: 32,
     height: 32,
     backgroundColor: '#FFF3E0',
-    borderRadius: 6,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
     borderWidth: 1,
     borderColor: '#FFE0B2',
   },
   bookingLabel: {
     fontSize: 10,
-    color: '#8A8A8A',
-    fontWeight: '700',
+    color: BRAND_MUTED,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   bookingValue: {
+    fontSize: 13,
+    color: BRAND_TEXT,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  statusPill: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  statusPillText: {
+    color: '#D97706',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  packageBlock: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  fieldRow: {
+    marginBottom: 10,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: BRAND_MUTED,
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  fieldValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  packageNameText: {
     fontSize: 14,
-    color: '#333',
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  tableContainer: {
-    paddingBottom: 8,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FDFBF7',
-  },
-  thText: {
-    fontSize: 10,
     fontWeight: '700',
-    color: '#8A8A8A',
-    letterSpacing: 0.5,
+    color: BRAND_TEXT,
+    flex: 1,
   },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  col: {
-    justifyContent: 'center',
-  },
-  tableValueBold: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  tableValue: {
-    fontSize: 12,
-    color: '#555',
-  },
-  scheduleRow: {
+  scheduleWrap: {},
+  scheduleSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  pillRed: {
-    backgroundColor: '#FEF2F2',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  scheduleText: {
+    fontSize: 13,
+    color: BRAND_TEXT,
+    fontWeight: '500',
   },
-  pillRedText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  pillYellow: {
-    backgroundColor: '#FFF8E1',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pillYellowText: {
-    color: '#D46B08',
-    fontSize: 10,
-    fontWeight: '700',
+  addressText: {
+    fontSize: 13,
+    color: BRAND_TEXT,
+    fontWeight: '500',
+    flex: 1,
   },
   footerBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: '#FFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 20,
     borderTopWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FCFAF7',
+    borderTopColor: '#F3F4F6',
+    alignItems: 'center',
+    gap: 12,
   },
   footerRefText: {
     fontSize: 12,
-    color: '#8A8A8A',
+    color: BRAND_MUTED,
     fontWeight: '500',
   },
   footerCloseBtn: {
     backgroundColor: '#D46B08',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 6,
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footerCloseBtnText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 'bold',
   },
 });

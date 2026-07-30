@@ -1,13 +1,33 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Calendar, Clock, IndianRupee, MapPin, X, RefreshCw, FileText, CreditCard, Package, File as FileIcon, ClipboardList } from 'lucide-react-native';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
+import {
+  Eye,
+  IndianRupee,
+  MoreHorizontal,
+  Calendar,
+  Clock,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  X,
+  RefreshCw,
+  FileText,
+  Package,
+  File as FileIcon,
+} from "lucide-react-native";
 import {
   OrderSummary,
   OrderBookingDetail,
   OrderPackageDetail,
-} from '../../service/api/dashboardService';
-import { Colors } from '../../constants/Colors';
-import { formatTo12Hr } from '../../utils/timeUtils';
+} from "../../service/api/dashboardService";
+import { Colors } from "../../constants/Colors";
+import { formatTo12Hr } from "../../utils/timeUtils";
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -26,523 +46,341 @@ interface Props {
 }
 
 const formatDate = (dateString: string) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   try {
     const d = new Date(dateString);
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${d.getDate().toString().padStart(2, "0")} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
     return dateString;
   }
 };
 
-const OrderCard = React.memo(
-  ({
-    item,
-    isBn,
-    onPressCancel,
-    onPressCancelBooking,
-    onPressCancelPackage,
-    onPressReschedule,
-    onPressPayNow,
-    onPressInvoice,
-    onPressCard
-  }: Props) => {
-    const canCancel = ['Order Initiated', 'Order Pending', 'Pending'].includes(
-      item.order_status,
-    );
+const STATUS_CONFIG: Record<string, { bg: string; border: string; text: string }> = {
+  "Order Initiated": { bg: "#FFF8ED", border: "#FDBA74", text: "#D97706" },
+  "Order Pending": { bg: "#FFF8ED", border: "#FDBA74", text: "#D97706" },
+  Pending: { bg: "#FFF8ED", border: "#FDBA74", text: "#D97706" },
+  Upcoming: { bg: "#EFF6FF", border: "#93C5FD", text: "#2563EB" },
+  Completed: { bg: "#F0FDF4", border: "#86EFAC", text: "#16A34A" },
+  Rescheduled: { bg: "#F0FDF4", border: "#86EFAC", text: "#16A34A" },
+  "Order Payment Done": { bg: "#F0FDF4", border: "#86EFAC", text: "#16A34A" },
+  Cancelled: { bg: "#FEF2F2", border: "#FCA5A5", text: "#DC2626" },
+  "Order Cancelled": { bg: "#FEF2F2", border: "#FCA5A5", text: "#DC2626" },
+  "Partial Cancelled": { bg: "#FEF2F2", border: "#FCA5A5", text: "#DC2626" },
+  "Order payment Fail": { bg: "#FEF2F2", border: "#FCA5A5", text: "#DC2626" },
+};
 
-    const canPay = ['Order Initiated', 'Order payment Fail'].includes(item.order_status);
+const StatusBadge = ({ status }: { status: string }) => {
+  const cfg = STATUS_CONFIG[status] || { bg: "#F3F4F6", border: "#D1D5DB", text: BRAND_MUTED };
+  return (
+    <View style={[sBadge.badge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
+      <Text style={[sBadge.text, { color: cfg.text }]}>{status}</Text>
+    </View>
+  );
+};
 
-    const isOrderCancelled = item.order_status?.toLowerCase().includes('cancel');
+const sBadge = StyleSheet.create({
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start" },
+  text: { fontSize: 12, fontWeight: "700" },
+});
 
-    const renderPackageRow = (
-      booking: OrderBookingDetail,
-      pkg: OrderPackageDetail,
-      index: number,
-    ) => {
-      return (
-        <View style={styles.tableRow} key={`${booking.booking_id}-${pkg.package_id}-${index}`}>
-          {/* PACKAGE */}
-          <View style={[styles.col, { width: 180, flexDirection: 'row', alignItems: 'flex-start' }]}>
-            <Package color="#D46B08" size={16} style={{ marginRight: 6, marginTop: 2 }} />
-            <Text style={styles.tableValueBold} numberOfLines={2}>
-              {pkg.package_name}
-            </Text>
-          </View>
+const OrderCard = React.memo(({
+  item, isBn,
+  onPressCancel, onPressCancelBooking, onPressCancelPackage,
+  onPressReschedule, onPressPayNow, onPressInvoice, onPressCard,
+}: Props) => {
+  const [expanded, setExpanded] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
-          {/* SCHEDULE */}
-          <View style={[styles.col, { width: 120 }]}>
-            <View style={styles.scheduleRow}>
-              <Calendar color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
-              <Text style={styles.tableValue}>{pkg.preferred_date ? formatDate(pkg.preferred_date) : '-'}</Text>
+  const canCancel = ["Order Initiated", "Order Pending", "Pending"].includes(item.order_status);
+  const canPay = ["Order Initiated", "Order payment Fail"].includes(item.order_status);
+  const isOrderCancelled = item.order_status?.toLowerCase().includes("cancel");
+  const bookingCount = item.booking_details?.length ?? 0;
+
+  const renderPackageRow = (booking: OrderBookingDetail, pkg: OrderPackageDetail, index: number) => {
+    const pkgCancelled = isOrderCancelled ||
+      booking.booking_status?.toLowerCase().includes("cancel") ||
+      pkg.package_status?.toLowerCase().includes("cancel");
+    return (
+      <View style={pkgStyles.row} key={`${booking.booking_id}-${pkg.package_id}-${index}`}>
+        <View style={pkgStyles.rowInner}>
+          <Package color={BRAND_PRIMARY} size={14} style={{ marginTop: 2 }} />
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={pkgStyles.pkgName} numberOfLines={2}>{pkg.package_name}</Text>
+            <View style={pkgStyles.metaRow}>
+              <Calendar color={BRAND_MUTED} size={12} />
+              <Text style={pkgStyles.metaText}>{pkg.preferred_date ? formatDate(pkg.preferred_date) : "—"}</Text>
+              <Clock color={BRAND_MUTED} size={12} style={{ marginLeft: 8 }} />
+              <Text style={pkgStyles.metaText}>{pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : "—"}</Text>
             </View>
-            <View style={[styles.scheduleRow, { marginTop: 4 }]}>
-              <Clock color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
-              <Text style={styles.tableValue}>{pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : '-'}</Text>
-            </View>
-          </View>
-
-          {/* ADDRESS */}
-          <View style={[styles.col, { width: 140, flexDirection: 'row' }]}>
-            <MapPin color={BRAND_MUTED} size={14} style={{ marginRight: 4, marginTop: 2 }} />
-            <Text style={styles.tableValue} numberOfLines={2}>
-              {pkg.citizen_address || '-'}
-            </Text>
-          </View>
-
-          {/* AMOUNT */}
-          <View style={[styles.col, { width: 100 }]}>
-            <Text style={styles.tableValueBold}>₹{pkg.package_amount.toLocaleString('en-IN')}</Text>
-          </View>
-
-          {/* STATUS */}
-          <View style={[styles.col, { width: 160 }]}>
-            {(isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel') || pkg.package_status?.toLowerCase().includes('cancel')) ? (
-              <View style={styles.pillRed}>
-                <Text style={styles.pillRedText}>Package Cancelled</Text>
+            {pkg.citizen_address ? (
+              <View style={pkgStyles.metaRow}>
+                <MapPin color={BRAND_MUTED} size={12} />
+                <Text style={pkgStyles.metaText} numberOfLines={1}>{pkg.citizen_address}</Text>
               </View>
-            ) : (
-              <View style={styles.pillYellow}>
-                <Text style={styles.pillYellowText}>{item.order_status}</Text>
-              </View>
-            )}
+            ) : null}
           </View>
-
-          {/* ACTION */}
-          <View style={[styles.col, { width: 140 }]}>
+        </View>
+        <View style={pkgStyles.pkgFooter}>
+          <Text style={pkgStyles.pkgAmount}>Rs.{pkg.package_amount.toLocaleString("en-IN")}</Text>
+          <StatusBadge status={pkgCancelled ? "Cancelled" : item.order_status} />
+          {!pkgCancelled && (
             <TouchableOpacity
-              style={[styles.cancelActionBtn, (isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel') || pkg.package_status?.toLowerCase().includes('cancel')) && { opacity: 0.5 }]}
-              disabled={isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel') || pkg.package_status?.toLowerCase().includes('cancel')}
+              style={pkgStyles.cancelPkgBtn}
               onPress={() => onPressCancelPackage(item.order_id.toString(), booking.booking_id.toString(), pkg.package_id.toString())}
             >
-              <X color="#DC2626" size={14} />
-              <Text style={styles.cancelActionText}> CANCEL PACKAGE</Text>
+              <X color="#DC2626" size={12} />
+              <Text style={pkgStyles.cancelPkgText}> Cancel</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
-      );
-    };
+      </View>
+    );
+  };
 
-    const renderBooking = (booking: OrderBookingDetail) => {
-      return (
-        <View style={styles.bookingCard} key={booking.booking_id}>
-          {/* Booking Header */}
-          <View style={styles.bookingHeader}>
-            <View style={styles.bookingHeaderLeft}>
-              <View style={styles.iconBoxLight}>
-                <ClipboardList color="#D46B08" size={16} />
-              </View>
-              <View>
-                <Text style={styles.bookingLabel}>BOOKING NUMBER</Text>
-                <Text style={styles.bookingValue}>{booking.booking_no}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Booking Table (Horizontal Scroll) */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableContainer}>
-            <View>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.thText, { width: 180 }]}>PACKAGE</Text>
-                <Text style={[styles.thText, { width: 120 }]}>SCHEDULE</Text>
-                <Text style={[styles.thText, { width: 140 }]}>ADDRESS</Text>
-                <Text style={[styles.thText, { width: 100 }]}>AMOUNT</Text>
-                <Text style={[styles.thText, { width: 160 }]}>STATUS</Text>
-                <Text style={[styles.thText, { width: 140 }]}>ACTION</Text>
-              </View>
-
-              {/* Table Rows */}
-              {booking.package_details.map((pkg, idx) => renderPackageRow(booking, pkg, idx))}
-            </View>
-          </ScrollView>
-
-          {/* Booking Footer */}
-          <View style={styles.bookingFooter}>
-            <TouchableOpacity
-              style={[styles.rescheduleBtn, (isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel')) && { opacity: 0.5 }]}
-              disabled={isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel')}
-              onPress={() => onPressReschedule(item.order_id.toString(), booking.booking_id.toString())}
-            >
-              <RefreshCw color="#D46B08" size={14} style={{ marginRight: 6 }} />
-              <Text style={styles.rescheduleBtnText}>Reschedule Booking</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.cancelBookingBtn, (isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel')) && { opacity: 0.5 }]}
-              disabled={isOrderCancelled || booking.booking_status?.toLowerCase().includes('cancel')}
-              onPress={() => onPressCancelBooking(item.order_id.toString(), booking.booking_id.toString())}
-            >
-              <X color="#DC2626" size={14} />
-              <Text style={styles.cancelBookingText}> Cancel Booking</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    };
-
+  const renderBooking = (booking: OrderBookingDetail) => {
+    const bookingCancelled = isOrderCancelled || booking.booking_status?.toLowerCase().includes("cancel");
     return (
-      <TouchableOpacity
-        activeOpacity={0.95}
-        disabled={!onPressCard}
-        onPress={() => onPressCard && onPressCard(item)}
-        style={[styles.card, isOrderCancelled && { opacity: 0.6 }]}
-      >
-        {/* Top Orange Banner */}
-        <View style={styles.topBanner}>
-          <View style={styles.bannerLeft}>
-            <View style={styles.iconBox}>
-              <FileIcon color="#FFF" size={20} />
-            </View>
-            <View style={styles.orderRefBox}>
-              <Text style={styles.bannerLabel}>ORDER REF</Text>
-              <Text style={styles.bannerValueBold}>{item.order_reference}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.amountBox}>
-              <Text style={styles.bannerLabel}>TOTAL AMOUNT</Text>
-              <Text style={styles.bannerValueBold}>₹{item.order_total_amount.toLocaleString('en-IN')}</Text>
-            </View>
+      <View key={booking.booking_id} style={pkgStyles.bookingWrap}>
+        <View style={pkgStyles.bookingHeader}>
+          <View style={pkgStyles.bookingHeaderLeft}>
+            <ClipboardList color={BRAND_PRIMARY} size={14} />
+            <Text style={pkgStyles.bookingNo} numberOfLines={1}>{booking.booking_no}</Text>
           </View>
-
-          <View style={styles.bannerRight}>
-            {!isOrderCancelled && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>{item.order_status}</Text>
-              </View>
+          <View style={pkgStyles.bookingHeaderActions}>
+            {!bookingCancelled && (
+              <>
+                <TouchableOpacity
+                  style={pkgStyles.bookingActionBtn}
+                  onPress={() => onPressReschedule(item.order_id.toString(), booking.booking_id.toString())}
+                >
+                  <RefreshCw color={BRAND_PRIMARY} size={12} />
+                  <Text style={pkgStyles.bookingActionText}> Reschedule</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[pkgStyles.bookingActionBtn, pkgStyles.cancelBookBtn]}
+                  onPress={() => onPressCancelBooking(item.order_id.toString(), booking.booking_id.toString())}
+                >
+                  <X color="#DC2626" size={12} />
+                  <Text style={pkgStyles.cancelBookText}> Cancel</Text>
+                </TouchableOpacity>
+              </>
             )}
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {isOrderCancelled ? (
-                <View style={styles.pillRedOutline}>
-                  <Text style={styles.pillRedOutlineText}>Order Cancelled</Text>
-                </View>
-              ) : canPay && onPressPayNow && (
-                <TouchableOpacity
-                  style={styles.actionBtnWhite}
-                  onPress={() => onPressPayNow(item.order_id.toString())}
-                >
-                  <IndianRupee color="#D46B08" size={14} style={{ marginRight: 4 }} />
-                  <Text style={[styles.actionBtnText, { color: '#D46B08' }]}>Pay Now</Text>
-                </TouchableOpacity>
-              )}
-              {onPressInvoice && (
-                <TouchableOpacity
-                  style={[styles.actionBtnWhite, isOrderCancelled && { opacity: 0.5 }]}
-                  disabled={isOrderCancelled}
-                  onPress={() => onPressInvoice(item.order_id.toString())}
-                >
-                  <FileText color="#2563EB" size={14} style={{ marginRight: 4 }} />
-                  <Text style={[styles.actionBtnText, { color: '#2563EB' }]}>Download Invoice</Text>
-                </TouchableOpacity>
-              )}
-              {canCancel && (
-                <TouchableOpacity
-                  style={styles.actionBtnWhite}
-                  onPress={() => onPressCancel(item.order_id.toString())}
-                >
-                  <X color="#DC2626" size={14} style={{ marginRight: 4 }} />
-                  <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>Cancel Order</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
           </View>
         </View>
+        {booking.package_details.map((pkg, idx) => renderPackageRow(booking, pkg, idx))}
+      </View>
+    );
+  };
 
-        {/* Bookings */}
-        <View style={styles.bookingsContainer}>
-          {item.booking_details?.map(renderBooking)}
+  return (
+    <View style={styles.card}>
+      {/* Header: Icon + ORDER REFERENCE */}
+      <View style={styles.cardHeader}>
+        <View style={styles.orderIconWrap}>
+          <FileIcon color={BRAND_PRIMARY} size={18} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.orderRefLabel}>ORDER REFERENCE</Text>
+          <Text style={styles.orderRefValue} numberOfLines={1}>{item.order_reference}</Text>
+        </View>
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnOutline]}
+          onPress={() => onPressCard && onPressCard(item)}
+        >
+          <Eye color={BRAND_TEXT} size={15} />
+          <Text style={[styles.actionBtnText, { color: BRAND_TEXT }]}>{isBn ? "বিস্তারিত" : "Details"}</Text>
+        </TouchableOpacity>
+
+        {canPay && onPressPayNow ? (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.actionBtnPrimary]}
+            onPress={() => onPressPayNow(item.order_id.toString())}
+          >
+            <IndianRupee color="#fff" size={15} />
+            <Text style={[styles.actionBtnText, { color: "#fff" }]}>{isBn ? "পেমেন্ট করুন" : "Pay Now"}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnOutline]}
+          onPress={() => setShowMore(v => !v)}
+        >
+          <MoreHorizontal color={BRAND_TEXT} size={15} />
+          <Text style={[styles.actionBtnText, { color: BRAND_TEXT }]}>{isBn ? "আরও" : "More"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* More Menu */}
+      {showMore && (
+        <View style={styles.moreMenu}>
+          {onPressInvoice && !isOrderCancelled && (
+            <TouchableOpacity
+              style={styles.moreMenuInvoiceBtn}
+              onPress={() => { setShowMore(false); onPressInvoice(item.order_id.toString()); }}
+            >
+              <FileText color="#374151" size={15} />
+              <Text style={styles.moreMenuInvoiceText}>{isBn ? "ইনভয়েস দেখুন" : "View invoice"}</Text>
+            </TouchableOpacity>
+          )}
+          {canCancel && (
+            <TouchableOpacity
+              style={styles.moreMenuCancelBtn}
+              onPress={() => { setShowMore(false); onPressCancel(item.order_id.toString()); }}
+            >
+              <X color="#DC2626" size={15} />
+              <Text style={styles.moreMenuCancelText}>{isBn ? "অর্ডার বাতিল করুন" : "Cancel order"}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Divider */}
+      <View style={styles.divider} />
+
+      {/* Total Amount + Status */}
+      <View style={styles.amountStatusRow}>
+        <View>
+          <Text style={styles.amountLabel}>{isBn ? "মোট পরিমাণ" : "TOTAL AMOUNT"}</Text>
+          <Text style={styles.amountValue}>Rs.{item.order_total_amount.toLocaleString("en-IN")}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={styles.amountLabel}>STATUS</Text>
+          <StatusBadge status={item.order_status} />
+        </View>
+      </View>
+
+      {/* Expand Row */}
+      <TouchableOpacity style={styles.expandRow} onPress={() => setExpanded(v => !v)} activeOpacity={0.7}>
+        <Text style={styles.expandBookingCount}>
+          {bookingCount} {bookingCount === 1 ? "booking" : "bookings"} {isBn ? "এই অর্ডারে" : "in this order"}
+        </Text>
+        <View style={styles.expandBtn}>
+          <Text style={styles.expandBtnText}>{expanded ? (isBn ? "সংকুচিত করুন" : "Collapse") : (isBn ? "বিস্তার করুন" : "Expand")}</Text>
+          {expanded ? <ChevronUp color={BRAND_PRIMARY} size={16} /> : <ChevronDown color={BRAND_PRIMARY} size={16} />}
         </View>
       </TouchableOpacity>
-    );
-  },
-);
+
+      {/* Expanded Booking Details */}
+      {expanded && (
+        <View style={styles.bookingsContainer}>
+          <Text style={styles.expandSubLabel}>{isBn ? "প্যাকেজ, সময়সূচী এবং ঠিকানা দেখুন" : "View packages, schedules and service addresses"}</Text>
+          {item.booking_details?.map(renderBooking)}
+        </View>
+      )}
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF',
-    borderRadius: 8,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
   },
-  topBanner: {
-    backgroundColor: '#D46B08',
-    padding: 16,
-    flexDirection: 'column',
-    gap: 16,
-  },
-  bannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  orderRefBox: {
-    marginRight: 16,
-  },
-  divider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginRight: 16,
-  },
-  amountBox: {},
-  bannerLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  bannerValueBold: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  bannerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     gap: 12,
   },
-  statusPill: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  orderIconWrap: {
+    width: 40,
+    height: 40,
+    backgroundColor: "#FFF3E0",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
   },
-  statusPillText: {
-    color: '#D46B08',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  actionBtnWhite: {
-    backgroundColor: '#FFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+  orderRefLabel: { fontSize: 10, fontWeight: "700", color: BRAND_MUTED, letterSpacing: 0.6, marginBottom: 2 },
+  orderRefValue: { fontSize: 16, fontWeight: "bold", color: BRAND_TEXT, letterSpacing: 0.2 },
+  actionsRow: { flexDirection: "row", paddingHorizontal: 12, paddingBottom: 10, gap: 8 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, gap: 5 },
+  actionBtnOutline: { borderWidth: 1.5, borderColor: "#D1D5DB", backgroundColor: "#fff" },
+  actionBtnPrimary: { backgroundColor: BRAND_PRIMARY, borderWidth: 1.5, borderColor: BRAND_PRIMARY },
+  actionBtnText: { fontSize: 13, fontWeight: "700" },
+  moreMenu: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
+    paddingBottom: 10,
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  moreMenuInvoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 6,
-  },
-  actionBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  bookingsContainer: {
-    padding: 16,
-    backgroundColor: '#FFF',
-  },
-  bookingCard: {
-    backgroundColor: '#FAF9F6',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F3E8E0',
-    marginBottom: 16,
-  },
-  bookingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3E8E0',
-  },
-  bookingHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconBoxLight: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#FFF3E0',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#FFE0B2'
-  },
-  bookingLabel: {
-    fontSize: 10,
-    color: '#8A8A8A',
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  bookingValue: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  cancelBookingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
-    backgroundColor: '#FEF2F2',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+    gap: 6,
   },
-  cancelBookingText: {
-    color: '#DC2626',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  tableContainer: {
-    paddingBottom: 8,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3E8E0',
-    backgroundColor: '#FDFBF7'
-  },
-  thText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#8A8A8A',
-    letterSpacing: 0.5,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3E8E0',
-    alignItems: 'center',
-  },
-  col: {
-    justifyContent: 'center',
-  },
-  tableValue: {
-    fontSize: 12,
-    color: '#555',
-  },
-  tableValueBold: {
+  moreMenuInvoiceText: {
     fontSize: 13,
-    color: '#222',
-    fontWeight: 'bold',
+    fontWeight: "700",
+    color: "#374151",
   },
-  scheduleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pillYellow: {
-    backgroundColor: '#FFF8E1',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FFECB3'
-  },
-  pillYellowText: {
-    color: '#D46B08',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  pillRed: {
-    backgroundColor: '#FEF2F2',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  pillRedText: {
-    color: '#FCA5A5',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  pillRedOutline: {
-    backgroundColor: '#FFF',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  pillRedOutlineText: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  topBadgeContainer: {
-    position: 'absolute',
-    top: -12,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  topBadge: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  topBadgeText: {
-    color: '#EF4444',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  cancelActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cancelActionText: {
-    color: '#DC2626',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bookingFooter: {
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rescheduleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
+  moreMenuCancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFDDC1',
-    backgroundColor: '#FFF',
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+    gap: 6,
   },
-  rescheduleBtnText: {
-    color: '#D46B08',
-    fontSize: 12,
-    fontWeight: '600',
+  moreMenuCancelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#DC2626",
   },
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 16 },
+  amountStatusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
+  amountLabel: { fontSize: 10, fontWeight: "700", color: BRAND_MUTED, letterSpacing: 0.5, marginBottom: 4 },
+  amountValue: { fontSize: 20, fontWeight: "bold", color: BRAND_TEXT },
+  expandRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6", backgroundColor: "#FAFAFA" },
+  expandBookingCount: { fontSize: 13, fontWeight: "600", color: BRAND_TEXT },
+  expandBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  expandBtnText: { fontSize: 13, fontWeight: "700", color: BRAND_PRIMARY },
+  expandSubLabel: { fontSize: 11, color: BRAND_MUTED, marginBottom: 12 },
+  bookingsContainer: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, borderTopWidth: 1, borderTopColor: "#F3F4F6", backgroundColor: "#FAFAFA" },
+});
+
+const pkgStyles = StyleSheet.create({
+  bookingWrap: { backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10, overflow: "hidden" },
+  bookingHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6", backgroundColor: "#FDFBF7" },
+  bookingHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  bookingNo: { fontSize: 12, fontWeight: "700", color: BRAND_TEXT, flex: 1 },
+  bookingHeaderActions: { flexDirection: "row", gap: 6 },
+  bookingActionBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "#fff" },
+  bookingActionText: { fontSize: 11, color: BRAND_PRIMARY, fontWeight: "600" },
+  cancelBookBtn: { borderColor: "#FEE2E2", backgroundColor: "#FEF2F2" },
+  cancelBookText: { fontSize: 11, color: "#DC2626", fontWeight: "600" },
+  row: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+  rowInner: { flexDirection: "row", marginBottom: 8 },
+  pkgName: { fontSize: 13, fontWeight: "700", color: BRAND_TEXT, marginBottom: 4 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
+  metaText: { fontSize: 11, color: BRAND_MUTED },
+  pkgFooter: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  pkgAmount: { fontSize: 14, fontWeight: "800", color: BRAND_TEXT, marginRight: 4 },
+  cancelPkgBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#FEE2E2", backgroundColor: "#FEF2F2", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: "auto" },
+  cancelPkgText: { fontSize: 11, color: "#DC2626", fontWeight: "600" },
 });
 
 export default OrderCard;

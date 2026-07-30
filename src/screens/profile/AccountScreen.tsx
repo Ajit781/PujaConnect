@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Image, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
@@ -7,6 +7,7 @@ import { Colors } from '../../constants/Colors';
 import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useGetUserDetailsQuery } from '../../store/api/pujaApi';
+import { useAlert } from '../../context/AlertContext';
 import { User, MapPin, Package, Heart, LogOut, ChevronRight } from 'lucide-react-native';
 
 const BRAND_PRIMARY = Colors.primary;
@@ -17,14 +18,29 @@ export default function AccountScreen({ navigation }: any) {
   const { t, i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const { user } = useSelector((state: RootState) => state.auth);
+  const { showAlert } = useAlert();
 
   const { data: userDetailsResponse } = useGetUserDetailsQuery(user?.user_id || 0, {
     skip: !user?.user_id,
   });
   const userDetails = userDetailsResponse;
 
-  const handleLogout = async () => {
-    await performLogout();
+  const handleLogout = () => {
+    showAlert({
+      title: isBn ? 'লগআউট নিশ্চিতকরণ' : 'Confirm Logout',
+      message: isBn ? 'আপনি কি নিশ্চিত যে লগআউট করতে চান?' : 'Are you sure you want to log out of Pujora?',
+      type: 'warning',
+      buttons: [
+        { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
+        {
+          text: isBn ? 'লগআউট করুন' : 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            await performLogout();
+          },
+        },
+      ],
+    });
   };
 
   const menuItems = [

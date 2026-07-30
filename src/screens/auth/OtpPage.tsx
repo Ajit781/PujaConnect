@@ -27,7 +27,7 @@ import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { VALIDATION } from '../../config/apiConfig';
 import RNOtpVerify from 'react-native-otp-verify';
 import DeviceInfo from 'react-native-device-info';
-import appLogo from '../../assets/images/Logo.png';
+import appLogo from '../../assets/images/Logo.webp';
 import { Colors } from '../../constants/Colors';
 
 const { height } = Dimensions.get('window');

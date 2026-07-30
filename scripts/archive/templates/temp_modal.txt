@@ -1,0 +1,105 @@
+        {/* ── Packages Modal (Screenshot 2 Match) ── */}
+        {showPackagesModal && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]}>
+            <View style={styles.packagesModalOverlay}>
+              {/* Header */}
+              <View style={styles.packagesModalHeader}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}>
+                  <Svg height="100%" width="100%">
+                    <Defs>
+                      <LinearGradient id="modalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor="#FF8C00" />
+                        <Stop offset="100%" stopColor="#F59E0B" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100%" height="100%" fill="url(#modalGrad)" />
+                  </Svg>
+                </View>
+                <Text style={styles.packagesModalTitle} numberOfLines={1}>{selectedPujaForPackages?.puja_name || 'Puja'} packages</Text>
+                <TouchableOpacity
+                  style={styles.packagesModalCloseBtn}
+                  onPress={() => setShowPackagesModal(false)}
+                >
+                  <Text style={styles.packagesModalCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Content */}
+              <ScrollView contentContainerStyle={styles.packagesModalContent} style={{ flex: 1 }}>
+
+                {isLoadingModalPackages ? (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#F97316" />
+                    <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading packages...</Text>
+                  </View>
+                ) : modalPackagesData && modalPackagesData.length > 0 ? (
+                  modalPackagesData.map((pkg: any, index: number) => {
+                    const price = pkg.puja_package_price || pkg.maximum_price || 0;
+                    const duration = pkg.puja_duration || pkg.duration_hours || 2;
+                    const panditCount = pkg.pandit_count || 1;
+                    const includesSamagri = pkg.puja_include_samagri === 1 || pkg.includes_samagri === 1;
+
+                    return (
+                      <View key={`pkg-${pkg.puja_package_id || index}`} style={styles.packageCard}>
+                        <View style={styles.packageCardHeader}>
+                          <Text style={styles.packageCardLabel}>PACKAGE</Text>
+                          <Text style={styles.packageCardPrice}>₹{price.toLocaleString('en-IN')}</Text>
+                        </View>
+                        <Text style={styles.packageCardTitle}>{pkg.puja_package_name || 'Puja Package'}</Text>
+                        <Text style={styles.packageCardDesc}>
+                          {pkg.puja_package_description || 'Essential ceremony with the core puja materials and priest guidance included.'}
+                        </Text>
+
+                        <View style={styles.packageFeatureList}>
+                          <View style={styles.packageFeatureItem}>
+                            <CalendarClock size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{duration} hr</Text>
+                          </View>
+                          <View style={styles.packageFeatureItem}>
+                            <ShieldCheck size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{panditCount} priest{panditCount > 1 ? 's' : ''}</Text>
+                          </View>
+                          <View style={styles.packageFeatureItem}>
+                            <ShieldCheck size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{includesSamagri ? 'Materials included' : 'Materials extra'}</Text>
+                          </View>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[{ borderRadius: 8, overflow: 'hidden' }]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setShowPackagesModal(false);
+                            navigation.navigate('PujaDetails', {
+                              pujaId: selectedPujaForPackages?.puja_id,
+                              pujaData: selectedPujaForPackages,
+                            });
+                          }}
+                        >
+                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                            <Svg height="100%" width="100%">
+                              <Defs>
+                                <LinearGradient id={`btnGrad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                  <Stop offset="0%" stopColor="#F97316" />
+                                  <Stop offset="100%" stopColor="#EA580C" />
+                                </LinearGradient>
+                              </Defs>
+                              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#btnGrad-${index})`} />
+                            </Svg>
+                          </View>
+                          <View style={{ paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '700' }}>Continue</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Text style={{ color: '#9CA3AF' }}>No packages available.</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        )}

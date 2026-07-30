@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
+  Animated,
+  Easing,
   StyleSheet,
   View,
-  ActivityIndicator,
   TouchableOpacity,
   Text,
   useWindowDimensions,
@@ -10,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { decode as base64Decode } from 'base-64';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 interface PluralWebViewProps {
   source: { uri: string };
@@ -22,6 +24,151 @@ interface PluralWebViewProps {
   }) => void;
   stopNavigationOnMatch?: boolean;
 }
+
+
+const CustomPaymentLoader = () => {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const dot1Anim = useRef(new Animated.Value(0)).current;
+  const dot2Anim = useRef(new Animated.Value(0)).current;
+  const dot3Anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Spinner rotation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Dots bouncing
+    const createDotAnim = (anim: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 600, useNativeDriver: true }),
+        ])
+      );
+    };
+
+    createDotAnim(dot1Anim, 0).start();
+    createDotAnim(dot2Anim, 200).start();
+    createDotAnim(dot3Anim, 400).start();
+  }, [rotateAnim, dot1Anim, dot2Anim, dot3Anim]);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  const getDotStyle = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] }) }]
+  });
+
+  return (
+    <View style={customStyles.overlayContainer} pointerEvents="none">
+      <View style={customStyles.modalCard}>
+        
+        {/* Spinner Graphic */}
+        <View style={customStyles.spinnerWrapper}>
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <Circle cx="32" cy="32" r="28" stroke="#fde68a" strokeWidth="6" />
+              <Path d="M32 4a28 28 0 0 1 28 28" stroke="#c0420a" strokeWidth="6" strokeLinecap="round" />
+            </Svg>
+          </Animated.View>
+          <View style={customStyles.emojiWrapper}>
+            <Text style={customStyles.emojiText}>🙏</Text>
+          </View>
+        </View>
+
+        {/* Text */}
+        <View style={customStyles.textContainer}>
+          <Text style={customStyles.titleText}>Preparing payment…</Text>
+          <Text style={customStyles.subtitleText}>Please wait, do not close this page.</Text>
+        </View>
+
+        {/* Bouncing Dots */}
+        <View style={customStyles.dotsContainer}>
+          <Animated.View style={[customStyles.dot, getDotStyle(dot1Anim)]} />
+          <Animated.View style={[customStyles.dot, getDotStyle(dot2Anim)]} />
+          <Animated.View style={[customStyles.dot, getDotStyle(dot3Anim)]} />
+        </View>
+
+      </View>
+    </View>
+  );
+};
+
+const customStyles = StyleSheet.create({
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 32,
+    alignItems: 'center',
+    width: 320,
+    maxWidth: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  spinnerWrapper: {
+    position: 'relative',
+    width: 64,
+    height: 64,
+    marginBottom: 16,
+  },
+  emojiWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emojiText: {
+    fontSize: 24,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  titleText: {
+    color: '#3d1f00',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  subtitleText: {
+    color: '#d97706',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fb923c',
+    marginHorizontal: 3,
+  }
+});
 
 export const PluralWebView: React.FC<PluralWebViewProps> = ({
   source,
@@ -252,12 +399,7 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
         />
 
         {/* Loading overlay — hides once onLoadEnd fires */}
-        {isLoading && !loadError && (
-          <View style={styles.loadingOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color="#FF8A00" />
-            <Text style={styles.loadingText}>Loading Secure Checkout...</Text>
-          </View>
-        )}
+        {isLoading && !loadError && <CustomPaymentLoader />}
 
         {/* Error state */}
         {loadError && (

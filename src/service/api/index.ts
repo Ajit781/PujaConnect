@@ -5,7 +5,7 @@ import { handleApiBusinessError, handleApiHttpError } from './apiErrorHandler';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,7 +38,7 @@ api.interceptors.response.use(
       if (body.status !== 0) {
         console.warn(`[API Response Error] URL: ${url}, Status: ${body.status}, Message: ${body.message}`);
       }
-      handleApiBusinessError(body);
+      handleApiBusinessError(body, url);
     }
 
     return response;

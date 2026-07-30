@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import {
   View,
@@ -11,18 +11,25 @@ import {
   Image,
   StatusBar,
   Dimensions,
-  FlatList,
-  TouchableWithoutFeedback,
   ActivityIndicator,
-  Platform,
   RefreshControl,
   TextInput,
+  Modal,
+  TouchableWithoutFeedback,
+  Animated,
+  PanResponder,
 } from 'react-native';
-import { Search } from 'lucide-react-native';
+import Svg, { Defs, LinearGradient, Stop, Rect, Path } from 'react-native-svg';
+import RNLinearGradient from 'react-native-linear-gradient';
+import {
+  Search, SlidersHorizontal, ChevronDown, ChevronUp, Clock, Check, ShieldCheck,
+  House, Gem, HeartPulse, UsersRound, GraduationCap, Orbit, PartyPopper, Sparkles,
+  CalendarClock, BadgeCheck, Eye, Menu, LayoutGrid, ShoppingCart, User, Heart, Trash2, UserCircle2, X, MapPin, LogOut
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, DrawerActions } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { clearNewLoginFlag } from '../../store/slices/authSlice';
@@ -44,787 +51,131 @@ import {
   useGetTagPujasQuery,
   useSavePujaTagMutation,
   useGetUserDetailsQuery,
+  useGetPujaPackagesQuery,
+  useLazyGetPujaPackagesQuery,
 } from '../../store/api/pujaApi';
-import appLogo from '../../assets/images/Logo.png';
+import TopNavBar from '../../components/common/TopNavBar';
+import appLogo from '../../assets/images/Logo.webp';
 import NoDataFound from '../../components/common/NoDataFound';
 import ProfileCompletionModal from '../../components/common/ProfileCompletionModal';
 import ImagePlaceholder from '../../components/common/ImagePlaceholder';
 import { Colors } from '../../constants/Colors';
 
+const PriceSlider = ({ value, onValueChange, maxLimit = 15000 }: any) => {
+  const [width, setWidth] = useState(1);
+  const widthRef = useRef(1);
+  const position = useRef(new Animated.Value(0)).current;
+
+  const isDragging = useRef(false);
+
+  useEffect(() => {
+    if (!isDragging.current) {
+      const val = value ? parseInt(value) : maxLimit;
+      const clampedVal = Math.max(0, Math.min(val, maxLimit));
+      position.setValue((clampedVal / maxLimit) * width);
+    }
+  }, [value, maxLimit, width]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        isDragging.current = true;
+        position.extractOffset();
+      },
+      onPanResponderMove: (e, gestureState) => {
+        position.setValue(gestureState.dx);
+        // Calculate real-time value using widthRef
+        // @ts-ignore
+        const offset = position._offset || 0;
+        const currentX = offset + gestureState.dx;
+        const currentWidth = widthRef.current;
+        const boundedX = Math.max(0, Math.min(currentX, currentWidth));
+        const newValue = Math.round((boundedX / currentWidth) * maxLimit);
+        onValueChange(newValue.toString());
+      },
+      onPanResponderRelease: () => {
+        isDragging.current = false;
+        position.flattenOffset();
+      },
+    })
+  ).current;
+
+  const boundedTranslateX = position.interpolate({
+    inputRange: [0, width],
+    outputRange: [0, width],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <View style={{ marginTop: 24, paddingVertical: 10 }}>
+      <View
+        style={{ height: 6, backgroundColor: '#F4E8E1', borderRadius: 3, justifyContent: 'center' }}
+        onLayout={(e) => {
+          const newWidth = e.nativeEvent.layout.width || 1;
+          setWidth(newWidth);
+          widthRef.current = newWidth;
+        }}
+      >
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            backgroundColor: '#F97316',
+            position: 'absolute',
+            left: -12,
+            borderWidth: 3,
+            borderColor: '#FFF5F0',
+            transform: [{ translateX: boundedTranslateX }],
+            elevation: 3,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 2,
+          }}
+        />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+        <Text style={{ fontSize: 12, color: '#9CA3AF', fontWeight: '700' }}>₹0</Text>
+        <Text style={{ fontSize: 12, color: '#9CA3AF', fontWeight: '700' }}>Max: ₹{maxLimit}</Text>
+      </View>
+    </View>
+  );
+};
+
+import { getRecentPujas, saveRecentPuja } from '../../utils/recentUtils';
+
 const { width } = Dimensions.get('window');
 
 const BRAND_PRIMARY = Colors.primary;
-const BRAND_SECONDARY = Colors.splashRed;
 const BRAND_BG = Colors.background;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BRAND_BG },
-  
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    fontSize: 15,
-    color: Colors.textMain,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-
-  // Header
-  header: {
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    zIndex: 100,
-  },
-  headerInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 6,
-  },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  logoOm: { fontSize: 22, color: BRAND_TEXT },
-  logoText: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: BRAND_TEXT,
-    letterSpacing: -0.5,
-  },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  langPill: {
-    backgroundColor: Colors.lightGray,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  langPillText: { color: BRAND_TEXT, fontSize: 11, fontWeight: '700' },
-  iconBtn: { padding: 6 },
-  iconBtnText: { fontSize: 20, color: BRAND_TEXT },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: BRAND_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF5F0',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarLoader: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
-
-  // Navigation chips
-  navRow: { marginTop: 8, backgroundColor: Colors.white },
-  navChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.lightGray,
-    marginRight: 8,
-  },
-  navChipActive: { backgroundColor: BRAND_PRIMARY },
-  navChipIcon: { fontSize: 14, marginRight: 5 },
-  navChipLabel: { color: BRAND_MUTED, fontSize: 13, fontWeight: '500' },
-  navChipLabelActive: { color: Colors.white, fontWeight: '700' },
-  comingSoonBadge: {
-    backgroundColor: '#FFF1F2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginLeft: 6,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-  },
-  comingSoonText: {
-    color: '#E11D48',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  // Body
-  body: { flex: 1 },
-
-  // Banner
-  banner: {
-    margin: 16,
-    backgroundColor: BRAND_SECONDARY,
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    height: 164,
-  },
-  bannerContent: { flex: 1 },
-  bannerTitle: {
-    color: Colors.background,
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  bannerSub: {
-    color: 'rgba(253,248,240,0.75)',
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  bannerBtn: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    alignSelf: 'flex-start',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  bannerBtnText: {
-    color: BRAND_SECONDARY,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  bannerDecor: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 8,
-  },
-  bannerImage: {
-    width: 100,
-    height: 100,
-  },
-  paginationRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  dot: { height: 6, borderRadius: 3, marginHorizontal: 4 },
-  dotActive: { width: 18, backgroundColor: BRAND_PRIMARY },
-  dotInactive: { width: 6, backgroundColor: Colors.cardBorder },
-
-  // Stats
-  horizontalScroll: {
-    marginHorizontal: 16,
-  },
-  statsScrollContent: {
-    paddingHorizontal: 8, // Room for shadows so they don't clip at the wall
-    paddingVertical: 12,
-    flexDirection: 'row',
-  },
-  statCard: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginRight: 16,
-    width: 160,
-    elevation: 6,
-    shadowColor: BRAND_PRIMARY,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  statIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-    backgroundColor: '#FDF2F2',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    textAlign: 'center',
-    lineHeight: 50,
-    overflow: 'hidden',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: BRAND_PRIMARY,
-    letterSpacing: 0.2,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: BRAND_MUTED,
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-
-  // Section header
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: BRAND_TEXT,
-    letterSpacing: -0.5,
-  },
-  sectionSub: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-
-  // Controls (Filter & Search)
-  controlsWrap: { paddingHorizontal: 16, marginBottom: 16 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  filterLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginRight: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginRight: 6,
-    backgroundColor: Colors.white,
-  },
-  filterChipActive: {
-    backgroundColor: BRAND_PRIMARY,
-    borderColor: BRAND_PRIMARY,
-  },
-  filterChipText: { fontSize: 12, fontWeight: '600', color: BRAND_MUTED },
-  filterChipTextActive: { color: Colors.white },
-  countBadge: {
-    backgroundColor: Colors.lightOrange,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  countBadgeText: { fontSize: 10, fontWeight: '700', color: BRAND_PRIMARY },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: BRAND_TEXT },
-
-  // Puja cards Grid
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  gridCard: {
-    width: '48%',
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  cardImgBox: {
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  heartBtn: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 16,
-    padding: 6,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: Colors.gold,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  popularBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
-  cardBody: { padding: 12 },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 11,
-    color: BRAND_MUTED,
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  durationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  durationIcon: { fontSize: 12, marginRight: 4 },
-  durationText: { fontSize: 11, color: BRAND_MUTED, fontWeight: '500' },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    paddingTop: 8,
-  },
-  priceLabel: {
-    fontSize: 9,
-    color: BRAND_MUTED,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  priceValue: { fontSize: 13, fontWeight: '800', color: BRAND_TEXT },
-  ratingValue: { fontSize: 12, fontWeight: '800', color: Colors.gold },
-  bookBtn: {
-    backgroundColor: BRAND_PRIMARY,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  bookBtnDisabled: { backgroundColor: Colors.disabled },
-  bookBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
-  bookBtnTextDisabled: { color: Colors.gray },
-
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyStateEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyStateText: { color: BRAND_MUTED, fontSize: 14, textAlign: 'center' },
-
-  // Popover Menu
-  popoverOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)', // Very light dim
-  },
-  popoverBox: {
-    position: 'absolute',
-    top: 60, // Place it right below the header
-    right: 16,
-    width: 200,
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    paddingVertical: 12,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  popoverHeader: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  popoverAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.lightOrange,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#FFF',
-    overflow: 'hidden',
-  },
-  popoverAvatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 25,
-  },
-  popoverAvatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: BRAND_PRIMARY,
-  },
-  popoverUserName: { fontSize: 15, fontWeight: '800', color: BRAND_TEXT },
-  popoverUserPhone: {
-    fontSize: 12,
-    color: Colors.gray,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  popoverDivider: {
-    height: 1,
-    backgroundColor: Colors.lightGray,
-    marginVertical: 4,
-  },
-
-  popoverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  popoverItemIconOrange: { fontSize: 16, marginRight: 12, opacity: 0.8 },
-  popoverItemText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    flex: 1,
-    fontWeight: '500',
-  },
-  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.red },
-
-  popoverItemIconRed: { fontSize: 16, marginRight: 12, opacity: 0.8 },
-  popoverItemTextRed: { fontSize: 14, color: Colors.red, fontWeight: '500' },
-
-  headerLogo: { width: 110, height: 36, resizeMode: 'contain' },
-  navRowContent: { paddingHorizontal: 8, paddingBottom: 12 },
-  carouselContainer: { paddingTop: 16 },
-  bannerWrapper: { width: width - 32 },
-  bannerZeroMargin: { margin: 0, marginHorizontal: 8 },
-  bannerIcon: { fontSize: 60 },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  showMoreText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '700' },
-  featuredListContent: { paddingHorizontal: 8, paddingVertical: 4 },
-  featuredCard: { width: 240, marginRight: 16, marginBottom: 4 },
-  featuredImgText: { fontSize: 44 },
-  ratingText: {
-    fontSize: 11,
-    color: Colors.gold,
-    fontWeight: '700',
-    marginLeft: 6,
-  },
-  heartIconText: { fontSize: 16 },
-  ratingCol: { alignItems: 'flex-end' },
-  bottomSpacer: { height: 40 },
-  pujaIconImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  cartBtn: {
-    position: 'relative',
-    padding: 4,
-  },
-  cartIconText: { fontSize: 24 },
-  cartBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -4,
-    backgroundColor: Colors.red,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
-
-  sectionLoaderBox: {
-    padding: 30,
-    width: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  centeredSectionLoader: {
-    width: '100%',
-    height: 285,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  loaderText: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    fontWeight: '500',
-  },
-  showMoreCard: {
-    width: 140,
-    height: 285,
-    marginRight: 16,
-    marginBottom: 4,
-    justifyContent: 'center',
-  },
-  showMoreCardInner: {
-    backgroundColor: Colors.white,
-    borderWidth: 2,
-    borderColor: Colors.redLight,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-  },
-  showMoreIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.tagRed,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  showMoreIcon: {
-    fontSize: 20,
-    color: BRAND_PRIMARY,
-    fontWeight: 'bold',
-  },
-  showMoreCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    textAlign: 'center',
-  },
-  showMoreCardSub: {
-    fontSize: 11,
-    color: BRAND_MUTED,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  filterDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FFD4B0',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterDropdownText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BRAND_PRIMARY,
-  },
-  dropdownArrow: {
-    fontSize: 10,
-    color: BRAND_PRIMARY,
-    opacity: 0.8,
-  },
-});
-
-const DASHBOARD_BANNERS = [
-  {
-    id: '1',
-    titleEn: 'Spiritual Guidance',
-    titleBn: 'আধ্যাত্মিক নির্দেশনা',
-    subEn: 'Connect with ancient traditions and wisdom',
-    subBn: 'প্রাচীন ঐতিহ্য এবং জ্ঞানের সাথে সংযুক্ত হন',
-    btnEn: 'Explore Now',
-    btnBn: 'এখনই অন্বেষণ করুন',
-    icon: '🕉️',
-  },
-  {
-    id: '2',
-    titleEn: 'Holy Ceremonies',
-    titleBn: 'পবিত্র অনুষ্ঠান',
-    subEn: 'Participate in sacred rituals near you',
-    subBn: 'আপনার কাছাকাছি পবিত্র আচার-অনুষ্ঠানে অংশগ্রহণ করুন',
-    btnEn: 'Join Now',
-    btnBn: 'এখনই যোগ দিন',
-    icon: '✨',
-  },
-  {
-    id: '3',
-    titleEn: 'Divine Pujas',
-    titleBn: 'ঐশ্বরিক পূজা',
-    subEn: 'Book authentic pandits for your home ceremonies',
-    subBn: 'আপনার বাড়ির অনুষ্ঠানের জন্য প্রামাণ্য পণ্ডিত বুক করুন',
-    btnEn: 'Book Puja',
-    btnBn: 'পূজা বুক করুন',
-    icon: '🌺',
-  },
-  {
-    id: '4',
-    titleEn: 'Ganesh Utsav',
-    titleBn: 'গণেশ উৎসব',
-    subEn: 'Celebrate the grand festival of Lord Ganesha',
-    subBn: 'ভগবান গণেশের মহোৎসব উদযাপন করুন',
-    btnEn: 'Join Now',
-    btnBn: 'এখনই যোগ দিন',
-    image: require('../../assets/images/ganesh_slider_3.png'),
-    offerTextEn: '🔥 FESTIVE 20% OFF',
-    offerTextBn: '🔥 উৎসব ২০% ছাড়',
-  },
-  {
-    id: '5',
-    titleEn: 'Lakshmi Puja',
-    titleBn: 'লক্ষ্মী পূজা',
-    subEn: 'Seek blessings of wealth and prosperity',
-    subBn: 'ধন ও সমৃদ্ধির আশীর্বাদ পান',
-    btnEn: 'View packages',
-    btnBn: 'প্যাকেজ দেখুন',
-    image: require('../../assets/images/ganesh_slider_1.png'), // Placeholder until lakshmi_slider_1.png is saved
-    offerTextEn: '✨ SPECIAL OFFER',
-    offerTextBn: '✨ বিশেষ অফার',
-  },
+// Categories for "Find a puja by purpose"
+const CATEGORIES = [
+  { id: 'All', labelEn: 'All', labelBn: 'সব', Icon: LayoutGrid },
+  { id: 'Home', labelEn: 'Home', labelBn: 'বাড়ি', Icon: House },
+  { id: 'Prosperity', labelEn: 'Prosperity', labelBn: 'সমৃদ্ধি', Icon: Gem },
+  { id: 'Health', labelEn: 'Health', labelBn: 'স্বাস্থ্য', Icon: HeartPulse },
+  { id: 'Family', labelEn: 'Family', labelBn: 'পরিবার', Icon: UsersRound },
+  { id: 'Education', labelEn: 'Education', labelBn: 'শিক্ষা', Icon: GraduationCap },
+  { id: 'Astrology', labelEn: 'Astrology', labelBn: 'জ্যোতিষ', Icon: Orbit },
+  { id: 'Festivals', labelEn: 'Festivals', labelBn: 'উৎসব', Icon: PartyPopper, recommended: true },
 ];
 
-const NAV_ITEMS = [
-  { key: 'puja', labelEn: 'Puja Service', labelBn: 'পূজা সার্ভিস', icon: '🔥' },
-  {
-    key: 'temple',
-    labelEn: 'Temple Darshan',
-    labelBn: 'মন্দির দর্শন',
-    icon: '🛕',
-    comingSoon: true,
-  },
-  {
-    key: 'pujaPart',
-    labelEn: 'Puja Participation',
-    labelBn: 'পূজায় অংশগ্রহণ',
-    icon: '🙏',
-    comingSoon: true,
-  },
-  {
-    key: 'astro',
-    labelEn: 'Astrology',
-    labelBn: 'জ্যোতিষ',
-    icon: '⭐',
-    comingSoon: true,
-  },
-  {
-    key: 'help',
-    labelEn: 'Help',
-    labelBn: 'সাহায্য',
-    icon: '💬',
-    comingSoon: true,
-  },
-];
-
-const BannerItem = React.memo(({ item, isBn, navigation, width }: any) => {
-  if (item.image) {
-    return (
-      <View style={{ width: width, paddingHorizontal: 16 }}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('AllPujas')}
-          style={{ width: '100%', height: 164, borderRadius: 20, overflow: 'hidden', backgroundColor: '#000', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5 }}
-        >
-          <Image source={item.image} style={{ width: '100%', height: '100%', position: 'absolute' }} resizeMode="cover" />
-
-          {item.offerTextEn && (
-            <>
-              {/* Transparent Glass Top Right Tag */}
-              <View style={{ position: 'absolute', top: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderBottomLeftRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', borderTopWidth: 0, borderRightWidth: 0 }}>
-                <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
-                  {isBn ? item.offerTextBn : item.offerTextEn}
-                </Text>
-              </View>
-
-              {/* Bottom Left Content */}
-              <View style={{ position: 'absolute', bottom: 16, left: 16, right: 120 }}>
-                <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
-                  {isBn ? 'মেগা অফার' : 'MEGA OFFER'}
-                </Text>
-                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 18, letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }} numberOfLines={1}>
-                  {isBn ? item.titleBn : item.titleEn}
-                </Text>
-                <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 11, marginTop: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }} numberOfLines={1}>
-                  {isBn ? item.subBn : item.subEn}
-                </Text>
-              </View>
-
-              {/* Bottom Right Transparent Glass Button */}
-              <View style={{ position: 'absolute', bottom: 16, right: 16, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' }}>
-                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
-                  {isBn ? item.btnBn : item.btnEn}
-                </Text>
-              </View>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ width: width, paddingHorizontal: 16 }}>
-      <View style={[styles.banner, { margin: 0 }]}>
-        <View style={styles.bannerContent}>
-          <Text style={styles.bannerTitle}>
-            {isBn ? item.titleBn : item.titleEn}
-          </Text>
-          <Text style={styles.bannerSub}>{isBn ? item.subBn : item.subEn}</Text>
-          <TouchableOpacity
-            style={styles.bannerBtn}
-            onPress={() => navigation.navigate('AllPujas')}
-          >
-            <Text style={styles.bannerBtnText}>
-              {isBn ? item.btnBn : item.btnEn}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.bannerDecor}>
-          <Text style={styles.bannerIcon}>{item.icon}</Text>
-        </View>
-      </View>
-    </View>
-  );
-});
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  Home: ['home', 'griha', 'sanskar', 'house', 'vastu', 'shanti', 'path', 'grah', 'durga'],
+  Prosperity: ['lakshmi', 'dhan', 'kuber', 'prosperity', 'wealth', 'ganesh', 'chandi', 'success', 'kali'],
+  Health: ['health', 'ayush', 'mrityunjaya', 'cure', 'healing', 'dhanvantari', 'roga', 'shiva', 'mahadev'],
+  Family: ['family', 'satyanarayan', 'sanskar', 'marriage', 'vivah', 'shanti', 'welfare', 'chandi'],
+  Education: ['saraswati', 'education', 'study', 'knowledge', 'vidya', 'exam'],
+  Astrology: ['graha', 'shani', 'navagraha', 'rahusketu', 'dosh', 'astrology', 'kundli', 'kaal sarp'],
+  Festivals: ['durga', 'diwali', 'ganesh', 'navratri', 'festival', 'utsav', 'janmashtami', 'puja', 'chandi'],
+};
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -837,23 +188,70 @@ export default function DashboardScreen({ navigation }: any) {
   const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
 
-  const [activeBanner, setActiveBanner] = React.useState(0);
-  const [isPaused, setIsPaused] = React.useState(false);
-  const [showProfileMenu, setShowProfileMenu] = React.useState(false);
+  // State Variables
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [pujas, setPujas] = useState<PujaType[]>([]);
   const [pujaTags, setPujaTags] = useState<PujaTag[]>([]);
-  const [selectedTagId, setSelectedTagId] = useState<number>(1); // Default to 'All'
+  const [selectedTagId, setSelectedTagId] = useState<number>(1); // 1 is default 'All'
   const [searchQuery, setSearchQuery] = useState('');
   const [summaryData, setSummaryData] = useState<SummaryCount | null>(null);
-  const [showTagMenu, setShowTagMenu] = useState(false);
-  const [isLoadingPujas, setIsLoadingPujas] = React.useState(false);
-  const [headerImageLoading, setHeaderImageLoading] = React.useState(false);
-  const [showProfileCompletionModal, setShowProfileCompletionModal] =
-    useState(false);
-  const flatListRef = React.useRef<FlatList>(null);
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [isLoadingPujas, setIsLoadingPujas] = useState(false);
+  const [showProfileCompletionModal, setShowProfileCompletionModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [recentPujas, setRecentPujas] = useState<any[]>([]);
 
-  // Fetch user profile for full name in popover
+  // Redesign State Variables
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showFilters, setShowFilters] = useState(false);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState('Recommended');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState(12);
+
+  // Packages Modal State
+  const [showPackagesModal, setShowPackagesModal] = useState(false);
+  const [selectedPujaForPackages, setSelectedPujaForPackages] = useState<any>(null);
+  const [openingPujaId, setOpeningPujaId] = useState<number | null>(null);
+
+  // Fetch Packages dynamically for the selected Puja
+  const [fetchPackages, { data: modalPackagesData, isFetching: isLoadingModalPackages }] = useLazyGetPujaPackagesQuery();
+
+  // Background Animation values
+  const floatAnim1 = useRef(new Animated.Value(0)).current;
+  const floatAnim2 = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0.35)).current;
+  const blinkAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim1, { toValue: -20, duration: 3000, useNativeDriver: true }),
+        Animated.timing(floatAnim1, { toValue: 0, duration: 3000, useNativeDriver: true })
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim2, { toValue: 15, duration: 3500, useNativeDriver: true }),
+        Animated.timing(floatAnim2, { toValue: 0, duration: 3500, useNativeDriver: true })
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacityAnim, { toValue: 0.55, duration: 2500, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.35, duration: 2500, useNativeDriver: true })
+      ])
+    ).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(blinkAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(blinkAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true })
+      ])
+    ).start();
+  }, [floatAnim1, floatAnim2, opacityAnim, blinkAnim]);
+
+
+  // Fetch user profile
   const {
     data: userDetails,
     isSuccess: userDetailsLoaded,
@@ -866,55 +264,34 @@ export default function DashboardScreen({ navigation }: any) {
 
   const { isNewLogin } = useSelector((state: RootState) => state.auth);
 
-  // ── Profile Completion Modal ─────────────────────────────────────────────
-  React.useEffect(() => {
+  // Sync profile modal
+  useEffect(() => {
     const userId = user?.user_id;
-
-    // ONLY SHOW after a fresh login
-    if (!isNewLogin) return;
-    if (!userId) return;
-
-    // Wait until the user details query definitively succeeds or fails
+    if (!isNewLogin || !userId) return;
     if (!userDetailsLoaded && !userDetailsError) return;
-
-    // We now have the definitive result. Check the percentage.
     const rawPct = userDetails?.ctnz_profile_progress_percent;
     const pct = parseFloat(String(rawPct || '0'));
-
-    // Disable the flag IMMEDIATELY so we never re-evaluate this login
     dispatch(clearNewLoginFlag());
-
-    // If the profile is 100% or more complete, do NOT show the modal
-    if (pct >= 100) {
-      console.log('[ProfileModal] Profile is complete (100%), skipping modal.');
-      return;
-    }
-
-    // Otherwise, show the modal after a small delay for smooth UX
+    if (pct >= 100) return;
     setTimeout(() => {
       setShowProfileCompletionModal(true);
     }, 600);
-  }, [
-    user?.user_id,
-    userDetailsLoaded,
-    userDetailsError,
-    userDetails,
-    isNewLogin,
-    dispatch,
-  ]);
+  }, [user?.user_id, userDetailsLoaded, userDetailsError, userDetails, isNewLogin, dispatch]);
 
-  // Sync cart from server
-  const { data: serverCartItems, refetch: refetchCartInfo } =
-    useGetPujaCartInfoQuery(
-      {
-        userId: user?.user_id || 0,
-        pageNo: 1,
-        limit: 1000,
-      },
-      { skip: !user?.user_id },
-    );
+  // Load Recent Pujas
+  useFocusEffect(
+    useCallback(() => {
+      getRecentPujas().then(setRecentPujas);
+    }, [])
+  );
 
-  React.useEffect(() => {
+  // Sync cart
+  const { data: serverCartItems, refetch: refetchCartInfo } = useGetPujaCartInfoQuery(
+    { userId: user?.user_id || 0, pageNo: 1, limit: 1000 },
+    { skip: !user?.user_id }
+  );
+
+  useEffect(() => {
     if (serverCartItems) {
       const mappedItems = serverCartItems.map(item => ({
         cartItemId: item.cart_item_id.toString(),
@@ -934,41 +311,28 @@ export default function DashboardScreen({ navigation }: any) {
     }
   }, [serverCartItems, dispatch]);
 
-  // Sync favorites from server
+  // Sync favorites
   const WISHLIST_TAG_ID = 3;
   const { data: wishlistPujas, refetch: refetchWishlist } = useGetTagPujasQuery(
-    {
-      userId: user?.user_id || 0,
-      tagId: WISHLIST_TAG_ID,
-      pageNo: 1,
-      limit: 100, // Fetch first 100 to sync local heart icons
-    },
-    { skip: !user?.user_id, skipGlobalLoader: true } as any,
+    { userId: user?.user_id || 0, tagId: WISHLIST_TAG_ID, pageNo: 1, limit: 100 },
+    { skip: !user?.user_id, skipGlobalLoader: true } as any
   );
 
   const [savePujaTag] = useSavePujaTagMutation();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (wishlistPujas) {
-      const favIds = wishlistPujas.map(p =>
-        (p.puja_id || p.puja_type_id || '').toString(),
-      );
+      const favIds = wishlistPujas.map(p => (p.puja_id || p.puja_type_id || '').toString());
       dispatch(setFavorites(favIds));
     }
   }, [wishlistPujas, dispatch]);
 
   const handleToggleFavoriteServer = async (pujaId: string) => {
     if (!user?.user_id) return;
-
     const isCurrentlyFav = favorites.includes(pujaId);
-    // Optimistic toggle is now handled in pujaApi.ts via onQueryStarted
-
     const state = await NetInfo.fetch();
     if (!state.isConnected) {
-      showToast({
-        message: t('common.connectionRequired'),
-        type: 'error',
-      });
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
       return;
     }
 
@@ -983,45 +347,24 @@ export default function DashboardScreen({ navigation }: any) {
 
       showToast({
         message: isCurrentlyFav
-          ? isBn
-            ? 'ফেভারিট থেকে সরানো হয়েছে'
-            : 'Removed from favourite'
-          : isBn
-            ? 'ফেভারিটে যোগ করা হয়েছে'
-            : 'Added to favourite',
+          ? isBn ? 'ফেভারিট থেকে সরানো হয়েছে' : 'Removed from favourite'
+          : isBn ? 'ফেভারিটে যোগ করা হয়েছে' : 'Added to favourite',
         type: 'success',
       });
     } catch (error) {
       console.error('Wishlist sync failed:', error);
       showToast({
-        message: isBn
-          ? 'ফেভারিট আপডেট করতে ব্যর্থ হয়েছে'
-          : 'Failed to update favourite',
+        message: isBn ? 'ফেভারিট আপডেট করতে ব্যর্থ হয়েছে' : 'Failed to update favourite',
         type: 'error',
       });
-      // Rollback is handled in pujaApi.ts onQueryStarted catch block
     }
   };
 
-  // Build a large repeated array so we can scroll forward forever with no snap-back
-  const REPEAT_COUNT = 20;
-  const CAROUSEL_DATA = React.useMemo(() => {
-    const arr: typeof DASHBOARD_BANNERS = [];
-    for (let i = 0; i < REPEAT_COUNT; i++) {
-      DASHBOARD_BANNERS.forEach((b, j) => arr.push({ ...b, id: `${i}_${j}` }));
-    }
-    return arr;
-  }, []);
-  const START_INDEX = Math.floor(REPEAT_COUNT / 2) * DASHBOARD_BANNERS.length;
-
-  const onRefresh = React.useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     if (!user?.user_id) return;
     const state = await NetInfo.fetch();
     if (!state.isConnected) {
-      showToast({
-        message: t('common.connectionRequired'),
-        type: 'error',
-      });
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
       return;
     }
     setRefreshing(true);
@@ -1039,7 +382,7 @@ export default function DashboardScreen({ navigation }: any) {
           setPujaTags(tagsData);
         })(),
         (async () => {
-          const data = await getPujaByTag(user.user_id, selectedTagId, 1, 10);
+          const data = await getPujaByTag(user.user_id, selectedTagId, 1, 50); // Fetch more so frontend filtering works well
           setPujas(data);
         })(),
       ]);
@@ -1048,18 +391,10 @@ export default function DashboardScreen({ navigation }: any) {
     } finally {
       setRefreshing(false);
     }
-  }, [
-    user?.user_id,
-    selectedTagId,
-    refetchUserDetails,
-    refetchCartInfo,
-    refetchWishlist,
-    showToast,
-    t,
-  ]);
+  }, [user?.user_id, selectedTagId, refetchUserDetails, refetchCartInfo, refetchWishlist, showToast, t]);
 
-  const isFirstConn = React.useRef(true);
-  React.useEffect(() => {
+  const isFirstConn = useRef(true);
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       if (isFirstConn.current) {
         isFirstConn.current = false;
@@ -1072,8 +407,8 @@ export default function DashboardScreen({ navigation }: any) {
     return () => unsubscribe();
   }, [onRefresh]);
 
-  // Fetch initial data (summary and tags)
-  React.useEffect(() => {
+  // Initial load
+  useEffect(() => {
     const fetchInitialData = async () => {
       if (!user?.user_id) return;
       dispatch(showLoader());
@@ -1091,22 +426,15 @@ export default function DashboardScreen({ navigation }: any) {
       }
     };
     fetchInitialData();
+  }, [dispatch, user?.user_id]);
 
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToOffset({
-        offset: START_INDEX * width,
-        animated: false,
-      });
-    });
-  }, [START_INDEX, dispatch, user?.user_id]);
-
-  // Fetch pujas when tag changes
-  React.useEffect(() => {
+  // Fetch pujas when tag/collection changes
+  useEffect(() => {
     const fetchPujas = async () => {
       if (!user?.user_id) return;
       setIsLoadingPujas(true);
       try {
-        const data = await getPujaByTag(user.user_id, selectedTagId, 1, 10);
+        const data = await getPujaByTag(user.user_id, selectedTagId, 1, 50); // Larger list for frontend query
         setPujas(data);
       } catch (error) {
         console.error('Error fetching pujas by tag:', error);
@@ -1117,63 +445,28 @@ export default function DashboardScreen({ navigation }: any) {
     fetchPujas();
   }, [user?.user_id, selectedTagId]);
 
-  // Auto-scroll banners — just keep going forward, reset when near end
-  const currentIndexRef = React.useRef(START_INDEX);
-  React.useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(() => {
-      let idx = currentIndexRef.current + 1;
-
-      // Perpetual loop logic: if we approach the end of CAROUSEL_DATA,
-      // snap back to the equivalent in the middle without animation.
-      if (idx >= CAROUSEL_DATA.length - 1) {
-        idx = START_INDEX + (idx % DASHBOARD_BANNERS.length);
-        flatListRef.current?.scrollToOffset({
-          offset: idx * width,
-          animated: false,
-        });
-      } else {
-        flatListRef.current?.scrollToOffset({
-          offset: idx * width,
-          animated: true,
-        });
-      }
-
-      currentIndexRef.current = idx;
-      setActiveBanner(idx % DASHBOARD_BANNERS.length);
-    }, 4500);
-    return () => clearInterval(timer);
-  }, [isPaused, CAROUSEL_DATA.length, START_INDEX]);
-
-  // Back-button exits the app with a confirmation rather than going to login
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       const onBack = () => {
         showAlert({
           title: 'Exit App',
           message: 'Do you want to exit the app?',
           buttons: [
             { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Exit',
-              style: 'destructive',
-              onPress: () => BackHandler.exitApp(),
-            },
+            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
           ],
         });
-        return true; // prevent default (going back)
+        return true;
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
       return () => sub.remove();
-    }, [showAlert]),
+    }, [showAlert])
   );
 
   const handleLogout = () => {
     showAlert({
       title: isBn ? 'লগআউট' : 'Logout',
-      message: isBn
-        ? 'আপনি কি নিশ্চিত যে লগআউট করতে চান?'
-        : 'Are you sure you want to logout?',
+      message: isBn ? 'আপনি কি নিশ্চিত যে লগআউট করতে চান?' : 'Are you sure you want to logout?',
       buttons: [
         { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
         {
@@ -1184,10 +477,7 @@ export default function DashboardScreen({ navigation }: any) {
             if (state.isConnected) {
               performLogout();
             } else {
-              showToast({
-                message: t('common.connectionRequired'),
-                type: 'error',
-              });
+              showToast({ message: t('common.connectionRequired'), type: 'error' });
             }
           },
         },
@@ -1195,10 +485,7 @@ export default function DashboardScreen({ navigation }: any) {
     });
   };
 
-  const showComingSoonMessage = (
-    featureNameEn: string,
-    featureNameBn: string,
-  ) => {
+  const showComingSoonMessage = (featureNameEn: string, featureNameBn: string) => {
     showAlert({
       title: isBn ? 'শীঘ্রই আসছে' : 'Coming Soon',
       message: isBn
@@ -1208,657 +495,1973 @@ export default function DashboardScreen({ navigation }: any) {
     });
   };
 
-  // Filtering logic - since the API now does the heavy lifting, we just show what we got
-  // However, we still need to handle 'Favourite' locally if the API doesn't filter it correctly
-  // but the server should handle it based on puja_tag_id: 3.
-  const filteredPujas = React.useMemo(() => {
-    if (!searchQuery.trim()) return pujas;
-    const query = searchQuery.toLowerCase().trim();
-    return pujas.filter((p) => {
-      const pName = (p.puja_name || p.puja_type_name || '').toLowerCase();
-      return pName.includes(query);
-    });
-  }, [pujas, searchQuery]);
+  // Redesign Filtering & Sorting Logic
+  const finalFilteredPujas = useMemo(() => {
+    let list = pujas;
 
-  const getTagName = (tagId: number) => {
-    const tagObj = pujaTags.find((tag: PujaTag) => tag.tag_id === tagId);
-    if (!tagObj) return isBn ? 'বৈশিষ্ট্যযুক্ত' : 'Featured';
-
-    if (isBn) {
-      if (tagObj.tag_value === 'All') return 'সব';
-      if (tagObj.tag_value === 'Featured') return 'বৈশিষ্ট্যযুক্ত';
-      if (tagObj.tag_value === 'Favourite') return 'প্রিয়';
-      if (tagObj.tag_value === 'Popular') return 'জনপ্রিয়';
+    // 1. Search Query Filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      list = list.filter((p) => {
+        const pName = (p.puja_name || p.puja_type_name || '').toLowerCase();
+        const pDesc = (p.description || p.puja_description || '').toLowerCase();
+        return pName.includes(query) || pDesc.includes(query);
+      });
     }
-    return tagObj.tag_value;
-  };
 
-  const handleNavClick = (item: any) => {
-    if (item.comingSoon) {
-      showComingSoonMessage(item.labelEn, item.labelBn);
+    // 2. Category (Purpose) Filter
+    if (selectedCategory !== 'All') {
+      const keywords = CATEGORY_KEYWORDS[selectedCategory] || [];
+      list = list.filter((p) => {
+        const pName = (p.puja_name || p.puja_type_name || '').toLowerCase();
+        const pDesc = (p.description || p.puja_description || '').toLowerCase();
+        return keywords.some(kw => pName.includes(kw) || pDesc.includes(kw));
+      });
     }
+
+    // 3. Price Filter
+    if (minPrice.trim()) {
+      const min = parseFloat(minPrice);
+      if (!isNaN(min)) {
+        list = list.filter(p => {
+          const price = p.minimum_price || p.puja_with_samagri_amount || 0;
+          return price >= min;
+        });
+      }
+    }
+    if (maxPrice.trim()) {
+      const max = parseFloat(maxPrice);
+      if (!isNaN(max)) {
+        list = list.filter(p => {
+          const price = p.maximum_price || p.puja_with_samagri_amount || 0;
+          return price <= max;
+        });
+      }
+    }
+
+    // 4. Sorting
+    const sorted = [...list];
+    if (sortBy === 'priceLow') {
+      sorted.sort((a, b) => {
+        const priceA = a.minimum_price || a.puja_with_samagri_amount || 0;
+        const priceB = b.minimum_price || b.puja_with_samagri_amount || 0;
+        return priceA - priceB;
+      });
+    } else if (sortBy === 'priceHigh') {
+      sorted.sort((a, b) => {
+        const priceA = a.minimum_price || a.puja_with_samagri_amount || 0;
+        const priceB = b.minimum_price || b.puja_with_samagri_amount || 0;
+        return priceB - priceA;
+      });
+    } else if (sortBy === 'rating') {
+      sorted.sort((a, b) => {
+        const ratingA = a.puja_rating || 5;
+        const ratingB = b.puja_rating || 5;
+        return ratingB - ratingA;
+      });
+    } else if (sortBy === 'nameAsc') {
+      sorted.sort((a, b) => {
+        const nameA = (a.puja_name || a.puja_type_name || '').toLowerCase();
+        const nameB = (b.puja_name || b.puja_type_name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    }
+
+    return sorted;
+  }, [pujas, searchQuery, selectedCategory, minPrice, maxPrice, sortBy]);
+
+  const displayedPujas = useMemo(() => {
+    return finalFilteredPujas.slice(0, displayLimit);
+  }, [finalFilteredPujas, displayLimit]);
+
+  const getSortLabel = () => {
+    if (sortBy === 'Recommended') return isBn ? 'প্রস্তাবিত' : 'Recommended';
+    if (sortBy === 'priceLow') return isBn ? 'মূল্য: কম থেকে বেশি' : 'Price: Low to High';
+    if (sortBy === 'priceHigh') return isBn ? 'মূল্য: বেশি থেকে কম' : 'Price: High to Low';
+    if (sortBy === 'nameAsc') return isBn ? 'নাম: A থেকে Z' : 'Name: A to Z';
+    return isBn ? 'প্রস্তাবিত' : 'Recommended';
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
-      {/* ── Top Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerInner}>
-          {/* Logo */}
-          <View style={styles.logoRow}>
-            <Image source={appLogo} style={styles.headerLogo} />
-          </View>
+      <StatusBar backgroundColor="#F97316" barStyle="light-content" />
 
-          {/* Right actions */}
-          <View style={styles.headerActions}>
-            {/* Language toggle */}
-            {/* Header icons */}
-            <TouchableOpacity
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  navigation.navigate('Wishlist');
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-              style={styles.cartBtn}
-            >
-              <Text style={styles.iconBtnText}>❤️</Text>
-              {favorites.length > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{favorites.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  navigation.navigate('Cart');
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-              style={styles.cartBtn}
-            >
-              <Text style={styles.iconBtnText}>🛒</Text>
-              {cartItems.length > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            {/* User avatar - Updated logic */}
-            <TouchableOpacity
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  setShowProfileMenu(true);
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-              style={styles.avatar}
-            >
-              <Image
-                source={
-                  userDetails?.ctnz_profile_image || user?.profile_image
-                    ? {
-                      uri:
-                        userDetails?.ctnz_profile_image ||
-                        user?.profile_image,
-                    }
-                    : require('../../assets/Placeholder_Person_3A7BFF.png')
-                }
-                style={styles.avatarImage}
-                onLoadStart={() => setHeaderImageLoading(true)}
-                onLoadEnd={() => setHeaderImageLoading(false)}
-              />
-              {headerImageLoading && (
-                <View style={[styles.avatarImage, styles.avatarLoader]}>
-                  <ActivityIndicator size="small" color="#FF6F00" />
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── Nav chips ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={[styles.navRow, styles.horizontalScroll]}
-          contentContainerStyle={styles.navRowContent}
-        >
-          {NAV_ITEMS.map((item, idx) => (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.navChip, idx === 0 && styles.navChipActive]}
-              onPress={() => handleNavClick(item)}
-            >
-              <Text style={styles.navChipIcon}>{item.icon}</Text>
-              <Text
-                style={[
-                  styles.navChipLabel,
-                  idx === 0 && styles.navChipLabelActive,
-                ]}
-              >
-                {isBn ? item.labelBn : item.labelEn}
-              </Text>
-              {item.comingSoon && (
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>
-                    {isBn ? 'শীঘ্রই' : 'SOON'}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+      {/* Spiritual decorative elements (Animated Background) */}
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: -100,
+            left: -100,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
+            backgroundColor: 'rgba(253, 186, 116, 0.4)', // orange-300
+            transform: [{ translateY: floatAnim1 }],
+            opacity: opacityAnim,
+          }}
+        />
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: -100,
+            right: -100,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
+            backgroundColor: 'rgba(253, 186, 116, 0.25)', // orange-300 lighter
+            transform: [{ translateY: floatAnim2 }],
+            opacity: opacityAnim,
+          }}
+        />
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: '33%',
+            alignSelf: 'center',
+            width: width * 0.75,
+            height: 250,
+            borderRadius: 125,
+            backgroundColor: 'rgba(253, 224, 71, 0.15)', // yellow-300
+            opacity: opacityAnim,
+          }}
+        />
       </View>
 
-      {/* ── Body ── */}
-      <ScrollView
-        style={styles.body}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[BRAND_PRIMARY]}
-            tintColor={BRAND_PRIMARY}
-          />
+      <TopNavBar showBack={false} onProfilePress={async () => {
+        const state = await NetInfo.fetch();
+        if (state.isConnected) {
+          setShowProfileMenu(true);
+        } else {
+          showToast({ message: t('common.connectionRequired'), type: 'error' });
         }
-      >
-        {/* Banner Carousel */}
-        <View style={styles.carouselContainer}>
-          <FlatList
-            ref={flatListRef}
-            data={CAROUSEL_DATA}
-            horizontal
-            pagingEnabled
-            keyExtractor={item => item.id}
-            getItemLayout={(data, index) => ({
-              length: width,
-              offset: width * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <BannerItem
-                item={item}
-                isBn={isBn}
-                width={width}
-                navigation={navigation}
+      }} />
+
+      {/* ── Flex Wrapper to keep Modal Below Header ── */}
+      <View style={{ flex: 1, position: 'relative' }}>
+
+        {/* ── Search Bar Section (Lighter Orange Background) ── */}
+        <View style={styles.searchSectionBackground}>
+          {/* ── Pujora Search Bar ── */}
+          <View style={styles.searchContainerHeader}>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24, overflow: 'hidden' }}>
+              <Svg height="100%" width="100%">
+                <Defs>
+                  <LinearGradient id="searchBoxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor="#FFFFFF" />
+                    <Stop offset="100%" stopColor="#FFF4E6" />
+                  </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100%" height="100%" fill="url(#searchBoxGrad)" />
+              </Svg>
+            </View>
+            <Search size={20} color={BRAND_PRIMARY} style={[styles.searchIcon, { zIndex: 1 }]} />
+            <View style={[styles.searchInputWrapper, { zIndex: 1 }]}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={isBn ? 'পবিত্র আচার অনুসন্ধান করুন...' : 'Search sacred rituals...'}
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
               />
+            </View>
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ position: 'absolute', right: 16, zIndex: 1 }}>
+                <Text style={{ fontSize: 14, color: BRAND_MUTED }}>✕</Text>
+              </TouchableOpacity>
             )}
-            initialNumToRender={1}
-            maxToRenderPerBatch={2}
-            windowSize={3}
-            removeClippedSubviews={Platform.OS === 'android'}
-            onScrollBeginDrag={() => setIsPaused(true)}
-            onScrollEndDrag={() => setIsPaused(false)}
-            onMomentumScrollEnd={e => {
-              const index = Math.round(
-                e.nativeEvent.contentOffset.x / width,
-              );
-              currentIndexRef.current = index;
-              setActiveBanner(index % DASHBOARD_BANNERS.length);
-              setIsPaused(false);
-            }}
-          />
-          {/* Pagination Dots */}
-          <View style={styles.paginationRow}>
-            {DASHBOARD_BANNERS.map((_, i) => {
-              const isDotActive = i === activeBanner % DASHBOARD_BANNERS.length;
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    isDotActive ? styles.dotActive : styles.dotInactive,
-                  ]}
-                />
-              );
-            })}
           </View>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Search size={22} color={BRAND_PRIMARY} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={isBn ? 'পূজা অনুসন্ধান করুন...' : 'Search for pujas...'}
-            placeholderTextColor={BRAND_MUTED}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-              <Text style={{ fontSize: 16, color: BRAND_MUTED }}>✕</Text>
+        {/* ── Main Scrollable Body ── */}
+        <ScrollView
+          style={styles.body}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[BRAND_PRIMARY]}
+              tintColor={BRAND_PRIMARY}
+            />
+          }
+        >
+
+          {/* ── Banner Card: All Pujas ── */}
+          <View style={styles.titleSectionCard}>
+            <Text style={styles.titleServices}>{isBn ? 'সব পূজাসমূহ' : 'All Pujas'}</Text>
+            <Animated.View style={{ opacity: blinkAnim, width: 75, height: 4, marginTop: 6, marginBottom: 16, borderRadius: 2, overflow: 'hidden' }}>
+              <RNLinearGradient
+                colors={['#f3a33a', '#ef7d16', '#e0600d']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ flex: 1 }}
+              />
+            </Animated.View>
+
+            {/* Verified priest and Secure booking badges */}
+            <View style={styles.badgeRow}>
+              <View style={styles.badgeItem}>
+                <ShieldCheck size={16} color="#F97316" />
+                <Text style={styles.badgeItemText}>{isBn ? 'যাচাইকৃত পুরোহিত' : 'Verified priests'}</Text>
+              </View>
+              <View style={styles.badgeItem}>
+                <ShieldCheck size={16} color="#F97316" />
+                <Text style={styles.badgeItemText}>{isBn ? 'নিরাপদ বুকিং' : 'Secure booking'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Find a Puja by Purpose (Categories) ── */}
+          <View style={styles.purposeSection}>
+            {/* Animated Glow Line on top border */}
+            <Animated.View
+              style={[
+                styles.glowLine,
+                { opacity: opacityAnim }
+              ]}
+            >
+              <Svg height="3" width="100%">
+                <Defs>
+                  <LinearGradient id="glowGrad" x1="0" y1="0" x2="1" y2="0">
+                    <Stop offset="0" stopColor="#F97316" stopOpacity="0" />
+                    <Stop offset="0.5" stopColor="#F97316" stopOpacity="1" />
+                    <Stop offset="1" stopColor="#F97316" stopOpacity="0" />
+                  </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100%" height="3" fill="url(#glowGrad)" />
+              </Svg>
+            </Animated.View>
+            <View style={styles.purposeHeaderRow}>
+              <View style={styles.sparkIconContainer}>
+                <Sparkles size={16} color={BRAND_PRIMARY} />
+              </View>
+              <Text style={styles.purposeTitle}>{isBn ? 'উদ্দেশ্য অনুযায়ী পূজা খুঁজুন' : 'Find a puja by purpose'}</Text>
+            </View>
+
+            {/* Categories Horizontal List */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesContent}
+              style={{ marginTop: 12 }}
+            >
+              {CATEGORIES.map((cat) => {
+                const isActive = selectedCategory === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => {
+                      setSelectedCategory(cat.id);
+                      setDisplayLimit(12);
+                    }}
+                    style={[
+                      styles.categoryChip,
+                      isActive && styles.categoryChipActive,
+                    ]}
+                  >
+                    <View style={[styles.categoryChipIconContainer, isActive && styles.categoryChipIconContainerActive]}>
+                      <cat.Icon size={14} color={isActive ? '#FFF' : '#F97316'} />
+                    </View>
+                    <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
+                      {isBn ? cat.labelBn : cat.labelEn}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {/* ── Count and Sort Dropdown Row ── */}
+          <View style={styles.countSortRow}>
+            <Text style={styles.totalPujasText}>
+              {finalFilteredPujas.length} <Text style={{ color: '#8A7369', fontWeight: '600' }}>{isBn ? 'টি পূজা পরিষেবা' : 'puja services'}</Text>
+            </Text>
+
+            {/* Sort Dropdown Selector */}
+            <TouchableOpacity
+              onPress={() => setShowSortModal(true)}
+              style={styles.sortDropdownBtn}
+            >
+              <Text style={styles.sortDropdownBtnText}>{getSortLabel()}</Text>
+              <Text style={{ fontSize: 10, color: '#6B5E59', marginLeft: 4 }}>▼</Text>
             </TouchableOpacity>
-          )}
-        </View>
-        {/* Featured Pujas Header */}
-        <View style={[styles.sectionHeader, styles.sectionHeaderRow]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>
-              {getTagName(selectedTagId)} {isBn ? 'পূজা' : 'Pujas'}
-            </Text>
-            <Text style={styles.sectionSub}>
-              {isBn
-                ? 'আপনার পছন্দের পূজাগুলো এখান থেকে বেছে নিন'
-                : 'Select your preferred pujas from here'}
-            </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.filterDropdown}
-            onPress={async () => {
-              const state = await NetInfo.fetch();
-              if (state.isConnected) {
-                setShowTagMenu(true);
-              } else {
-                showToast({
-                  message: t('common.connectionRequired'),
-                  type: 'error',
-                });
-              }
-            }}
-          >
-            <Text style={styles.filterDropdownText}>
-              {getTagName(selectedTagId)}
-            </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Horizontal Puja List */}
-        {isLoadingPujas ? (
-          <View style={styles.centeredSectionLoader}>
-            <ActivityIndicator size="small" color={BRAND_PRIMARY} />
-            <Text style={styles.loaderText}>
-              {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
-            </Text>
+          {/* ── Filters Bar Header ── */}
+          <View style={styles.filterBarContainer}>
+            <TouchableOpacity
+              onPress={() => setShowFilters(true)}
+              style={styles.filterBarHeader}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <SlidersHorizontal size={14} color="#291811" />
+                <Text style={styles.filterBarHeaderText}>{isBn ? 'ফিল্টারসমূহ' : 'Filters'}</Text>
+              </View>
+              <ChevronDown size={16} color="#291811" />
+            </TouchableOpacity>
           </View>
-        ) : filteredPujas.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.horizontalScroll}
-            contentContainerStyle={styles.featuredListContent}
-          >
-            {filteredPujas.slice(0, 5).map(puja => {
-              const pId = puja.puja_id || puja.puja_type_id;
-              const pName = puja.puja_name || puja.puja_type_name;
-              const pMinPrice =
-                puja.minimum_price || puja.puja_with_samagri_amount;
-              const pMaxPrice =
-                puja.maximum_price || puja.puja_without_samagri_amount;
-              const pPrice =
-                pMinPrice === pMaxPrice
-                  ? `₹${pMinPrice.toLocaleString('en-IN')}`
-                  : `₹${pMinPrice.toLocaleString(
-                    'en-IN',
-                  )} - ₹${pMaxPrice.toLocaleString('en-IN')}`;
-              const pDuration =
-                puja.duration ||
-                (puja.puja_duration ? puja.puja_duration.toString() : '');
-              const pRating = puja.puja_rating || 5;
 
-              return (
-                <View
-                  key={pId || Math.random()}
-                  style={[styles.gridCard, styles.featuredCard]}
-                >
-                  <View style={styles.cardImgBox}>
-                    {puja.icon ? (
-                      <Image
-                        source={{ uri: puja.icon }}
-                        style={styles.pujaIconImage}
-                        resizeMode="cover"
+          {/* ── Filters Modal ── */}
+          <Modal
+            visible={showFilters}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowFilters(false)}
+          >
+            <View style={styles.filterModalOverlay}>
+              <View style={styles.filterModalContent}>
+                {/* Header */}
+                <View style={styles.filterModalHeaderRow}>
+                  <View>
+                    <Text style={styles.filterModalTitle}>{isBn ? 'পূজা ফিল্টার করুন' : 'Filter pujas'}</Text>
+                    <Text style={styles.filterModalSubtitle}>{isBn ? 'উপলব্ধ পরিষেবাগুলি পরিমার্জন করুন' : 'Refine the available services'}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowFilters(false)} style={styles.filterModalCloseBtn}>
+                    <X size={20} color="#000" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.filterModalDivider} />
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                  {/* Price Range */}
+                  <Text style={styles.filterModalSectionTitle}>{isBn ? 'মূল্য সীমা' : 'PRICE RANGE'}</Text>
+                  <View style={styles.filterModalPriceInputsRow}>
+                    <View style={styles.filterModalPriceInputBox}>
+                      <Text style={styles.filterModalPriceCurrency}>₹</Text>
+                      <TextInput
+                        style={styles.filterModalPriceTextInput}
+                        placeholder="Min"
+                        keyboardType="numeric"
+                        value={minPrice}
+                        onChangeText={(val) => {
+                          setMinPrice(val);
+                          setDisplayLimit(12);
+                        }}
                       />
-                    ) : (
-                      <ImagePlaceholder />
-                    )}
+                    </View>
+                    <Text style={styles.filterModalPriceSeparator}>-</Text>
+                    <View style={styles.filterModalPriceInputBox}>
+                      <Text style={styles.filterModalPriceCurrency}>₹</Text>
+                      <TextInput
+                        style={styles.filterModalPriceTextInput}
+                        placeholder="Max"
+                        keyboardType="numeric"
+                        value={maxPrice}
+                        onChangeText={(val) => {
+                          setMaxPrice(val);
+                          setDisplayLimit(12);
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Interactive Visual Slider */}
+                  <PriceSlider
+                    value={maxPrice}
+                    onValueChange={(val: string) => {
+                      setMaxPrice(val);
+                      setDisplayLimit(12);
+                    }}
+                    maxLimit={15000}
+                  />
+
+                  <View style={styles.filterModalDivider} />
+
+                  {/* Collections */}
+                  <Text style={styles.filterModalSectionTitle}>{isBn ? 'সংগ্রহসমূহ' : 'COLLECTIONS'}</Text>
+                  <View style={styles.filterModalCollectionsContainer}>
+                    {pujaTags.map((tag) => {
+                      const isSelected = selectedTagId === tag.tag_id;
+                      return (
+                        <TouchableOpacity
+                          key={tag.tag_id}
+                          onPress={() => {
+                            setSelectedTagId(tag.tag_id);
+                            setDisplayLimit(12);
+                          }}
+                          style={styles.filterModalCollectionRow}
+                        >
+                          <View style={[styles.filterModalCheckbox, isSelected && styles.filterModalCheckboxActive]}>
+                            {isSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
+                          </View>
+                          <Text style={styles.filterModalCollectionText}>
+                            {isBn && tag.tag_value === 'All' ? 'All pujas' :
+                              isBn && tag.tag_value === 'Featured' ? 'বৈশিষ্ট্যযুক্ত' :
+                                isBn && tag.tag_value === 'Favourite' ? 'প্রিয়' :
+                                  isBn && tag.tag_value === 'Popular' ? 'জনপ্রিয়' : tag.tag_value === 'All' ? 'All pujas' : tag.tag_value}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Footer Buttons */}
+                <View style={styles.filterModalFooter}>
+                  <TouchableOpacity
+                    style={styles.filterModalResetBtn}
+                    onPress={() => {
+                      setMinPrice('');
+                      setMaxPrice('');
+                      setSelectedTagId(ALL_PUJA_TAG_ID);
+                    }}
+                  >
+                    <Text style={styles.filterModalResetBtnText}>{isBn ? 'রিসেট ফিল্টার' : 'Reset Filters'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterModalApplyBtn}
+                    onPress={() => setShowFilters(false)}
+                  >
+                    <Text style={styles.filterModalApplyBtnText}>
+                      {isBn ? `${finalFilteredPujas.length}টি পূজা দেখুন` : `Show ${finalFilteredPujas.length} pujas`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* ── Puja Cards List (Row-Split Layout matching screenshots) ── */}
+          {isLoadingPujas ? (
+            <View style={styles.centeredSectionLoader}>
+              <ActivityIndicator size="small" color={BRAND_PRIMARY} />
+              <Text style={styles.loaderText}>{isBn ? 'লোড হচ্ছে...' : 'Loading...'}</Text>
+            </View>
+          ) : displayedPujas.length > 0 ? (
+            <View style={styles.pujasContainer}>
+              {displayedPujas.map((puja) => {
+                const pId = puja.puja_id || puja.puja_type_id;
+                const pName = puja.puja_name || puja.puja_type_name;
+                const pMinPrice = puja.minimum_price || puja.puja_with_samagri_amount || 0;
+                const pMaxPrice = puja.maximum_price || puja.puja_without_samagri_amount || 0;
+                const pPriceStr = pMinPrice === pMaxPrice
+                  ? `₹${pMinPrice.toLocaleString('en-IN')}`
+                  : `₹${pMinPrice.toLocaleString('en-IN')}`;
+                let rawDuration = puja.duration || puja.puja_duration || '2';
+                let pDuration = String(rawDuration).includes('hr') ? rawDuration : `${rawDuration} hr`;
+                const pRating = puja.puja_rating || 5;
+
+                return (
+                  <View key={pId || Math.random()} style={styles.pujaCardRow}>
+                    {/* Left Side: Square Image area */}
+                    <View style={styles.cardImgLeftBox}>
+                      {puja.icon ? (
+                        <Image source={{ uri: puja.icon }} style={styles.pujaIconImage} resizeMode="cover" />
+                      ) : (
+                        <ImagePlaceholder />
+                      )}
+                    </View>
+
+                    {/* Right Side: content details */}
+                    <View style={styles.cardBodyRight}>
+                      {/* Title and Heart Icon row */}
+                      <View style={styles.titleHeartRow}>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{pName}</Text>
+                        <TouchableOpacity
+                          style={styles.heartBtnOutline}
+                          onPress={async () => {
+                            const state = await NetInfo.fetch();
+                            if (state.isConnected) {
+                              pId && handleToggleFavoriteServer(pId.toString());
+                            } else {
+                              showToast({ message: t('common.connectionRequired'), type: 'error' });
+                            }
+                          }}
+                        >
+                          <Heart
+                            size={16}
+                            color={favorites.includes(String(pId)) ? Colors.red : '#9CA3AF'}
+                            fill={favorites.includes(String(pId)) ? Colors.red : 'transparent'}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Duration, Rating and Compare row */}
+                      <View style={styles.detailsRow}>
+                        <View style={styles.durationRatingBox}>
+                          <Clock size={12} color={BRAND_MUTED} style={{ marginRight: 3 }} />
+                          <Text style={styles.durationText}>{pDuration}</Text>
+                        </View>
+
+                        {/* Compare Outline Button */}
+                        <TouchableOpacity
+                          style={styles.compareBtn}
+                          onPress={() => showComingSoonMessage('Compare Pujas', 'পূজা তুলনা')}
+                        >
+                          <SlidersHorizontal size={10} color={BRAND_PRIMARY} />
+                          <Text style={styles.compareBtnText}>{isBn ? 'তুলনা' : 'Compare'}</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Bottom Row: Packages from Price and View packages Orange Button with Eye Icon */}
+                      <View style={styles.cardFooterRow}>
+                        <View>
+                          <Text style={styles.packagesFromLabel}>{isBn ? 'প্যাকেজ শুরু' : 'Packages from'}</Text>
+                          <Text style={styles.priceValueText}>{pPriceStr}</Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.bookBtnContainer,
+                            puja.puja_active_status === 0 && styles.bookBtnDisabled,
+                          ]}
+                          disabled={puja.puja_active_status === 0 || openingPujaId === puja.puja_id}
+                          onPress={async () => {
+                            setOpeningPujaId(puja.puja_id);
+                            setSelectedPujaForPackages(puja);
+                            await saveRecentPuja(puja); // Save recently viewed
+                            try {
+                              await fetchPackages(puja.puja_id.toString()).unwrap();
+                            } catch (error) {
+                              console.error('Failed to fetch packages:', error);
+                            } finally {
+                              setOpeningPujaId(null);
+                              setShowPackagesModal(true);
+                            }
+                          }}
+                        >
+                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 8, overflow: 'hidden' }}>
+                            <Svg height="100%" width="100%">
+                              <Defs>
+                                <LinearGradient id="btnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                  <Stop offset="0%" stopColor={puja.puja_active_status === 0 ? '#E5E7EB' : '#FF9933'} />
+                                  <Stop offset="100%" stopColor={puja.puja_active_status === 0 ? '#D1D5DB' : '#E07800'} />
+                                </LinearGradient>
+                              </Defs>
+                              <Rect x="0" y="0" width="100%" height="100%" fill="url(#btnGrad)" />
+                            </Svg>
+                          </View>
+                          <View style={styles.bookBtn}>
+                            {openingPujaId === puja.puja_id && (
+                              <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', zIndex: 2 }]}>
+                                <ActivityIndicator size="small" color="#FFF" />
+                              </View>
+                            )}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', opacity: openingPujaId === puja.puja_id ? 0 : 1 }}>
+                              <Eye size={12} color="#FFF" style={{ marginRight: 6 }} />
+                              <Text style={[
+                                styles.bookBtnText,
+                                puja.puja_active_status === 0 && styles.bookBtnTextDisabled,
+                              ]}>
+                                {puja.puja_active_status === 0
+                                  ? isBn ? 'অনুপলব্ধ' : 'Not Available'
+                                  : isBn ? 'প্যাকেজ দেখুন' : 'View packages'}
+                              </Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <NoDataFound
+              message={isBn ? 'কোনো পূজা পাওয়া যায়নি' : 'No pujas found'}
+              containerHeight={250}
+            />
+          )}
+
+          {/* ── Footer Progress Indicator & Load More Button ── */}
+          {!isLoadingPujas && finalFilteredPujas.length > 0 && (
+            <View style={styles.footerPaginationContainer}>
+              <View style={styles.paginationRow}>
+                <View style={styles.paginationTextContainer}>
+                  <Text style={styles.paginationText}>
+                    {isBn
+                      ? `${Math.min(displayLimit, finalFilteredPujas.length)} এর মধ্যে ${finalFilteredPujas.length}`
+                      : `${Math.min(displayLimit, finalFilteredPujas.length)} of ${finalFilteredPujas.length}`}
+                  </Text>
+                  <Text style={styles.paginationSubText}>
+                    {isBn ? 'টি পূজা পরিষেবা দেখানো হয়েছে' : 'puja services shown'}
+                  </Text>
+                </View>
+
+                {/* Progress Bar */}
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${(Math.min(displayLimit, finalFilteredPujas.length) / finalFilteredPujas.length) * 100}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              {/* Load More Button */}
+              {displayLimit < finalFilteredPujas.length && (
+                <TouchableOpacity
+                  style={styles.loadMoreBtn}
+                  onPress={() => setDisplayLimit((prev) => prev + 12)}
+                >
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                    <Svg height="100%" width="100%">
+                      <Defs>
+                        <LinearGradient id="btnGradLoadMore" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <Stop offset="0%" stopColor="#FF9933" />
+                          <Stop offset="100%" stopColor="#E07800" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect x="0" y="0" width="100%" height="100%" fill="url(#btnGradLoadMore)" />
+                    </Svg>
+                  </View>
+                  <View style={{ paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={styles.loadMoreBtnText}>
+                      {isBn ? 'আরো ১২টি দেখান ▾' : 'Show 12 more ▾'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ── Recently Viewed Section ── */}
+          {recentPujas.length > 0 && (
+            <View style={{ marginHorizontal: 16, marginTop: 24, backgroundColor: '#FFFDF6', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#FDBA74' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF5EB', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <CalendarClock size={20} color="#F97316" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#F97316', letterSpacing: 0.5 }}>{isBn ? 'অনুসন্ধান চালিয়ে যান' : 'CONTINUE EXPLORING'}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#1F2937' }}>{isBn ? 'সম্প্রতি দেখা' : 'Recently viewed'}</Text>
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{isBn ? 'যেখান থেকে ছেড়েছিলেন সেখান থেকে শুরু করুন।' : 'Pick up where you left off.'}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FDBA74', justifyContent: 'center', alignItems: 'center' }}
+                  onPress={async () => {
+                    await import('../../utils/recentUtils').then(m => m.clearRecentPujas());
+                    setRecentPujas([]);
+                  }}
+                >
+                  <Trash2 size={16} color="#F97316" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {recentPujas.map((puja, index) => {
+                  const pMinPrice = puja.minimum_price || puja.puja_with_samagri_amount || 0;
+                  return (
                     <TouchableOpacity
-                      style={styles.heartBtn}
+                      key={index}
+                      style={{ width: 280, backgroundColor: '#FFF', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F3E8DF' }}
                       onPress={async () => {
-                        const state = await NetInfo.fetch();
-                        if (state.isConnected) {
-                          pId && handleToggleFavoriteServer(pId.toString());
-                        } else {
-                          showToast({
-                            message: t('common.connectionRequired'),
-                            type: 'error',
-                          });
+                        setOpeningPujaId(puja.puja_id);
+                        setSelectedPujaForPackages(puja);
+                        try {
+                          await fetchPackages(puja.puja_id.toString()).unwrap();
+                        } catch (error) {
+                          console.error('Failed to fetch packages:', error);
+                        } finally {
+                          setOpeningPujaId(null);
+                          setShowPackagesModal(true);
                         }
                       }}
                     >
-                      <Text style={styles.heartIconText}>
-                        {favorites.includes(pId.toString()) ? '❤️' : '🤍'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {pName}
-                    </Text>
-                    <Text style={styles.cardDesc} numberOfLines={2}>
-                      {puja.description ||
-                        puja.puja_description ||
-                        (isBn
-                          ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
-                          : 'Holy ceremony near you')}
-                    </Text>
-
-                    <View style={styles.priceRow}>
-                      <View style={styles.durationRow}>
-                        <Text style={styles.durationIcon}>⏱️</Text>
-                        <Text style={styles.durationText}>
-                          {pDuration} {isBn ? 'ঘন্টা' : 'Hrs'}
-                        </Text>
-                        <Text style={styles.ratingText}> ⭐{pRating}</Text>
+                      <View style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F3F4F6' }}>
+                        {puja.icon ? (
+                          <Image source={{ uri: puja.icon }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        ) : (
+                          <ImagePlaceholder />
+                        )}
                       </View>
-                      <Text style={styles.priceValue}>{pPrice}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.bookBtn,
-                        puja.puja_active_status === 0 && styles.bookBtnDisabled,
-                      ]}
-                      disabled={puja.puja_active_status === 0}
-                      onPress={() => {
-                        NetInfo.fetch().then(state => {
-                          if (state.isConnected) {
-                            navigation.navigate('PujaDetails', {
-                              pujaId: pId.toString(),
-                              pujaData: puja,
-                            });
-                          } else {
-                            showToast({
-                              message: t('common.connectionRequired'),
-                              type: 'error',
-                            });
-                          }
-                        });
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.bookBtnText,
-                          puja.puja_active_status === 0 &&
-                          styles.bookBtnTextDisabled,
-                        ]}
-                      >
-                        {puja.puja_active_status === 0
-                          ? isBn
-                            ? 'উপলব্ধ নেই'
-                            : 'Not Available'
-                          : isBn
-                            ? 'প্যাকেজ দেখুন →'
-                            : 'View packages →'}
-                      </Text>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#1F2937', marginBottom: 4 }} numberOfLines={1}>{puja.puja_name || puja.puja_type_name}</Text>
+                        <Text style={{ fontSize: 11, color: '#6B7280' }}>
+                          {isBn ? 'প্যাকেজ শুরু' : 'Packages from '}
+                          <Text style={{ fontWeight: '800', color: '#374151' }}>₹{pMinPrice}</Text>
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#F97316', marginRight: 4 }}>{isBn ? 'প্যাকেজ দেখুন' : 'View packages'}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#F97316' }}>→</Text>
+                        </View>
+                      </View>
                     </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
 
-            {/* View All Card */}
-            {filteredPujas.length > 5 && (
-              <TouchableOpacity
-                style={styles.showMoreCard}
-                onPress={async () => {
-                  const state = await NetInfo.fetch();
-                  if (state.isConnected) {
-                    navigation.navigate('AllPujas', {
-                      initialTagId: selectedTagId,
-                    });
-                  } else {
-                    showToast({
-                      message: t('common.connectionRequired'),
-                      type: 'error',
-                    });
-                  }
-                }}
-              >
-                <View style={styles.showMoreCardInner}>
-                  <View style={styles.showMoreIconCircle}>
-                    <Text style={styles.showMoreIcon}>→</Text>
-                  </View>
-                  <Text style={styles.showMoreCardTitle}>
-                    {isBn ? 'সব দেখুন' : 'View All'}
-                  </Text>
-                  <Text style={styles.showMoreCardSub}>
-                    {filteredPujas.length - 5} {isBn ? 'আরো আছে' : 'more'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        ) : (
-          <NoDataFound
-            message={isBn ? 'কোনো পূজা পাওয়া যায়নি' : 'No pujas found'}
-            containerHeight={250}
-          />
-        )}
+          {/* Spacer */}
+          <View style={{ height: Math.max(120, insets.bottom + 80) }} />
+        </ScrollView>
 
-        <View
-          style={[
-            styles.bottomSpacer,
-            { height: Math.max(160, insets.bottom + 120) },
-          ]}
-        />
-      </ScrollView>
-
-      {/* Profile Popover Menu */}
-      {showProfileMenu && (
-        <View
-          style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+        {/* ── Sort Bottom Sheet Modal (Screenshot 5 Match) ── */}
+        <Modal
+          visible={showSortModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowSortModal(false)}
         >
-          <TouchableWithoutFeedback onPress={() => setShowProfileMenu(false)}>
-            <View style={styles.popoverOverlay}>
+          <TouchableWithoutFeedback onPress={() => setShowSortModal(false)}>
+            <View style={styles.modalOverlay}>
               <TouchableWithoutFeedback>
-                <View style={styles.popoverBox}>
-                  <View style={styles.popoverHeader}>
-                    <View
-                      style={{
-                        flex: 1,
-                        alignItems: 'flex-start',
-                        paddingLeft: 5,
-                      }}
-                    >
-                      <Text style={styles.popoverUserName}>
-                        {userDetails?.ctnz_full_name ||
-                          user?.user_name ||
-                          'User'}
-                      </Text>
-                      <Text style={styles.popoverUserPhone}>
-                        {user?.user_name || ''}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.popoverDivider} />
+                <View style={styles.sortBottomSheet}>
+                  {/* Header handle line */}
+                  <View style={styles.bottomSheetHandle} />
 
+                  {/* Sort Option: Recommended */}
                   <TouchableOpacity
-                    style={styles.popoverItem}
-                    onPress={async () => {
-                      const state = await NetInfo.fetch();
-                      if (state.isConnected) {
-                        setShowProfileMenu(false);
-                        navigation.navigate('EditProfile');
-                      } else {
-                        showToast({
-                          message: t('common.connectionRequired'),
-                          type: 'error',
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.popoverItemIconOrange}>👤</Text>
-                    <Text style={styles.popoverItemText}>
-                      {isBn ? 'প্রোফাইল সম্পাদন' : 'Edit Profile'}
-                    </Text>
-                    <View style={styles.redDot} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.popoverItem}
-                    onPress={async () => {
-                      const state = await NetInfo.fetch();
-                      if (state.isConnected) {
-                        setShowProfileMenu(false);
-                        navigation.navigate('Address');
-                      } else {
-                        showToast({
-                          message: t('common.connectionRequired'),
-                          type: 'error',
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.popoverItemIconOrange}>📍</Text>
-                    <Text style={styles.popoverItemText}>
-                      {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.popoverItem}
-                    onPress={async () => {
-                      const state = await NetInfo.fetch();
-                      if (state.isConnected) {
-                        setShowProfileMenu(false);
-                        navigation.navigate('Orders');
-                      } else {
-                        showToast({
-                          message: t('common.connectionRequired'),
-                          type: 'error',
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.popoverItemIconOrange}>🕔</Text>
-                    <Text style={styles.popoverItemText}>
-                      {isBn ? 'অর্ডার সমূহ' : 'Orders'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.popoverDivider} />
-
-                  <TouchableOpacity
-                    style={styles.popoverItem}
+                    style={styles.sortOptionRow}
                     onPress={() => {
-                      setShowProfileMenu(false);
-                      handleLogout();
+                      setSortBy('Recommended');
+                      setShowSortModal(false);
                     }}
                   >
-                    <Text style={styles.popoverItemIconRed}>🚪</Text>
-                    <Text style={styles.popoverItemTextRed}>
-                      {isBn ? 'লগআউট' : 'Log out'}
-                    </Text>
+                    <Text style={styles.sortOptionLabel}>{isBn ? 'প্রস্তাবিত' : 'Recommended'}</Text>
+                    <View style={[styles.radioCircle, sortBy === 'Recommended' && styles.radioCircleChecked]} />
+                  </TouchableOpacity>
+
+                  {/* Sort Option: Price Low to High */}
+                  <TouchableOpacity
+                    style={styles.sortOptionRow}
+                    onPress={() => {
+                      setSortBy('priceLow');
+                      setShowSortModal(false);
+                    }}
+                  >
+                    <Text style={styles.sortOptionLabel}>{isBn ? 'মূল্য: কম থেকে বেশি' : 'Price: Low to High'}</Text>
+                    <View style={[styles.radioCircle, sortBy === 'priceLow' && styles.radioCircleChecked]} />
+                  </TouchableOpacity>
+
+                  {/* Sort Option: Price High to Low */}
+                  <TouchableOpacity
+                    style={styles.sortOptionRow}
+                    onPress={() => {
+                      setSortBy('priceHigh');
+                      setShowSortModal(false);
+                    }}
+                  >
+                    <Text style={styles.sortOptionLabel}>{isBn ? 'মূল্য: বেশি থেকে কম' : 'Price: High to Low'}</Text>
+                    <View style={[styles.radioCircle, sortBy === 'priceHigh' && styles.radioCircleChecked]} />
+                  </TouchableOpacity>
+
+                  {/* Sort Option: Name A to Z */}
+                  <TouchableOpacity
+                    style={styles.sortOptionRow}
+                    onPress={() => {
+                      setSortBy('nameAsc');
+                      setShowSortModal(false);
+                    }}
+                  >
+                    <Text style={styles.sortOptionLabel}>{isBn ? 'নাম: A থেকে Z' : 'Name: A to Z'}</Text>
+                    <View style={[styles.radioCircle, sortBy === 'nameAsc' && styles.radioCircleChecked]} />
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
-        </View>
-      )}
+        </Modal>
 
-      {/* Tag Filter Popover Menu */}
-      {showTagMenu && (
-        <View
-          style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
-        >
-          <TouchableWithoutFeedback onPress={() => setShowTagMenu(false)}>
-            <View style={styles.popoverOverlay}>
-              <TouchableWithoutFeedback>
-                <View
-                  style={[
-                    styles.popoverBox,
-                    { top: '50%', alignSelf: 'center', width: '80%' },
-                  ]}
-                >
-                  <View style={styles.popoverHeader}>
-                    <Text style={styles.popoverUserName}>
-                      {isBn ? 'ফিল্টার নির্বাচন করুন' : 'Select Filter'}
-                    </Text>
-                  </View>
-                  <View style={styles.popoverDivider} />
+        {/* Profile Popover Menu */}
+        {showProfileMenu && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}>
+            <TouchableWithoutFeedback onPress={() => setShowProfileMenu(false)}>
+              <View style={styles.popoverOverlay}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.popoverBox}>
+                    <View style={styles.popoverHeader}>
+                      <View style={{ flex: 1, alignItems: 'flex-start', paddingLeft: 5 }}>
+                        <Text style={styles.popoverUserName}>
+                          {userDetails?.ctnz_full_name || user?.user_name || 'User'}
+                        </Text>
+                        <Text style={styles.popoverUserPhone}>{user?.user_name || ''}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.popoverDivider} />
 
-                  {pujaTags.map(tag => (
                     <TouchableOpacity
-                      key={tag.tag_id}
+                      style={styles.popoverItem}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) {
+                          setShowProfileMenu(false);
+                          navigation.navigate('EditProfile');
+                        } else {
+                          showToast({ message: t('common.connectionRequired'), type: 'error' });
+                        }
+                      }}
+                    >
+                      <User size={16} color="#F97316" style={{ marginRight: 10, opacity: 0.8 }} />
+                      <Text style={styles.popoverItemText}>
+                        {isBn ? 'প্রোফাইল সম্পাদন' : 'Edit Profile'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.popoverItem}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) {
+                          setShowProfileMenu(false);
+                          navigation.navigate('Address');
+                        } else {
+                          showToast({ message: t('common.connectionRequired'), type: 'error' });
+                        }
+                      }}
+                    >
+                      <MapPin size={16} color="#F97316" style={{ marginRight: 10, opacity: 0.8 }} />
+                      <Text style={styles.popoverItemText}>
+                        {isBn ? 'সংরক্ষিত ঠিকানা' : 'Saved Addresses'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.popoverItem}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) {
+                          setShowProfileMenu(false);
+                          navigation.navigate('Orders');
+                        } else {
+                          showToast({ message: t('common.connectionRequired'), type: 'error' });
+                        }
+                      }}
+                    >
+                      <Clock size={16} color="#F97316" style={{ marginRight: 10, opacity: 0.8 }} />
+                      <Text style={styles.popoverItemText}>
+                        {isBn ? 'অর্ডার সমূহ' : 'Orders'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.popoverDivider} />
+
+                    <TouchableOpacity
                       style={styles.popoverItem}
                       onPress={() => {
-                        setSelectedTagId(tag.tag_id);
-                        setShowTagMenu(false);
+                        setShowProfileMenu(false);
+                        handleLogout();
                       }}
                     >
-                      <Text style={styles.popoverItemIconOrange}>🏷️</Text>
-                      <Text
-                        style={[
-                          styles.popoverItemText,
-                          selectedTagId === tag.tag_id && {
-                            color: BRAND_PRIMARY,
-                            fontWeight: '800',
-                          },
-                        ]}
-                      >
-                        {isBn && tag.tag_value === 'All'
-                          ? 'সব'
-                          : isBn && tag.tag_value === 'Featured'
-                            ? 'বৈশিষ্ট্যযুক্ত'
-                            : isBn && tag.tag_value === 'Favourite'
-                              ? 'প্রিয়'
-                              : isBn && tag.tag_value === 'Popular'
-                                ? 'জনপ্রিয়'
-                                : tag.tag_value}
+                      <LogOut size={16} color="#EF4444" style={{ marginRight: 10, opacity: 0.8 }} />
+                      <Text style={styles.popoverItemTextRed}>
+                        {isBn ? 'লগআউট' : 'Log out'}
                       </Text>
-                      {selectedTagId === tag.tag_id && (
-                        <Text
-                          style={{ color: BRAND_PRIMARY, fontWeight: 'bold' }}
-                        >
-                          ✓
-                        </Text>
-                      )}
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      )}
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        )}
 
-      {/* Profile Completion Modal */}
-      <ProfileCompletionModal
-        visible={showProfileCompletionModal}
-        percentage={
-          userDetails?.ctnz_profile_progress_percent
-            ? parseFloat(userDetails.ctnz_profile_progress_percent)
-            : 0
-        }
-        onClose={() => setShowProfileCompletionModal(false)}
-        onComplete={() => {
-          setShowProfileCompletionModal(false);
-          navigation.navigate('EditProfile');
-        }}
-      />
+        {/* Profile Completion Modal */}
+        <ProfileCompletionModal
+          visible={showProfileCompletionModal}
+          percentage={
+            userDetails?.ctnz_profile_progress_percent
+              ? parseFloat(userDetails.ctnz_profile_progress_percent)
+              : 0
+          }
+          onClose={() => setShowProfileCompletionModal(false)}
+          onComplete={() => {
+            setShowProfileCompletionModal(false);
+            navigation.navigate('EditProfile');
+          }}
+        />
+
+        {/* ── Packages Modal (Screenshot 2 Match) ── */}
+        {showPackagesModal && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]}>
+            <View style={styles.packagesModalOverlay}>
+              {/* Header */}
+              <View style={styles.packagesModalHeader}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}>
+                  <Svg height="100%" width="100%">
+                    <Defs>
+                      <LinearGradient id="modalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor="#FF8C00" />
+                        <Stop offset="100%" stopColor="#F59E0B" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100%" height="100%" fill="url(#modalGrad)" />
+                  </Svg>
+                </View>
+                <Text style={styles.packagesModalTitle} numberOfLines={1}>{selectedPujaForPackages?.puja_name || 'Puja'} packages</Text>
+                <TouchableOpacity
+                  style={styles.packagesModalCloseBtn}
+                  onPress={() => setShowPackagesModal(false)}
+                >
+                  <Text style={styles.packagesModalCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Content */}
+              <ScrollView contentContainerStyle={styles.packagesModalContent} style={{ flex: 1 }}>
+
+                {isLoadingModalPackages ? (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#F97316" />
+                    <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading packages...</Text>
+                  </View>
+                ) : modalPackagesData && modalPackagesData.length > 0 ? (
+                  modalPackagesData.map((pkg: any, index: number) => {
+                    const price = pkg.puja_package_price || pkg.maximum_price || 0;
+                    const duration = pkg.puja_duration || pkg.duration_hours || 2;
+                    const panditCount = pkg.pandit_count || 1;
+                    const includesSamagri = pkg.puja_include_samagri === 1 || pkg.includes_samagri === 1;
+
+                    return (
+                      <View key={`pkg-${pkg.puja_package_id || index}`} style={styles.packageCard}>
+                        <View style={styles.packageCardHeader}>
+                          <Text style={styles.packageCardLabel}>PACKAGE</Text>
+                          <Text style={styles.packageCardPrice}>₹{price.toLocaleString('en-IN')}</Text>
+                        </View>
+                        <Text style={styles.packageCardTitle}>{pkg.puja_package_name || 'Puja Package'}</Text>
+                        <Text style={styles.packageCardDesc}>
+                          {pkg.puja_package_description || 'Essential ceremony with the core puja materials and priest guidance included.'}
+                        </Text>
+
+                        <View style={styles.packageFeatureList}>
+                          <View style={styles.packageFeatureItem}>
+                            <CalendarClock size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{duration} hr</Text>
+                          </View>
+                          <View style={styles.packageFeatureItem}>
+                            <ShieldCheck size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{panditCount} priest{panditCount > 1 ? 's' : ''}</Text>
+                          </View>
+                          <View style={styles.packageFeatureItem}>
+                            <ShieldCheck size={14} color="#F97316" />
+                            <Text style={styles.packageFeatureText}>{includesSamagri ? 'Materials included' : 'Materials extra'}</Text>
+                          </View>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[{ borderRadius: 8, overflow: 'hidden' }]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setShowPackagesModal(false);
+                            navigation.navigate('PujaDetails', {
+                              pujaId: selectedPujaForPackages?.puja_id,
+                              pujaData: selectedPujaForPackages,
+                            });
+                          }}
+                        >
+                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 8, overflow: 'hidden' }}>
+                            <Svg height="100%" width="100%">
+                              <Defs>
+                                <LinearGradient id={`btnGradPkg${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                  <Stop offset="0%" stopColor="#FF9933" />
+                                  <Stop offset="100%" stopColor="#E07800" />
+                                </LinearGradient>
+                              </Defs>
+                              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#btnGradPkg${index})`} />
+                            </Svg>
+                          </View>
+                          <View style={styles.packageSelectBtn}>
+                            <Text style={styles.packageSelectBtnText}>Select & schedule</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={{ padding: 20, alignItems: 'center' }}>
+                    <Text style={{ color: '#6B7280' }}>No packages found for this Puja.</Text>
+                  </View>
+                )}
+
+                {/* Schedule Confidence Info */}
+                <View style={styles.scheduleInfoBox}>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <CalendarClock size={20} color="#F97316" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.scheduleInfoTitle}>Schedule with confidence</Text>
+                      <Text style={styles.scheduleInfoDesc}>
+                        Available dates and service coverage are confirmed for your address before payment.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* View Complete Details */}
+                <TouchableOpacity style={styles.viewDetailsBtn}>
+                  <Eye size={14} color="#F97316" style={{ marginRight: 6 }} />
+                  <Text style={styles.viewDetailsBtnText}>View complete puja details</Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BRAND_BG },
+
+  // Top header matching screenshot 4 (Solid Orange header)
+  header: {
+    backgroundColor: '#F0852D',
+    zIndex: 100,
+  },
+  headerInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  logoRow: { flexDirection: 'row', alignItems: 'center' },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 0.5,
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  iconBtnText: { fontSize: 20, color: '#FFF' },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBtn: {
+    position: 'relative',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: Colors.red,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: { color: Colors.white, fontSize: 9, fontWeight: '800' },
+
+  // Body
+  body: { flex: 1 },
+
+  // Search Bar Section Background
+  searchSectionBackground: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 16,
+  },
+
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInputWrapper: {
+    flex: 1,
+    height: '80%',
+    justifyContent: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
+    backgroundColor: 'transparent',
+  },
+
+  // Title Banner Card matching screenshot 4
+  titleSectionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    alignItems: 'flex-start',
+  },
+  titleSectionLine: {
+    width: 60,
+    height: 3,
+    backgroundColor: BRAND_PRIMARY,
+    marginTop: 6,
+    marginBottom: 16,
+    borderRadius: 2,
+  },
+  titleServices: {
+    color: BRAND_TEXT,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 8,
+  },
+  badgeItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF8F1',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  badgeItemText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#291811',
+  },
+
+  // Purpose Categories
+  purposeSection: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    overflow: 'visible', // allow the glow line to show on the border
+  },
+  glowLine: {
+    position: 'absolute',
+    top: -1.5,
+    left: '10%',
+    right: '10%',
+    height: 3,
+    shadowColor: '#F97316',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  purposeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sparkIconContainer: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  purposeTitle: {
+    color: BRAND_TEXT,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  categoriesContent: {
+    paddingRight: 16,
+    gap: 8,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  categoryChipActive: {
+    backgroundColor: '#FFF8F1',
+    borderColor: '#F97316',
+  },
+  categoryChipIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    backgroundColor: '#FFF7ED',
+  },
+  categoryChipIconContainerActive: {
+    backgroundColor: '#F97316',
+  },
+  categoryChipText: {
+    fontSize: 13,
+    color: BRAND_MUTED,
+    fontWeight: '700',
+    paddingRight: 6,
+  },
+  categoryChipTextActive: {
+    color: '#F97316',
+  },
+
+  // Count and Sort row matching screenshot 4
+  countSortRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  totalPujasText: {
+    fontSize: 12,
+    color: '#6B5E59',
+    fontWeight: '800',
+  },
+  sortDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#FDBA74', // changed to orange border
+    paddingHorizontal: 12,
+    paddingVertical: 8, // increased height
+    borderRadius: 10,
+  },
+  sortDropdownBtnText: {
+    fontSize: 12,
+    color: '#291811',
+    fontWeight: '700',
+  },
+
+  // Filters accordion
+  filterBarContainer: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  filterBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  filterBarHeaderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#291811',
+  },
+  filterPanelCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  filterSection: {
+    marginBottom: 10,
+  },
+  filterSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    marginBottom: 6,
+  },
+  priceInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  priceInputBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    height: 34,
+  },
+  priceInputCurrency: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: BRAND_TEXT,
+    marginRight: 3,
+  },
+  priceTextInput: {
+    flex: 1,
+    fontSize: 11,
+    color: BRAND_TEXT,
+    fontWeight: '600',
+    padding: 0,
+  },
+  priceInputSeparator: {
+    fontSize: 12,
+    color: BRAND_MUTED,
+  },
+  clearPriceBtn: {
+    paddingHorizontal: 6,
+  },
+  clearPriceBtnText: {
+    fontSize: 10,
+    color: Colors.red,
+    fontWeight: '700',
+  },
+  collectionOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  collectionOptionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  collectionOptionChipActive: {
+    backgroundColor: BRAND_PRIMARY,
+  },
+  collectionOptionChipText: {
+    fontSize: 10,
+    color: BRAND_MUTED,
+    fontWeight: '500',
+  },
+  collectionOptionChipTextActive: {
+    color: Colors.white,
+    fontWeight: '700',
+  },
+
+  // Puja Cards List (Horizontal Row split matching Screenshot 4)
+  pujasContainer: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+    gap: 12,
+  },
+  pujaCardRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74', // changed to match other containers
+    padding: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardImgLeftBox: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  pujaIconImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardBodyRight: {
+    flex: 1,
+  },
+  titleHeartRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BRAND_TEXT,
+    flex: 1,
+    marginRight: 6,
+  },
+  heartBtnOutline: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 4,
+    paddingBottom: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F3F4F6',
+  },
+  durationRatingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  durationText: {
+    fontSize: 10,
+    color: BRAND_MUTED,
+    fontWeight: '600',
+  },
+  compareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#FFFDFB',
+    gap: 2,
+  },
+  compareBtnIcon: {
+    fontSize: 10,
+  },
+  compareBtnText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: BRAND_PRIMARY,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  packagesFromLabel: {
+    fontSize: 8,
+    color: BRAND_MUTED,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  priceValueText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: BRAND_TEXT,
+    marginTop: 1,
+  },
+  bookBtnContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  bookBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  bookBtnDisabled: {
+    backgroundColor: Colors.disabled,
+  },
+  bookBtnText: {
+    color: Colors.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  bookBtnTextDisabled: {
+    color: Colors.gray,
+  },
+
+  // Loader
+  centeredSectionLoader: {
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  loaderText: {
+    fontSize: 12,
+    color: BRAND_MUTED,
+    fontWeight: '600',
+  },
+
+  // Pagination Footer
+  footerPaginationContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: '#FFFDF6', // matching the subtle background
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  paginationTextContainer: {
+    flexShrink: 0,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '800',
+  },
+  paginationSubText: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  progressBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    marginLeft: 16,
+    overflow: 'hidden',
+  },
+  searchContainerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FDBA74', // changed to match other cards
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#F97316',
+    borderRadius: 3,
+  },
+  loadMoreBtn: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  loadMoreBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  // Sort Bottom Sheet Modal (Screenshot 5 Match)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  sortBottomSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+  bottomSheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sortOptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sortOptionLabel: {
+    fontSize: 14,
+    color: '#291811',
+    fontWeight: '700',
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#BDBDBD',
+  },
+  radioCircleChecked: {
+    borderColor: '#78350F',
+    backgroundColor: '#78350F',
+    borderWidth: 4.5,
+  },
+
+  // Profile Popover
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  popoverBox: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    width: 180,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    paddingVertical: 10,
+    shadowColor: Colors.shadow,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  popoverHeader: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  popoverUserName: { fontSize: 14, fontWeight: '800', color: BRAND_TEXT },
+  popoverUserPhone: { fontSize: 11, color: Colors.gray, marginTop: 1, fontWeight: '500' },
+  popoverDivider: { height: 0.5, backgroundColor: Colors.lightGray, marginVertical: 3 },
+  popoverItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  popoverItemIconOrange: { fontSize: 14, marginRight: 10, opacity: 0.8 },
+  popoverItemText: { fontSize: 13, color: Colors.textMuted, flex: 1, fontWeight: '500' },
+  popoverItemIconRed: { fontSize: 14, marginRight: 10, opacity: 0.8 },
+  popoverItemTextRed: { fontSize: 13, color: Colors.red, fontWeight: '500' },
+
+  // ── Packages Modal Styles ──
+  packagesModalOverlay: {
+    flex: 1,
+    backgroundColor: '#FFFDF6', // matching app background
+  },
+  packagesModalHeader: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    overflow: 'hidden',
+  },
+  packagesModalTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
+    zIndex: 1,
+  },
+  packagesModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  packagesModalCloseBtnText: {
+    color: '#F97316',
+    fontWeight: '900',
+    fontSize: 16,
+  },
+  packagesModalContent: {
+    padding: 16,
+    gap: 16,
+  },
+  packageCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+  },
+  packageCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  packageCardLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1,
+  },
+  packageCardPrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#EA580C',
+  },
+  packageCardTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  packageCardDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  packageFeatureList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  packageFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  packageFeatureText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  packageSelectBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  packageSelectBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  packageCardActionText: {
+    color: '#F97316',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  // ── FILTER MODAL STYLES (NEW) ──
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 24,
+    maxHeight: '90%',
+  },
+  filterModalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  filterModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#3F251A',
+    marginBottom: 4,
+  },
+  filterModalSubtitle: {
+    fontSize: 13,
+    color: '#A78B7D',
+    fontWeight: '500',
+  },
+  filterModalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF5F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FBE8E0',
+  },
+  filterModalDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 20,
+  },
+  filterModalSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7C5642',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  filterModalPriceInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterModalPriceInputBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1D5C6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+    backgroundColor: '#FFFFFF',
+  },
+  filterModalPriceCurrency: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    fontWeight: '700',
+    marginRight: 6,
+  },
+  filterModalPriceTextInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  filterModalPriceSeparator: {
+    marginHorizontal: 12,
+    fontSize: 20,
+    color: '#D1D5DB',
+    fontWeight: '600',
+  },
+  filterModalDummySliderContainer: {
+    marginTop: 24,
+  },
+  filterModalDummySliderTrack: {
+    height: 6,
+    backgroundColor: '#F4E8E1',
+    borderRadius: 3,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  filterModalDummySliderThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F97316',
+    position: 'absolute',
+    left: '45%',
+    borderWidth: 3,
+    borderColor: '#FFF5F0',
+  },
+  filterModalDummySliderLabelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  filterModalDummySliderLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '700',
+  },
+  filterModalCollectionsContainer: {
+    gap: 16,
+  },
+  filterModalCollectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterModalCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  filterModalCheckboxActive: {
+    backgroundColor: '#F97316',
+    borderColor: '#F97316',
+  },
+  filterModalCollectionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3F251A',
+  },
+  filterModalFooter: {
+    marginTop: 24,
+    gap: 12,
+  },
+  filterModalResetBtn: {
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#F97316',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  filterModalResetBtnText: {
+    color: '#A78B7D',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  filterModalApplyBtn: {
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#E68A00', // matches screenshot
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterModalApplyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  scheduleInfoBox: {
+    backgroundColor: '#FFF8F1',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  scheduleInfoTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  scheduleInfoDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  viewDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF',
+    gap: 8,
+  },
+  viewDetailsBtnText: {
+    color: '#F97316',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+});

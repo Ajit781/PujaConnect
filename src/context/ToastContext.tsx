@@ -5,8 +5,9 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
-import { Text, StyleSheet, Animated, Platform } from 'react-native';
+import { Text, StyleSheet, Animated, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -58,16 +59,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
     [opacity],
   );
 
-  const getBackgroundColor = () => {
+  const getGradientColors = () => {
     switch (type) {
       case 'success':
-        return '#10B981';
+        return ['#FF9933', '#E07800']; // Orange gradient just like "View packages"
       case 'error':
-        return '#EF4444';
+        return ['#EF4444', '#B91C1C'];
       case 'info':
-        return '#3B82F6';
+        return ['#3B82F6', '#1D4ED8'];
       default:
-        return '#333333';
+        return ['#333333', '#111111'];
     }
   };
 
@@ -75,18 +76,28 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {visible && (
-        <Animated.View
-          style={[
-            styles.toastContainer,
-            {
-              backgroundColor: getBackgroundColor(),
-              opacity,
-              top: insets.top + (Platform.OS === 'ios' ? 10 : 20),
-            },
-          ]}
+        <View
+          style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}
+          pointerEvents="none"
         >
-          <Text style={styles.toastText}>{message}</Text>
-        </Animated.View>
+          <Animated.View
+            style={[
+              styles.toastContainer,
+              { opacity }
+            ]}
+          >
+            <LinearGradient
+              colors={getGradientColors()}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ ...StyleSheet.absoluteFillObject, borderRadius: 12 }}
+            />
+            <View style={styles.toastContent}>
+              {type === 'success' && <Text style={{ fontSize: 16, marginRight: 8 }}>✨</Text>}
+              <Text style={styles.toastText}>{message}</Text>
+            </View>
+          </Animated.View>
+        </View>
       )}
     </ToastContext.Provider>
   );
@@ -102,32 +113,32 @@ export const useToast = () => {
 
 const styles = StyleSheet.create({
   toastContainer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: '90%',
+    borderRadius: 12,
     zIndex: 9999,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
       },
       android: {
-        elevation: 6,
+        elevation: 8,
       },
     }),
+  },
+  toastContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
   },
   toastText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
 });

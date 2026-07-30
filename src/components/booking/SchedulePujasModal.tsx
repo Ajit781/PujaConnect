@@ -365,7 +365,7 @@ export default function SchedulePujasModal({
           <ScrollView style={{ padding: 20, flexShrink: 1 }} showsVerticalScrollIndicator={false}>
             {/* Tabs */}
             <View style={{ flexDirection: 'row', marginBottom: 16, alignItems: 'center', backgroundColor: Colors.white, padding: 4, borderRadius: 24, borderWidth: 1, borderColor: Colors.disabled }}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Self' && { backgroundColor: Colors.primary }]}
                 onPress={() => setActiveAddressTab('Self')}
               >
@@ -373,7 +373,7 @@ export default function SchedulePujasModal({
                   👤 {isBn ? 'আমার ঠিকানা' : 'My Addresses'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 20 }, activeAddressTab === 'Relative' && { backgroundColor: Colors.primary }]}
                 onPress={() => setActiveAddressTab('Relative')}
               >
@@ -424,15 +424,15 @@ export default function SchedulePujasModal({
                         </Text>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 12 }}>
-                        <TouchableOpacity onPress={() => {/* Handle Edit API */}}>
+                        <TouchableOpacity onPress={() => {/* Handle Edit API */ }}>
                           <Text style={{ fontSize: 16, color: Colors.textMuted }}>✏️</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => {/* Handle Delete API */}}>
+                        <TouchableOpacity onPress={() => {/* Handle Delete API */ }}>
                           <Text style={{ fontSize: 16, color: Colors.textMuted }}>🗑️</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
-                    
+
                     <View style={{ marginBottom: 12 }}>
                       <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.textMain, marginBottom: 4 }}>
                         {addr.label || addr.contactName}
@@ -447,7 +447,7 @@ export default function SchedulePujasModal({
                         📞 {addr.contactNumber}
                       </Text>
                     </View>
-                    
+
                     <TouchableOpacity style={{ borderWidth: 1, borderColor: Colors.lightOrange, backgroundColor: '#FFF7ED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
                       <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 14 }}>
                         {addr.isDefault ? '★ Default Address' : '☆ Set as Default'}
@@ -968,7 +968,7 @@ export default function SchedulePujasModal({
                 {step === 1
                   ? isBn
                     ? 'সূচি নিশ্চিত করুন এবং অর্ডার পর্যালোচনা করুন'
-                    : 'Confirm Schedule & Review Order'
+                    : 'Continue to Payment'
                   : isBn
                     ? 'সব কিছু ঠিক আছে, অর্ডার নিশ্চিত করুন'
                     : 'Everything looks good, Confirm Order'}

@@ -19,6 +19,8 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { Colors } from '../../constants/Colors';
 import { useAlert } from '../../context/AlertContext';
+import { ShieldCheck, ChevronRight, Check } from 'lucide-react-native';
+import TopNavBar from '../../components/common/TopNavBar';
 
 export interface ScheduleItemPayload {
   package_id: number;
@@ -58,12 +60,15 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
   const [preparedPayload, setPreparedPayload] = useState<ScheduleItemPayload[]>([]);
 
   useEffect(() => {
+    const defaultAddr = addresses?.find((a: any) => a.isDefault || a.is_default || a.is_default_address) || addresses?.[0];
+    const defaultAddrId = defaultAddr ? (defaultAddr.id || defaultAddr.ctzn_address_id)?.toString() : null;
+
     const initialSchedules: Record<string, { date: Date | null; time: string | null; addressId: string | null; showInstructions: boolean; instructions: string }> = {};
     cartItems.forEach((item: any) => {
-      initialSchedules[item.cartItemId] = { date: null, time: null, addressId: null, showInstructions: false, instructions: '' };
+      initialSchedules[item.cartItemId] = { date: null, time: null, addressId: defaultAddrId, showInstructions: false, instructions: '' };
     });
     setItemSchedules(initialSchedules);
-  }, [cartItems]);
+  }, [cartItems, addresses]);
 
   const formatDate = (d: Date | null) => {
     if (!d) return 'mm/dd/yyyy';
@@ -146,8 +151,22 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
     const payload: ScheduleItemPayload[] = [];
     for (const item of cartItems) {
       const sched = itemSchedules[item.cartItemId];
-      if (!sched || !sched.date || !sched.time || !sched.addressId) {
-        showAlert({ title: 'Required', message: 'Please fill all fields for each puja.' });
+      if (!sched || !sched.addressId) {
+        showAlert({
+          title: isBn ? 'ডিফল্ট ঠিকানা দরকার' : 'Default Address Missing',
+          message: isBn
+            ? 'আপনি একটি ডিফল্ট ঠিকানা নির্বাচন করেননি। পেমেন্টে এগিয়ে যাওয়ার আগে একটি বিতরণ ঠিকানা নির্বাচন করুন।'
+            : 'You have not selected a default delivery address. Please select or add an address before proceeding to payment.',
+        });
+        return;
+      }
+      if (!sched.date || !sched.time) {
+        showAlert({
+          title: isBn ? 'তারিখ ও সময় দরকার' : 'Date & Time Required',
+          message: isBn
+            ? 'দয়া করে প্রতিটি পূজার জন্য তারিখ এবং সময় নির্দেশ করুন।'
+            : 'Please select a preferred date and time for each puja before proceeding to payment.',
+        });
         return;
       }
       payload.push({
@@ -159,15 +178,11 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
       });
     }
 
-    if (step === 1) {
-      setPreparedPayload(payload);
-      setStep(2);
-    } else {
-      navigation.navigate('MainTabs', {
-        screen: 'CartTab',
-        params: { confirmedSchedules: preparedPayload },
-      });
-    }
+    // Skip Step 2 and immediately go to CartTab for payment
+    navigation.navigate('MainTabs', {
+      screen: 'CartTab',
+      params: { confirmedSchedules: payload },
+    });
   };
 
   const isFormValid = () => {
@@ -281,22 +296,48 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.extraLightWarm }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.extraLightWarm }} edges={['bottom']}>
       <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+      <TopNavBar showBack={true} />
 
       {/* Top Header */}
       {step === 1 ? (
         <View style={styles.newHeaderBox}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtnCircle}>
-            <Text style={styles.backBtnArrow}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.newHeaderTitle}>
-            {isBn ? 'পূজার জন্য আপনার পছন্দের তারিখ, সময় এবং ঠিকানা নির্বাচন করুন।' : 'Select your preferred date, time, and address for the puja.'}
-          </Text>
-          <View style={styles.headerDividerRow}>
-            <View style={styles.headerLine} />
-            <Text style={styles.headerStar}>✦</Text>
-            <View style={styles.headerLine} />
+          {/* Stepper */}
+          <View style={styles.stepperWrapper}>
+            <View style={styles.stepperNode}>
+              <View style={styles.stepCircleCompleted}>
+                <Check color={Colors.white} size={16} strokeWidth={3} />
+              </View>
+              <Text style={styles.stepLabelCompleted}>Cart</Text>
+            </View>
+            <View style={styles.stepLineCompleted} />
+            
+            <View style={styles.stepperNode}>
+              <View style={styles.stepCircleActiveOuter}>
+                <View style={styles.stepCircleActiveInner}>
+                  <Text style={styles.stepIconActive}>📅</Text>
+                </View>
+              </View>
+              <Text style={styles.stepLabelActive}>Schedule</Text>
+            </View>
+            <View style={styles.stepLineInactive} />
+            
+            <View style={styles.stepperNode}>
+              <View style={styles.stepCircleInactive}>
+                <Text style={styles.stepIconInactive}>💳</Text>
+              </View>
+              <Text style={styles.stepLabelInactive}>Payment</Text>
+            </View>
+          </View>
+
+          {/* Header Title Section */}
+          <View style={styles.headerTitleSection}>
+              <View style={styles.headerTextWrapper}>
+              <Text style={styles.stepCountText}>STEP 2 OF 3</Text>
+              <Text style={styles.mainHeading}>Schedule your puja</Text>
+              <Text style={styles.subHeading}>Choose when and where you would like the ceremony performed.</Text>
+            </View>
           </View>
         </View>
       ) : (
@@ -535,16 +576,25 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
       {/* Footer */}
       <View style={styles.footerRow}>
         <TouchableOpacity
-          style={[styles.confirmBtn, !isFormValid() && styles.btnDisabled]}
-          disabled={!isFormValid()}
-          onPress={handleConfirm}>
-          <Text style={styles.confirmBtnText}>
-            {step === 1 ? '✨ ' : '✅ '}
-            {step === 1
-              ? isBn ? 'সূচি নিশ্চিত করুন এবং অর্ডার পর্যালোচনা করুন' : 'Confirm Schedule & Review Order'
-              : isBn ? 'সব কিছু ঠিক আছে, অর্ডার নিশ্চিত করুন' : 'Everything looks good, Confirm Order'}
-          </Text>
-        </TouchableOpacity>
+            style={styles.confirmBtn}
+            onPress={handleConfirm}>
+            <View style={styles.btnContentLeft}>
+               <ShieldCheck color={Colors.white} size={22} style={{ opacity: 0.9 }} />
+               <View style={styles.btnTextWrapper}>
+                  <Text style={styles.btnMainTitle}>
+                    {step === 1 
+                      ? (isBn ? 'সময়সূচী নিশ্চিত করুন' : 'Continue to Payment')
+                      : (isBn ? 'অর্ডার নিশ্চিত করুন' : 'Confirm Order')}
+                  </Text>
+                  <Text style={styles.btnSubTitle}>
+                    {step === 1
+                      ? (isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time')
+                      : (isBn ? 'সব ঠিক আছে' : 'Everything looks good')}
+                  </Text>
+               </View>
+            </View>
+            <ChevronRight color={Colors.white} size={22} style={{ opacity: 0.9 }} />
+          </TouchableOpacity>
       </View>
 
       {/* Date & Time Picker Render */}
@@ -557,39 +607,136 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   
   newHeaderBox: {
-    backgroundColor: Colors.extraLightWarm,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  backBtnCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E5D5C5',
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  backBtnArrow: {
-    fontSize: 16,
-    color: '#3B2416',
-    fontWeight: '500',
-  },
-  newHeaderTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#3b2416',
-    marginBottom: 20,
-    lineHeight: 30,
-  },
-  headerDividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerLine: {
+      backgroundColor: Colors.extraLightWarm,
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 16,
+    },
+    stepperWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+      paddingHorizontal: 10,
+    },
+    stepperNode: {
+      alignItems: 'center',
+      width: 60,
+    },
+    stepCircleCompleted: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: Colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    stepLabelCompleted: {
+      fontSize: 12,
+      color: Colors.primary,
+      fontWeight: '800',
+    },
+    stepLineCompleted: {
+      flex: 1,
+      height: 2,
+      backgroundColor: Colors.primary,
+      marginHorizontal: 8,
+      marginBottom: 20,
+    },
+    stepCircleInactive: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      backgroundColor: '#FFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    stepIconInactive: {
+      fontSize: 16,
+      opacity: 0.2,
+    },
+    stepLabelInactive: {
+      fontSize: 12,
+      color: '#D1D5DB',
+      fontWeight: '600',
+    },
+    stepLineInactive: {
+      flex: 1,
+      height: 2,
+      backgroundColor: '#E5E7EB',
+      marginHorizontal: 8,
+      marginBottom: 20,
+    },
+    stepCircleActiveOuter: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: '#FFF0D6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    stepCircleActiveInner: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#111827',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepIconActive: {
+      fontSize: 16,
+      color: '#FFF',
+    },
+    stepLabelActive: {
+      fontSize: 12,
+      color: '#D1D5DB', 
+      fontWeight: '600',
+    },
+    headerTitleSection: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    backBtnCircleRow: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      backgroundColor: '#FFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 16,
+      marginTop: 8,
+    },
+    headerTextWrapper: {
+      flex: 1,
+    },
+    stepCountText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#F97316',
+      letterSpacing: 1.5,
+      marginBottom: 4,
+    },
+    mainHeading: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: '#3B2416',
+      marginBottom: 6,
+    },
+    subHeading: {
+      fontSize: 14,
+      color: '#6B7280',
+      lineHeight: 20,
+    },
+    backBtnCircle: {
+    },
+    headerLine: {
     flex: 1,
     height: 1,
     backgroundColor: '#EED9C4',
@@ -957,18 +1104,38 @@ const styles = StyleSheet.create({
   footerRow: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 62, // Increased from 16 to move button up
+    paddingBottom: 24, // Reduced from 62 to move button down
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderColor: Colors.border,
   },
   confirmBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  btnContentLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  confirmBtnText: { color: Colors.white, fontSize: 15, fontWeight: '800' },
+  btnTextWrapper: {
+    marginLeft: 12,
+  },
+  btnMainTitle: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  btnSubTitle: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
   btnDisabled: { opacity: 0.5 },
   // Review Styles
   reviewContainer: { paddingHorizontal: 4, paddingTop: 4 },

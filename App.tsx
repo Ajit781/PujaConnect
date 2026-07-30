@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, View, Animated, StyleSheet } from 'react-native';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import NetInfo from '@react-native-community/netinfo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -35,21 +35,44 @@ const GlobalLoaderWrapper = () => {
 // Main App Navigation Logic — mapped to Redux auth state
 function RootNavigator() {
   const [isSplashVisible, setIsSplashVisible] = React.useState(true);
+  const splashOpacity = React.useRef(new Animated.Value(1)).current;
+  
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.isAuthenticated,
   );
 
   React.useEffect(() => {
-    const timer = setTimeout(() => setIsSplashVisible(false), 2500);
+    const timer = setTimeout(() => {
+      // Fade out the splash screen smoothly
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }).start(() => {
+        setIsSplashVisible(false);
+      });
+    }, 2500);
+    
     return () => clearTimeout(timer);
-  }, []);
-
-  if (isSplashVisible) return <SplashScreen />;
+  }, [splashOpacity]);
 
   return (
-    <NavigationContainer>
-      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
-    </NavigationContainer>
+    <View style={{ flex: 1, backgroundColor: '#fffdfa' }}>
+      <NavigationContainer>
+        {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      </NavigationContainer>
+
+      {isSplashVisible && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            { opacity: splashOpacity, zIndex: 9999 }
+          ]}
+        >
+          <SplashScreen />
+        </Animated.View>
+      )}
+    </View>
   );
 }
 

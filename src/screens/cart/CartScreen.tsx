@@ -7,7 +7,7 @@ import React, {
   useCallback,
 } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import {
+import { ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -45,6 +45,7 @@ import {
   useGetAddressesQuery,
   useBookPujaMutation,
 } from '../../store/api/pujaApi';
+import TopNavBar from '../../components/common/TopNavBar';
 import NoDataFound from '../../components/common/NoDataFound';
 import { useToast } from '../../context/ToastContext';
 import { CustomAlert } from '../../components/common/CustomAlert';
@@ -52,6 +53,7 @@ import SchedulePujasModal, {
   ScheduleItemPayload,
 } from '../../components/booking/SchedulePujasModal';
 import { Colors } from '../../constants/Colors';
+import { ShieldCheck } from 'lucide-react-native';
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -88,7 +90,10 @@ export default function CartScreen({ navigation, route }: any) {
     );
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [isPaymentInitializing, setIsPaymentInitializing] = useState(false);
+
 
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentOrderRef, setPaymentOrderRef] = useState<string | null>(null);
@@ -99,7 +104,7 @@ export default function CartScreen({ navigation, route }: any) {
       const schedules = route.params.confirmedSchedules;
       setPujaScheduleList(schedules);
       handleConfirmOrder(schedules);
-      
+
       // Clear the param so it doesn't trigger again on subsequent renders
       navigation.setParams({ confirmedSchedules: undefined });
     }
@@ -391,10 +396,21 @@ export default function CartScreen({ navigation, route }: any) {
         ? schedulesToUse[0].ctzn_address_id
         : parseInt(selectedAddressId || '0', 10);
 
+    if (!topAddressId || topAddressId === 0) {
+      dispatch(hideLoader());
+      showToast({
+        message: isBn
+          ? 'আপনি একটি ডিফল্ট ঠিকানা নির্বাচন করেননি। পেমেন্টে এগিয়ে যাওয়ার আগে একটি বিতরণ ঠিকানা নির্বাচন করুন।'
+          : 'You have not selected a default delivery address. Please select or add an address before proceeding to payment.',
+        type: 'error',
+      });
+      return;
+    }
+
     try {
       console.log('--- CHECKOUT USER OBJECT ---', user);
       console.log('--- CHECKOUT AUTH_ID TO SEND ---', user?.auth_id || user?.user_id);
-      
+
       const payload = {
         in_booking_id: 0,
         auth_id: user?.auth_id || user?.user_id || 0,
@@ -695,27 +711,11 @@ export default function CartScreen({ navigation, route }: any) {
     return (
       <View style={styles.container}>
         <StatusBar
-          backgroundColor={Colors.background}
+          backgroundColor="#FAF6EF"
           barStyle="dark-content"
+          translucent={true}
         />
-        <SafeAreaView edges={['top']} style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backBtnBig}
-            >
-              <Text style={styles.backBtnBigText}>←</Text>
-            </TouchableOpacity>
-            <View style={styles.headerTitleBox}>
-              <Text style={styles.headerTitleMain}>
-                🛒 {isBn ? 'পবিত্র কার্ট' : 'Sacred Cart'}
-              </Text>
-              <Text style={styles.headerTitleSub}>
-                0 {isBn ? 'আশীর্বাদ নির্বাচিত' : 'blessings selected'}
-              </Text>
-            </View>
-          </View>
-        </SafeAreaView>
+        <TopNavBar showBack={true} />
         <NoDataFound
           message={isBn ? 'আপনার কার্ট খালি' : 'Your cart is empty'}
           containerHeight={400}
@@ -812,33 +812,11 @@ export default function CartScreen({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <StatusBar
-        backgroundColor={Colors.white}
+        backgroundColor="#FAF6EF"
         barStyle="dark-content"
         translucent={true}
       />
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 8, paddingBottom: 10 },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtnBig}
-        >
-          <Text style={styles.backBtnBigText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitleMain}>
-            🛒 {isBn ? 'পবিত্র কার্ট' : 'Sacred Cart'}
-          </Text>
-          <Text style={styles.headerTitleSub}>
-            {cartItemsMapped.length}{' '}
-            {isBn ? 'আশীর্বাদ নির্বাচিত' : 'blessings selected'}
-          </Text>
-        </View>
-        <Text style={styles.headerSparkle}>✨</Text>
-      </View>
+      <TopNavBar showBack={true} />
 
       <ScrollView
         style={styles.body}
@@ -1062,7 +1040,7 @@ export default function CartScreen({ navigation, route }: any) {
             style={[
               styles.fixedFooter,
               {
-                paddingBottom: Math.max(120, insets.bottom + 115),
+                paddingBottom: Math.max(16, insets.bottom + 16),
                 paddingTop: 16,
                 marginBottom: isKeyboardVisible ? 20 : 0,
               },
@@ -1095,8 +1073,9 @@ export default function CartScreen({ navigation, route }: any) {
                   }
                 }}
               >
+                <ShieldCheck size={18} color="#FFF" />
                 <Text style={styles.fixedFooterBtnText}>
-                  {isBn ? 'এগিয়ে যান' : 'Proceed to checkout'} ✨
+                  {isBn ? 'এগিয়ে যান' : 'Proceed to checkout'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1383,6 +1362,17 @@ export default function CartScreen({ navigation, route }: any) {
         buttons={alertConfig.buttons}
         onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
+
+            {/* Custom Payment Initialization Loader */}
+      <Modal visible={isPaymentInitializing} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', padding: 24, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
+            <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textMain }}>Processing...</Text>
+            <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 4 }}>Initializing secure payment</Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* Plural WebView Modal */}
       <Modal
@@ -1807,8 +1797,11 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   fixedFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 14,
     elevation: 4,

@@ -21,15 +21,20 @@ export interface ValidateOtpResponse {
  */
 export async function generateOtp(
   mobileNumber: string,
-): Promise<GenerateOtpResponse | null> {
+): Promise<GenerateOtpResponse> {
   const encData = JSON.stringify({ mobile_number: mobileNumber });
   const response = await api.post(ENDPOINTS.sendOtp, { enc_data: encData });
 
-  // status 0 = success, otherwise global alert already fired
-  if (response.data.status !== 0) return null;
+  if (!response.data || response.data.status !== 0) {
+    throw new Error(
+      response.data?.message ||
+        'Failed to send OTP. Please check mobile number and try again.',
+    );
+  }
 
-  // data is a JSON string — parse it
-  const parsed: GenerateOtpResponse = JSON.parse(response.data.data);
+  const raw = response.data.data;
+  const parsed: GenerateOtpResponse =
+    typeof raw === 'string' ? JSON.parse(raw) : raw;
   return parsed;
 }
 
@@ -40,13 +45,19 @@ export async function generateOtp(
 export async function validateOtp(
   mobileNumber: string,
   otp: string,
-): Promise<ValidateOtpResponse | null> {
+): Promise<ValidateOtpResponse> {
   const encData = JSON.stringify({ mobile_number: mobileNumber, otp });
   const response = await api.post(ENDPOINTS.verifyOtp, { enc_data: encData });
 
-  if (response.data.status !== 0) return null;
+  if (!response.data || response.data.status !== 0) {
+    throw new Error(
+      response.data?.message || 'Invalid OTP entered. Please try again.',
+    );
+  }
 
-  const parsed: ValidateOtpResponse = JSON.parse(response.data.data);
+  const raw = response.data.data;
+  const parsed: ValidateOtpResponse =
+    typeof raw === 'string' ? JSON.parse(raw) : raw;
 
   // Requirement: fetch token strictly AFTER validate_otp succeeds
   await fetchFreshToken();

@@ -11,7 +11,7 @@ interface AlertOptions {
 
 interface AlertContextValue {
   showAlert: (options: AlertOptions) => void;
-  showErrorAlert: (message?: string) => void;
+  showErrorAlert: (message?: string, title?: string) => void;
   hideAlert: () => void;
 }
 
@@ -45,10 +45,10 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     setVisible(true);
   }, []);
 
-  const showErrorAlert = useCallback((message?: string) => {
+  const showErrorAlert = useCallback((message?: string, customTitle?: string) => {
     let finalMessage = message;
 
-    // If the message is the generic default, replace it with the support text
+    // If the message is the generic default, replace it with clean text
     if (
       !message ||
       message.toLowerCase() === 'something went wrong' ||
@@ -57,12 +57,11 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       finalMessage =
         'Please try again. If the issue persists, contact support.';
     } else {
-      // If there's a dynamic message, just show it cleanly
       finalMessage = message;
     }
 
     setAlertConfig({
-      title: 'Something went wrong',
+      title: customTitle || 'Alert',
       message: finalMessage,
       type: 'error',
       buttons: [{ text: 'OK' }],

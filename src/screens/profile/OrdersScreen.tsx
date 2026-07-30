@@ -5,19 +5,33 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   StatusBar,
   FlatList,
   Platform,
   RefreshControl,
-  Linking,
   Modal,
   SafeAreaView,
+  TextInput,
 } from 'react-native';
 import { decode as base64Decode } from 'base-64';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import OrderCard from '../../components/orders/OrderCard';
+import TopNavBar from '../../components/common/TopNavBar';
+import {
+  ClipboardList,
+  Sparkles,
+  SlidersHorizontal,
+  RotateCcw,
+  Calendar,
+  Package,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  X,
+  Archive,
+} from 'lucide-react-native';
+
 import InvoiceModal from '../../components/orders/InvoiceModal';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -108,6 +122,37 @@ export default function OrdersScreen({ navigation }: any) {
 
   const [fromDate, setFromDate] = useState<string | null>(defaultFromDate.toISOString().split('T')[0]);
   const [toDate, setToDate] = useState<string | null>(defaultToDate.toISOString().split('T')[0]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [quickRange, setQuickRange] = useState<'30d' | '6m' | 'all'>('30d');
+
+  const formatDisplayDate = (dStr: string | null) => {
+    if (!dStr) return '';
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dStr;
+  };
+
+  const handleQuickRange = (type: '30d' | '6m' | 'all') => {
+    setQuickRange(type);
+    const today = new Date();
+    if (type === '30d') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setFromDate(d.toISOString().split('T')[0]);
+      setToDate(today.toISOString().split('T')[0]);
+    } else if (type === '6m') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      setFromDate(d.toISOString().split('T')[0]);
+      setToDate(today.toISOString().split('T')[0]);
+    } else if (type === 'all') {
+      setFromDate(null);
+      setToDate(null);
+    }
+  };
 
   const PAYMENT_OPTIONS = [
     { label: 'All Payments', value: 7 },
@@ -228,8 +273,18 @@ export default function OrdersScreen({ navigation }: any) {
   }, [paymentFilter, statusFilter, fromDate, toDate]);
 
   const filteredOrders = React.useMemo(() => {
-    return orders;
-  }, [orders]);
+    if (!searchQuery.trim()) return orders;
+    const q = searchQuery.toLowerCase().trim();
+    return orders.filter((o: any) => {
+      if (o.order_reference?.toLowerCase().includes(q)) return true;
+      if (o.order_id?.toString().includes(q)) return true;
+      if (o.booking_details?.some((b: any) =>
+        b.booking_no?.toLowerCase().includes(q) ||
+        b.package_details?.some((p: any) => p.package_name?.toLowerCase().includes(q))
+      )) return true;
+      return false;
+    });
+  }, [orders, searchQuery]);
 
   const showPagination = totalCount > PAGE_SIZE;
   const isNextDisabled = pageNo * PAGE_SIZE >= totalCount;
@@ -247,152 +302,10 @@ export default function OrdersScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.white} barStyle="dark-content" />
+      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
 
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
-            {isBn ? 'আমার অর্ডার' : 'My Orders'}
-          </Text>
-          <Text style={styles.headerSub}>
-            {orders.length} {isBn ? 'টি বুকিং' : 'total bookings'}
-          </Text>
-        </View>
-        <View style={styles.headerRight} />
-      </View>
-
-      <View style={styles.filterCard}>
-        <View style={styles.filterControlsRow}>
-          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
-            <TouchableOpacity
-              style={[styles.filterDropdown, { flex: 1, minWidth: 100, paddingHorizontal: 10 }]}
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  setShowStatusDropdown(true);
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-            >
-              <Text style={styles.filterDropdownText} numberOfLines={1}>
-                {statusFilter.label}
-              </Text>
-              <Text style={styles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.filterDropdown, { flex: 1, minWidth: 100, paddingHorizontal: 10 }]}
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  setShowPaymentDropdown(true);
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-            >
-              <Text style={styles.filterDropdownText} numberOfLines={1}>
-                {paymentFilter.label}
-              </Text>
-              <Text style={styles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.dateFiltersRow}>
-          <View style={styles.dateControlWrap}>
-            <Text style={styles.dateControlLabel}>
-              {isBn ? 'তারিখ থেকে' : 'From Date'}
-            </Text>
-            <TouchableOpacity
-              style={styles.dateBox}
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  setActiveDatePicker('from');
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-            >
-              <Text style={styles.dateIcon}>📅</Text>
-              <Text
-                style={[styles.dateValue, !fromDate && styles.datePlaceholder]}
-              >
-                {fromDate || 'Select Date'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.dateControlWrap}>
-            <Text style={styles.dateControlLabel}>
-              {isBn ? 'তারিখ পর্যন্ত' : 'To Date'}
-            </Text>
-            <TouchableOpacity
-              style={styles.dateBox}
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  setActiveDatePicker('to');
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-            >
-              <Text style={styles.dateIcon}>📅</Text>
-              <Text
-                style={[styles.dateValue, !toDate && styles.datePlaceholder]}
-              >
-                {toDate || 'Select Date'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.resultsRow}>
-          <Text style={styles.resultsText}>
-            {filteredOrders.length}{' '}
-            {isBn ? 'টি বুকিং পাওয়া গেছে' : 'bookings found'}
-          </Text>
-          {(fromDate ||
-            toDate ||
-            searchQuery ||
-            paymentFilter.value !== 7) && (
-              <TouchableOpacity
-                onPress={() => {
-                  setFromDate(defaultFromDate.toISOString().split('T')[0]);
-                  setToDate(defaultToDate.toISOString().split('T')[0]);
-                  setSearchQuery('');
-                  setPaymentFilter(PAYMENT_OPTIONS[0]);
-                }}
-                style={styles.clearAllBtn}
-              >
-                <Text style={styles.clearFilters}>
-                  {isBn ? 'ফিল্টার মুছুন' : 'Clear Filters'}
-                </Text>
-              </TouchableOpacity>
-            )}
-        </View>
-      </View>
+      {/* ── Orange Top Navbar ── */}
+      <TopNavBar />
 
       <InvoiceModal
         visible={invoiceModalVisible}
@@ -403,14 +316,247 @@ export default function OrdersScreen({ navigation }: any) {
       <FlatList
         data={filteredOrders}
         keyExtractor={(item: any) => item.order_id.toString()}
+        ListHeaderComponent={
+          <>
+            {/* ── My Orders Hero Card ── */}
+            <View style={styles.heroCard}>
+              <View style={styles.heroLeft}>
+                <View style={styles.heroIconWrap}>
+                  <ClipboardList color={BRAND_PRIMARY} size={24} />
+                </View>
+                <View>
+                  <Text style={styles.heroTitle}>{isBn ? 'আমার অর্ডার' : 'My Orders'}</Text>
+                  <Text style={styles.heroSub}>{isBn ? 'আপনার পূজা অর্ডার পর্যালোচনা করুন' : 'Review and manage your puja orders'}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.bookBtn}
+                onPress={() => navigation.navigate('HomeTab' as never)}
+              >
+                <Sparkles color="#fff" size={16} style={{ marginRight: 6 }} />
+                <Text style={styles.bookBtnText}>{isBn ? 'পূজা বুক করুন' : 'Book a puja'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Order History Section Label ── */}
+            <View style={styles.sectionLabelRow}>
+              <Text style={styles.sectionLabel}>{isBn ? 'অর্ডার ইতিহাস' : 'Order history'}</Text>
+              <Text style={styles.sectionLabelSub}>{isBn ? 'নির্বাচিত তারিখ পরিসরের অর্ডার' : 'Orders from the selected date range'}</Text>
+            </View>
+
+            {/* ── Filter Card ── */}
+            <View style={styles.filterCard}>
+              {/* Header row - clickable to toggle expand/collapse */}
+              <TouchableOpacity
+                style={styles.filterTitleRow}
+                onPress={() => setIsFilterExpanded(prev => !prev)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <SlidersHorizontal color={BRAND_TEXT} size={18} />
+                  <Text style={styles.filterTitle}>
+                    {isBn ? 'ফিল্টার ও অনুসন্ধান' : 'Filter & search'}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  {isFilterExpanded ? (
+                    <ChevronUp color={BRAND_MUTED} size={18} />
+                  ) : (
+                    <ChevronDown color={BRAND_MUTED} size={18} />
+                  )}
+                  <TouchableOpacity
+                    style={styles.resetBtn}
+                    onPress={() => {
+                      setFromDate(defaultFromDate.toISOString().split('T')[0]);
+                      setToDate(defaultToDate.toISOString().split('T')[0]);
+                      setStatusFilter(STATUS_OPTIONS[0]);
+                      setPaymentFilter(PAYMENT_OPTIONS[0]);
+                      setSearchQuery('');
+                      setQuickRange('30d');
+                    }}
+                  >
+                    <RotateCcw color={BRAND_MUTED} size={14} style={{ marginRight: 4 }} />
+                    <Text style={styles.resetBtnText}>{isBn ? 'রিসেট' : 'Reset'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+
+              {/* Collapsed Summary Chips */}
+              {!isFilterExpanded && (
+                <View style={styles.summaryChipsRow}>
+                  <View style={styles.summaryStatusPill}>
+                    <Text style={styles.summaryStatusText}>{statusFilter.label}</Text>
+                  </View>
+                  <View style={styles.summaryDatePill}>
+                    <Text style={styles.summaryDateText}>
+                      {quickRange === '30d'
+                        ? (isBn ? 'শেষ ৩০ দিন' : 'Last 30 days')
+                        : quickRange === '6m'
+                        ? (isBn ? 'শেষ ৬ মাস' : 'Last 6 months')
+                        : (isBn ? 'সমস্ত অর্ডার' : 'All orders')}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Expanded Filter Body */}
+              {isFilterExpanded && (
+                <View style={styles.filterCardBody}>
+                  {/* STATUS */}
+                  <View style={styles.fieldWrap}>
+                    <Text style={styles.fieldLabel}>{isBn ? 'স্ট্যাটাস' : 'STATUS'}</Text>
+                    <TouchableOpacity
+                      style={styles.inputBox}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) setShowStatusDropdown(true);
+                        else showToast({ message: t('common.connectionRequired'), type: 'error' });
+                      }}
+                    >
+                      <Archive color="#D97706" size={16} style={{ marginRight: 8 }} />
+                      <Text style={styles.inputText} numberOfLines={1}>{statusFilter.label}</Text>
+                      <ChevronDown color="#D97706" size={16} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* FROM DATE */}
+                  <View style={styles.fieldWrap}>
+                    <Text style={styles.fieldLabel}>{isBn ? 'তারিখ থেকে' : 'FROM DATE'}</Text>
+                    <TouchableOpacity
+                      style={styles.inputBox}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) setActiveDatePicker('from');
+                        else showToast({ message: t('common.connectionRequired'), type: 'error' });
+                      }}
+                    >
+                      <Calendar color="#D97706" size={16} style={{ marginRight: 8 }} />
+                      <Text style={[styles.inputText, !fromDate && styles.inputPlaceholder]}>
+                        {fromDate ? formatDisplayDate(fromDate) : 'Select Date'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                        <Calendar color={BRAND_MUTED} size={14} />
+                        {fromDate && (
+                          <TouchableOpacity onPress={() => setFromDate(null)}>
+                            <X color={BRAND_MUTED} size={14} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* TO DATE */}
+                  <View style={styles.fieldWrap}>
+                    <Text style={styles.fieldLabel}>{isBn ? 'তারিখ পর্যন্ত' : 'TO DATE'}</Text>
+                    <TouchableOpacity
+                      style={styles.inputBox}
+                      onPress={async () => {
+                        const state = await NetInfo.fetch();
+                        if (state.isConnected) setActiveDatePicker('to');
+                        else showToast({ message: t('common.connectionRequired'), type: 'error' });
+                      }}
+                    >
+                      <Calendar color="#D97706" size={16} style={{ marginRight: 8 }} />
+                      <Text style={[styles.inputText, !toDate && styles.inputPlaceholder]}>
+                        {toDate ? formatDisplayDate(toDate) : 'Select Date'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                        <Calendar color={BRAND_MUTED} size={14} />
+                        {toDate && (
+                          <TouchableOpacity onPress={() => setToDate(null)}>
+                            <X color={BRAND_MUTED} size={14} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* SEARCH ALL ORDERS */}
+                  <View style={styles.fieldWrap}>
+                    <Text style={styles.fieldLabel}>{isBn ? 'সমস্ত অর্ডার খুঁজুন' : 'SEARCH ALL ORDERS'}</Text>
+                    <View style={styles.inputBox}>
+                      <Search color="#D97706" size={16} style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={styles.textInput}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholder={isBn ? 'রেফারেন্স বা প্যাকেজ...' : 'Reference or package...'}
+                        placeholderTextColor={BRAND_MUTED}
+                      />
+                      {searchQuery ? (
+                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                          <X color={BRAND_MUTED} size={14} />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Filters applied pill button */}
+                  <View style={styles.filtersAppliedPill}>
+                    <Package color="#059669" size={16} />
+                    <Text style={styles.filtersAppliedText}>
+                      {isBn ? 'ফিল্টার প্রয়োগ করা হয়েছে' : 'Filters applied'}
+                    </Text>
+                  </View>
+
+                  {/* QUICK RANGE */}
+                  <View style={styles.quickRangeContainer}>
+                    <Text style={styles.quickRangeLabel}>{isBn ? 'দ্রুত সীমার' : 'QUICK RANGE'}</Text>
+                    <View style={styles.quickRangeChipsRow}>
+                      <TouchableOpacity
+                        style={[styles.rangeChip, quickRange === '30d' && styles.rangeChipActive]}
+                        onPress={() => handleQuickRange('30d')}
+                      >
+                        <Text style={[styles.rangeChipText, quickRange === '30d' && styles.rangeChipTextActive]}>
+                          {isBn ? 'শেষ ৩০ দিন' : 'Last 30 days'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.rangeChip, quickRange === '6m' && styles.rangeChipActive]}
+                        onPress={() => handleQuickRange('6m')}
+                      >
+                        <Text style={[styles.rangeChipText, quickRange === '6m' && styles.rangeChipTextActive]}>
+                          {isBn ? 'শেষ ৬ মাস' : 'Last 6 months'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.rangeChip, quickRange === 'all' && styles.rangeChipActive]}
+                        onPress={() => handleQuickRange('all')}
+                      >
+                        <Text style={[styles.rangeChipText, quickRange === 'all' && styles.rangeChipTextActive]}>
+                          {isBn ? 'সমস্ত অর্ডার' : 'All orders'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* ── Order Results Banner ── */}
+            <View style={styles.resultsBanner}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Package color={BRAND_PRIMARY} size={18} />
+                <View>
+                  <Text style={styles.resultsBannerTitle}>{isBn ? 'অর্ডার ফলাফল' : 'Order results'}</Text>
+                  <Text style={styles.resultsBannerSub}>
+                    {isBn ? `${filteredOrders.length}-এর মধ্যে ${totalCount} দেখাচ্ছে` : `Showing 1–${filteredOrders.length} of ${totalCount} orders`}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.pageLabel}>{isBn ? `পৃষ্ঠা ${pageNo}` : `Page ${pageNo} of ${Math.ceil(totalCount / PAGE_SIZE) || 1}`}</Text>
+            </View>
+          </>
+        }
         renderItem={({ item }) => (
           <OrderCard
             item={item}
             isBn={isBn}
             onPressCard={(order) => {
-              if (order.order_status?.toLowerCase().includes('cancel')) {
-                setSelectedOrderDetails(order);
-              }
+              setSelectedOrderDetails(order);
             }}
             onPressCancel={(orderId) => {
               setCancelDetails({ orderId, bookingId: '0', packageId: '0', title: item.order_reference });
@@ -465,10 +611,12 @@ export default function OrdersScreen({ navigation }: any) {
               try {
                 showToast({ message: isBn ? 'ইনভয়েস ফেচ হচ্ছে...' : 'Fetching invoice...', type: 'info' });
                 const res = await getInvoiceDetails({ order_id: parseInt(orderId), booking_id: 0 }).unwrap();
-                setCurrentInvoiceData(res);
+                setCurrentInvoiceData(res || item);
                 setInvoiceModalVisible(true);
               } catch (e) {
-                showToast({ message: isBn ? 'ইনভয়েস ফেচ করতে সমস্যা হয়েছে' : 'Failed to fetch invoice details', type: 'error' });
+                console.log('Invoice API fetch error, fallback to order item:', e);
+                setCurrentInvoiceData(item);
+                setInvoiceModalVisible(true);
               }
             }}
           />
@@ -729,7 +877,257 @@ export default function OrdersScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F2F3F7' },
 
-  // Header
+  // Hero Card - white card below the orange navbar
+  heroCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    marginTop: 12,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  heroLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  heroIconWrap: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+  },
+  heroIcon: { fontSize: 22 },
+  heroTitle: { fontSize: 22, fontWeight: '900', color: BRAND_TEXT },
+  heroSub: { fontSize: 12, color: BRAND_MUTED, marginTop: 2 },
+  bookBtn: {
+    backgroundColor: BRAND_PRIMARY,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  bookBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+
+  // Section label
+  sectionLabelRow: {
+    paddingHorizontal: 0,
+    paddingTop: 6,
+    paddingBottom: 10,
+  },
+  sectionLabel: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
+  sectionLabelSub: { fontSize: 12, color: BRAND_MUTED, marginTop: 2 },
+
+  // Filter card
+  filterTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  filterIcon: { fontSize: 18, color: BRAND_TEXT, fontWeight: '700' },
+  filterTitle: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  resetBtnText: { fontSize: 13, color: BRAND_MUTED, fontWeight: '600' },
+
+  // Summary chips when collapsed
+  summaryChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  summaryStatusPill: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  summaryStatusText: {
+    color: '#D46B08',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  summaryDatePill: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  summaryDateText: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Quick range chips row
+  quickRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  quickChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  quickChipActive: {
+    backgroundColor: BRAND_PRIMARY,
+    borderColor: BRAND_PRIMARY,
+  },
+  quickChipText: { fontSize: 13, fontWeight: '600', color: BRAND_MUTED },
+  quickChipTextActive: { color: '#fff' },
+
+  filterCardBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  fieldWrap: {
+    marginTop: 12,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: BRAND_MUTED,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 46,
+  },
+  inputText: {
+    flex: 1,
+    fontSize: 14,
+    color: BRAND_TEXT,
+    fontWeight: '600',
+  },
+  inputPlaceholder: {
+    color: BRAND_MUTED,
+    fontWeight: '400',
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    color: BRAND_TEXT,
+    fontWeight: '600',
+    padding: 0,
+  },
+  filtersAppliedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  filtersAppliedText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  quickRangeContainer: {
+    marginTop: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  quickRangeLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: BRAND_MUTED,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  quickRangeChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  rangeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
+  },
+  rangeChipActive: {
+    backgroundColor: '#D46B08',
+    borderColor: '#D46B08',
+  },
+  rangeChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BRAND_TEXT,
+  },
+  rangeChipTextActive: {
+    color: '#fff',
+  },
+
+  // Results banner
+  resultsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  resultsIcon: { fontSize: 18 },
+  resultsBannerTitle: { fontSize: 13, fontWeight: '700', color: BRAND_TEXT },
+  resultsBannerSub: { fontSize: 11, color: BRAND_MUTED, marginTop: 1 },
+  pageLabel: { fontSize: 12, fontWeight: '700', color: BRAND_MUTED },
+
+
+  // Old header kept for compat
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -740,18 +1138,16 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.lightGray,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: '#F2F3F7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   backBtnText: { fontSize: 18, color: BRAND_TEXT, fontWeight: 'bold' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: BRAND_TEXT },
   headerSub: { fontSize: 12, color: BRAND_MUTED, marginTop: 1 },
   headerRight: { width: 36 },
+
 
   // Tabs
   tabsBar: {
@@ -787,18 +1183,12 @@ const styles = StyleSheet.create({
   tabText: { color: BRAND_MUTED, fontSize: 13, fontWeight: '700' },
   tabTextActive: { color: Colors.white, fontWeight: '900', letterSpacing: 0.3 },
 
-  // Filter Bar — beautifully designed
   filterCard: {
     backgroundColor: Colors.white,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 8,
-    zIndex: 10,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   filterControlsRow: {
     flexDirection: 'row',
@@ -862,34 +1252,26 @@ const styles = StyleSheet.create({
   dateFiltersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 16,
+    paddingHorizontal: 14,
+    gap: 8,
+    paddingBottom: 12,
   },
-  dateControlWrap: {
-    flex: 1,
-  },
+  dateControlWrap: { flex: 1 },
   dateControlLabel: {
-    fontSize: 11,
-    color: BRAND_MUTED,
-    fontWeight: '800',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 11, color: BRAND_MUTED, fontWeight: '800',
+    marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
   },
   dateBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 6,
     shadowRadius: 3,
     elevation: 1,
   },

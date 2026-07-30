@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Gift } from 'lucide-react-native';
 import {
   View,
   Text,
@@ -511,12 +512,10 @@ export default function BookingModal({
                     >
                       <View style={styles.dropdownTriggerContent}>
                         <View style={styles.triggerIconBox}>
-                          <Text style={styles.triggerIconText}>🎁</Text>
+                          <Gift color="#FFF" size={18} strokeWidth={2.5} />
                         </View>
                         <View style={styles.triggerTextCol}>
-                          <Text style={styles.triggerLabel}>
-                            {isBn ? 'নির্বাচিত প্যাকেজ' : 'SELECTED PACKAGE'}
-                          </Text>
+                          
                           <Text style={styles.triggerTitle} numberOfLines={1}>
                             {pPackageNameEn}
                           </Text>
@@ -760,7 +759,7 @@ const styles = StyleSheet.create({
   },
   contentWrap: { flexShrink: 1 },
   headerBox: {
-    backgroundColor: Colors.primary, // Using primary for orange
+    backgroundColor: '#D46B08', // Warm vibrant orange primary
     paddingHorizontal: 24,
     paddingVertical: 20,
     flexDirection: 'row',
@@ -1211,7 +1210,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#F97316',
     justifyContent: 'center',
     marginBottom: 8,
