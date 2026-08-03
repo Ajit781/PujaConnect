@@ -386,8 +386,8 @@ export default function DashboardScreen({ navigation }: any) {
           setPujas(data);
         })(),
       ]);
-    } catch (err) {
-      console.error('Dashboard refresh failed:', err);
+    } catch (err: any) {
+      console.warn('[DashboardScreen] Refresh warning:', err?.message || err);
     } finally {
       setRefreshing(false);
     }
@@ -1192,66 +1192,100 @@ export default function DashboardScreen({ navigation }: any) {
           <View style={{ height: Math.max(120, insets.bottom + 80) }} />
         </ScrollView>
 
-        {/* ── Sort Bottom Sheet Modal (Screenshot 5 Match) ── */}
+        {/* ── Sort Dropdown Menu Modal (Screenshot Matching) ── */}
         <Modal
           visible={showSortModal}
           transparent
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setShowSortModal(false)}
         >
           <TouchableWithoutFeedback onPress={() => setShowSortModal(false)}>
-            <View style={styles.modalOverlay}>
+            <View style={styles.sortModalOverlay}>
               <TouchableWithoutFeedback>
-                <View style={styles.sortBottomSheet}>
-                  {/* Header handle line */}
-                  <View style={styles.bottomSheetHandle} />
-
-                  {/* Sort Option: Recommended */}
+                <View style={styles.sortDropdownMenuContainer}>
+                  {/* Option: Recommended */}
                   <TouchableOpacity
-                    style={styles.sortOptionRow}
+                    style={[
+                      styles.sortMenuItem,
+                      sortBy === 'Recommended' && styles.sortMenuItemActive,
+                    ]}
                     onPress={() => {
                       setSortBy('Recommended');
                       setShowSortModal(false);
                     }}
                   >
-                    <Text style={styles.sortOptionLabel}>{isBn ? 'প্রস্তাবিত' : 'Recommended'}</Text>
-                    <View style={[styles.radioCircle, sortBy === 'Recommended' && styles.radioCircleChecked]} />
+                    <Text
+                      style={[
+                        styles.sortMenuItemText,
+                        sortBy === 'Recommended' && styles.sortMenuItemTextActive,
+                      ]}
+                    >
+                      {isBn ? 'প্রস্তাবিত' : 'Recommended'}
+                    </Text>
                   </TouchableOpacity>
 
-                  {/* Sort Option: Price Low to High */}
+                  {/* Option: Price: Low to High */}
                   <TouchableOpacity
-                    style={styles.sortOptionRow}
+                    style={[
+                      styles.sortMenuItem,
+                      sortBy === 'priceLow' && styles.sortMenuItemActive,
+                    ]}
                     onPress={() => {
                       setSortBy('priceLow');
                       setShowSortModal(false);
                     }}
                   >
-                    <Text style={styles.sortOptionLabel}>{isBn ? 'মূল্য: কম থেকে বেশি' : 'Price: Low to High'}</Text>
-                    <View style={[styles.radioCircle, sortBy === 'priceLow' && styles.radioCircleChecked]} />
+                    <Text
+                      style={[
+                        styles.sortMenuItemText,
+                        sortBy === 'priceLow' && styles.sortMenuItemTextActive,
+                      ]}
+                    >
+                      {isBn ? 'মূল্য: কম থেকে বেশি' : 'Price: Low to High'}
+                    </Text>
                   </TouchableOpacity>
 
-                  {/* Sort Option: Price High to Low */}
+                  {/* Option: Price: High to Low */}
                   <TouchableOpacity
-                    style={styles.sortOptionRow}
+                    style={[
+                      styles.sortMenuItem,
+                      sortBy === 'priceHigh' && styles.sortMenuItemActive,
+                    ]}
                     onPress={() => {
                       setSortBy('priceHigh');
                       setShowSortModal(false);
                     }}
                   >
-                    <Text style={styles.sortOptionLabel}>{isBn ? 'মূল্য: বেশি থেকে কম' : 'Price: High to Low'}</Text>
-                    <View style={[styles.radioCircle, sortBy === 'priceHigh' && styles.radioCircleChecked]} />
+                    <Text
+                      style={[
+                        styles.sortMenuItemText,
+                        sortBy === 'priceHigh' && styles.sortMenuItemTextActive,
+                      ]}
+                    >
+                      {isBn ? 'মূল্য: বেশি থেকে কম' : 'Price: High to Low'}
+                    </Text>
                   </TouchableOpacity>
 
-                  {/* Sort Option: Name A to Z */}
+                  {/* Option: Name: A to Z */}
                   <TouchableOpacity
-                    style={styles.sortOptionRow}
+                    style={[
+                      styles.sortMenuItem,
+                      sortBy === 'nameAsc' && styles.sortMenuItemActive,
+                      { borderBottomWidth: 0 },
+                    ]}
                     onPress={() => {
                       setSortBy('nameAsc');
                       setShowSortModal(false);
                     }}
                   >
-                    <Text style={styles.sortOptionLabel}>{isBn ? 'নাম: A থেকে Z' : 'Name: A to Z'}</Text>
-                    <View style={[styles.radioCircle, sortBy === 'nameAsc' && styles.radioCircleChecked]} />
+                    <Text
+                      style={[
+                        styles.sortMenuItemText,
+                        sortBy === 'nameAsc' && styles.sortMenuItemTextActive,
+                      ]}
+                    >
+                      {isBn ? 'নাম: A থেকে Z' : 'Name: A to Z'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
@@ -1711,7 +1745,7 @@ const styles = StyleSheet.create({
     color: '#F97316',
   },
 
-  // Count and Sort row matching screenshot 4
+  // Count and Sort row matching screenshot
   countSortRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1720,28 +1754,34 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: '#FED7AA',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   totalPujasText: {
-    fontSize: 12,
-    color: '#6B5E59',
+    fontSize: 16,
+    color: '#291811',
     fontWeight: '800',
   },
   sortDropdownBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#FDBA74', // changed to orange border
-    paddingHorizontal: 12,
-    paddingVertical: 8, // increased height
-    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#F97316', // Orange border matching screenshot
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
   },
   sortDropdownBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#291811',
     fontWeight: '700',
   },
@@ -2064,52 +2104,46 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Sort Bottom Sheet Modal (Screenshot 5 Match)
-  modalOverlay: {
+  // Sort Dropdown Menu Overlay matching screenshot
+  sortModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: Platform.OS === 'ios' ? 275 : 265, // Aligned directly underneath the sort button
+    paddingRight: 16,
   },
-  sortBottomSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  sortDropdownMenuContainer: {
+    width: 210,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  sortMenuItem: {
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 24,
-  },
-  bottomSheetHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  sortOptionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  sortOptionLabel: {
+  sortMenuItemActive: {
+    backgroundColor: '#555555', // Dark charcoal active state matching uploaded screenshot
+  },
+  sortMenuItemText: {
     fontSize: 14,
-    color: '#291811',
+    color: '#0284C7', // Crisp blueish/slate font matching screenshot
+    fontWeight: '600',
+  },
+  sortMenuItemTextActive: {
+    color: '#FFFFFF',
     fontWeight: '700',
-  },
-  radioCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: '#BDBDBD',
-  },
-  radioCircleChecked: {
-    borderColor: '#78350F',
-    backgroundColor: '#78350F',
-    borderWidth: 4.5,
   },
 
   // Profile Popover

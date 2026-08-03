@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import {
   View,
@@ -208,7 +208,20 @@ export default function EditProfileScreen({ navigation }: any) {
           contact: r.relative_contact_no || r.relative_mobile || '',
         };
       });
-      setRelatives(mapped);
+      const uniqueMapped: RelativeProfile[] = [];
+      const seenKeys = new Set<string>();
+      for (const rel of mapped) {
+        const key = rel.dbId && rel.dbId !== 0
+          ? `db_${rel.dbId}`
+          : rel.id && rel.id !== '0'
+          ? `id_${rel.id}`
+          : `${rel.firstName.trim().toLowerCase()}_${rel.lastName.trim().toLowerCase()}_${rel.relationTypeId}_${rel.dob}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          uniqueMapped.push(rel);
+        }
+      }
+      setRelatives(uniqueMapped);
     }
   }, [userDetails]);
 
@@ -244,6 +257,20 @@ export default function EditProfileScreen({ navigation }: any) {
     if (period === 'PM' && hours < 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
+  const formatOnlyDate = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const [d, m, y] = dateStr.split('/');
+    if (y && m && d) {
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return dateStr;
+  };
+
+  const formatOnlyTime = (timeStr: string): string => {
+    if (!timeStr) return '';
+    return convertTo24Hour(timeStr) || '';
   };
 
   const formatApiDate = (dateStr: string, timeStr: string): string => {
@@ -418,12 +445,13 @@ export default function EditProfileScreen({ navigation }: any) {
           relative_auth_id: relDbIdForApi || 0,
           main_auth_id: user?.user_id || 0,
           full_name: `${relFirstName} ${relLastName}`.trim(),
-          date_of_birth: formatApiDate(relDob, relTimeOfBirth),
+          date_of_birth: formatOnlyDate(relDob),
+          time_of_birth: formatOnlyTime(relTimeOfBirth),
           place_of_birth: relPlaceOfBirth,
           contact_no: relContact,
           gender: relGenderNum,
           gotram: relGotraId,
-          created_by: 3,
+          created_by: user?.user_id || 0,
         },
       ];
 
@@ -441,33 +469,6 @@ export default function EditProfileScreen({ navigation }: any) {
       console.log('=== SAVE RELATIVE RESULT ===', JSON.stringify(result, null, 2));
 
       if (result.status === 0) {
-        // Call save_address_v1 — same payload for both add AND update
-        try {
-          const addressPayload = {
-            in_ctzn_address_id: 0,
-            ctzn_auth_id: user?.user_id || 0,
-            address_type_id: 1,
-            label: '',
-            address: relPlaceOfBirth,
-            street: '',
-            landmark: '',
-            city: relPlaceOfBirth,
-            state: 1,
-            pincode: '',
-            is_default: 1,
-            latitude: 0,
-            longitude: 0,
-            delivery_contact_no: relContact,
-            delivery_instruction: '',
-          };
-          console.log('=== SAVE ADDRESS V1 PAYLOAD ===', JSON.stringify(addressPayload, null, 2));
-          const addrResult = await saveAddressV1Mutation({
-            data: JSON.stringify({ enc_data: JSON.stringify(addressPayload) }),
-          }).unwrap();
-          console.log('=== SAVE ADDRESS V1 RESULT ===', JSON.stringify(addrResult, null, 2));
-        } catch (addrErr: any) {
-          console.log('=== SAVE ADDRESS V1 ERROR ===', JSON.stringify(addrErr, null, 2));
-        }
 
         if (editingRelId) {
           setRelatives(prev =>
@@ -490,30 +491,11 @@ export default function EditProfileScreen({ navigation }: any) {
                 : r,
             ),
           );
-        } else {
-          // Fallback optimistically if we don't have the new ID
-          setRelatives(prev => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              relationType: relName,
-              relationTypeId: relationType ?? undefined,
-              firstName: relFirstName,
-              lastName: relLastName,
-              gender: relGender,
-              dob: relDob,
-              timeOfBirth: relTimeOfBirth,
-              placeOfBirth: relPlaceOfBirth,
-              gotra: relGotra,
-              gotraId: relGotraId ?? undefined,
-              contact: relContact,
-            },
-          ]);
         }
 
         clearRelForm();
 
-        // Refetch from server so relatives list shows latest data
+        // Refetch from server so relatives list shows latest data directly from DB
         try { await refetchUserDetails(); } catch (_) { }
 
         const isUpdate = !!editingRelId;
@@ -577,12 +559,22 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const avatarInitial = firstName ? firstName.charAt(0).toUpperCase() : 'U';
   const displayName = fullName || 'User';
+  const userMobile = user?.mobile_no || user?.mobile || user?.phone || user?.contact_no || userDetails?.ctnz_mobile || userDetails?.mobile || userDetails?.phone || '';
 
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor={Colors.primary} barStyle="light-content" translucent={true} />
-      <TopNavBar showBack={true} />
+      <TopNavBar
+        showBack={true}
+        onBackPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('MainTabs');
+          }
+        }}
+      />
 
       <ScrollView
         style={styles.body}
@@ -641,11 +633,24 @@ export default function EditProfileScreen({ navigation }: any) {
             <View style={styles.overviewContent}>
               <View style={styles.overviewTop}>
                 <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>{avatarInitial}</Text>
+                  {userDetails?.ctnz_profile_image ? (
+                    <Image
+                      key={userDetails.ctnz_profile_image}
+                      source={{
+                        uri: userDetails.ctnz_profile_image.includes('?')
+                          ? `${userDetails.ctnz_profile_image}&t=${Date.now()}`
+                          : `${userDetails.ctnz_profile_image}?t=${Date.now()}`,
+                      }}
+                      style={{ width: '100%', height: '100%', borderRadius: 30 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{avatarInitial}</Text>
+                  )}
                 </View>
                 <View style={styles.overviewTextWrap}>
                   <Text style={styles.overviewName}>{displayName}</Text>
-                  {user?.mobile_no && <Text style={styles.overviewPhone}>📞 {user.mobile_no}</Text>}
+                  {!!userMobile && <Text style={styles.overviewPhone}>📞 {userMobile}</Text>}
                 </View>
               </View>
 
@@ -1013,6 +1018,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   avatarText: { fontSize: 24, fontWeight: '800', color: '#FFF' },
   overviewTextWrap: { flex: 1 },
@@ -1189,7 +1195,7 @@ const styles = StyleSheet.create({
 });
 
 // Helper component required by RelativeLogicBackup
-function Field({
+const Field = React.memo(function Field({
   label,
   required,
   value,
@@ -1200,6 +1206,8 @@ function Field({
   multiline,
   onPress,
   editable,
+  autoCapitalize = 'words',
+  autoComplete,
 }: {
   label: string;
   required?: boolean;
@@ -1211,30 +1219,61 @@ function Field({
   multiline?: boolean;
   onPress?: () => void;
   editable?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoComplete?: any;
 }) {
+  const isPressable = !!onPress;
+  const isEditable = editable !== false && !isPressable;
+
+  const [localVal, setLocalVal] = useState(value || '');
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current && value !== localVal) {
+      setLocalVal(value || '');
+    }
+  }, [value]);
+
+  const handleChangeText = (text: string) => {
+    setLocalVal(text);
+    if (onChange) onChange(text);
+  };
+
+  const inputNode = (
+    <TextInput
+      style={[styles.input, error ? styles.inputError : null, multiline && { height: 80, textAlignVertical: 'top' }]}
+      value={localVal}
+      onChangeText={handleChangeText}
+      onFocus={() => { isFocusedRef.current = true; }}
+      onBlur={() => { isFocusedRef.current = false; }}
+      placeholder={placeholder}
+      placeholderTextColor="#64748B"
+      keyboardType={keyboardType}
+      multiline={multiline}
+      editable={isEditable}
+      autoCapitalize={autoCapitalize}
+      autoComplete={autoComplete}
+      autoCorrect={true}
+    />
+  );
+
   return (
     <View style={{ flex: 1, marginBottom: 16 }}>
       <Text style={styles.fieldLabel}>
         {label}
         {required && <Text style={styles.required}> *</Text>}
       </Text>
-      <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
-        <TextInput
-          style={[styles.input, error ? styles.inputError : null, multiline && { height: 80, textAlignVertical: 'top' }]}
-          value={value}
-          onChangeText={onChange}
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          keyboardType={keyboardType}
-          multiline={multiline}
-          editable={editable !== false && !onPress}
-          pointerEvents={onPress ? 'none' : 'auto'}
-        />
-      </TouchableOpacity>
+      {isPressable ? (
+        <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+          {inputNode}
+        </TouchableOpacity>
+      ) : (
+        inputNode
+      )}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
-}
+});
 
 function GenderPicker({
   value,

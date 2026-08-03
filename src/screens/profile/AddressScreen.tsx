@@ -185,7 +185,7 @@ const AddressCard = React.memo(
         <View style={styles.cardPhoneRow}>
           <Phone size={14} color="#64748B" />
           <Text style={styles.cardPhone}>
-            <Text style={{fontWeight: '700', color: '#475569'}}>{isBn ? 'ডেলিভারি ফোন: ' : 'Delivery phone: '}</Text>
+            <Text style={{ fontWeight: '700', color: '#475569' }}>{isBn ? 'ডেলিভারি ফোন: ' : 'Delivery phone: '}</Text>
             {addr.contactNumber}
           </Text>
         </View>
@@ -196,7 +196,7 @@ const AddressCard = React.memo(
         <View style={styles.cardPhoneRow}>
           <MapPin size={14} color="#64748B" />
           <Text style={styles.cardPhone}>
-            <Text style={{fontWeight: '700', color: '#475569'}}>{isBn ? 'নির্দেশনা: ' : 'Instructions: '}</Text>
+            <Text style={{ fontWeight: '700', color: '#475569' }}>{isBn ? 'নির্দেশনা: ' : 'Instructions: '}</Text>
             {addr.deliveryInstruction}
           </Text>
         </View>
@@ -645,12 +645,12 @@ export default function AddressScreen({ navigation, route }: any) {
         ctzn_id: targetCtznId,
         address_type_id: addressTypeId,
         label: label.trim() || type,
-        address: addressLine1.trim(),
-        street: streetArea.trim(),
+        address: addressLine1.trim() || 'N/A',
+        street: streetArea.trim() || addressLine1.trim() || city.trim() || 'Main Street',
         landmark: landmark.trim(),
-        city: city.trim(),
+        city: city.trim() || 'N/A',
         state: stateId || 1,
-        pincode: pincode.trim(),
+        pincode: pincode.trim() || '700001',
         latitude: latitude.trim() ? parseFloat(latitude.trim()) : 0,
         longitude: longitude.trim() ? parseFloat(longitude.trim()) : 0,
         delivery_contact_no: finalDeliveryContact,
@@ -931,7 +931,7 @@ export default function AddressScreen({ navigation, route }: any) {
                         <Check size={10} color="#FFFFFF" strokeWidth={3} />
                       </View>
                     )}
-                    
+
                     <View style={[styles.relAvatarH, isSelected && styles.relAvatarHActive]}>
                       <Text style={[styles.relAvatarTxtH, isSelected && styles.relAvatarTxtHActive]}>
                         {rel.full_name ? rel.full_name.charAt(0).toUpperCase() : 'R'}
@@ -1009,7 +1009,7 @@ export default function AddressScreen({ navigation, route }: any) {
           {/* Sub Header / Page Banner */}
           <View style={styles.pageHeader}>
             <Text style={styles.accountBadge}>{isBn ? 'আমার অ্যাকাউন্ট' : 'MY ACCOUNT'}</Text>
-            
+
             <View style={styles.headerTitleRow}>
               <View style={styles.headerIconCircle}>
                 <MapPin size={22} color={BRAND_ORANGE} />
@@ -1056,7 +1056,7 @@ export default function AddressScreen({ navigation, route }: any) {
                   <View style={styles.emptyIconCircle}>
                     <MapPin size={32} color={BRAND_ORANGE} />
                   </View>
-                  
+
                   {activeTab === 'relatives' && (!serverAddresses?.relative_info || serverAddresses.relative_info.length === 0) ? (
                     <>
                       <Text style={styles.emptyTitle}>
@@ -1147,10 +1147,10 @@ export default function AddressScreen({ navigation, route }: any) {
 
               {(!serverAddresses?.relative_info ||
                 serverAddresses.relative_info.length === 0) && (
-                <Text style={{ textAlign: 'center', color: '#64748B', padding: 20 }}>
-                  {isBn ? 'কোনো আত্মীয় পাওয়া যায়নি' : 'No relatives found'}
-                </Text>
-              )}
+                  <Text style={{ textAlign: 'center', color: '#64748B', padding: 20 }}>
+                    {isBn ? 'কোনো আত্মীয় পাওয়া যায়নি' : 'No relatives found'}
+                  </Text>
+                )}
             </ScrollView>
           </View>
         </View>

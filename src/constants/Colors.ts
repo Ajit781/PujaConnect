@@ -13,13 +13,13 @@ export const Colors = {
 
   // Accents & Borders
   border: '#F1D8C2', // Web Card Border
-  lightOrange: '#FFF7ED', // Web Card Hover
+  lightOrange: '#FFF7ED',// Web Card Hover
   gold: '#FACC15', // Popular badge
   green: '#10B981',
   greenMedium: '#16A34A',
   greenLight: '#F0FDF4',
   greenVeryLight: '#DCFCE7',
-  red: '#E11D48', // Wishlist Active
+  red: '#E11D48',// Wishlist Active
   tagYellow: '#FDE68A',
   tagRed: '#FECACA',
   tagGreen: '#6EE7B7',

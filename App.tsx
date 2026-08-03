@@ -36,25 +36,33 @@ const GlobalLoaderWrapper = () => {
 function RootNavigator() {
   const [isSplashVisible, setIsSplashVisible] = React.useState(true);
   const splashOpacity = React.useRef(new Animated.Value(1)).current;
-  
+  const splashScale = React.useRef(new Animated.Value(1)).current;
+
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.isAuthenticated,
   );
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      // Fade out the splash screen smoothly
-      Animated.timing(splashOpacity, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }).start(() => {
+      // Smooth animated zoom-fade exit transition for splash screen
+      Animated.parallel([
+        Animated.timing(splashOpacity, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(splashScale, {
+          toValue: 1.06,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
         setIsSplashVisible(false);
       });
-    }, 2500);
-    
+    }, 3200);
+
     return () => clearTimeout(timer);
-  }, [splashOpacity]);
+  }, [splashOpacity, splashScale]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fffdfa' }}>
@@ -66,7 +74,12 @@ function RootNavigator() {
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
-            { opacity: splashOpacity, zIndex: 9999 }
+            {
+              opacity: splashOpacity,
+              transform: [{ scale: splashScale }],
+              zIndex: 9999,
+              backgroundColor: '#fffdfa',
+            },
           ]}
         >
           <SplashScreen />

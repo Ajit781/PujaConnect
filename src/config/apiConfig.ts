@@ -22,6 +22,7 @@ export const ENDPOINTS = {
   managePujaCart: '/citizen/manage_puja_cart',
   savePujaTag: '/citizen/save_puja_tag',
   saveUserProfile: '/citizen/save_user_profile',
+  saveUserProfileImage: '/citizen/save_user_profile_image',
   getUserDetails: '/citizen/get_user_details_by_user_id_v1',
   saveRelativeDetails: '/citizen/save_relative_details_v1',
   deleteRelativeDetails: '/citizen/delete_relative_details',

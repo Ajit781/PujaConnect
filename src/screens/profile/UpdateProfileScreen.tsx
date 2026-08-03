@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import {
   View,
@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +27,8 @@ import TopNavBar from '../../components/common/TopNavBar';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   useSaveUserProfileMutation,
+  useSaveUserProfileImageMutation,
+  uploadUserProfileImageDirectly,
   useGetUserDetailsQuery,
   useSaveRelativeDetailsMutation,
   useDeleteRelativeDetailsMutation,
@@ -38,7 +40,7 @@ import CustomTimePickerModal from '../../components/common/CustomTimePickerModal
 import Dropdown from '../../components/common/Dropdown';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { useToast } from '../../context/ToastContext';
-import { ArrowLeft, User, Camera, Calendar, Clock, Check, Save } from 'lucide-react-native';
+import { ArrowLeft, User, Camera, Calendar, Clock, Check, Save, Upload, Image as ImageIcon, Trash2 } from 'lucide-react-native';
 const BRAND_ORANGE = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
@@ -79,10 +81,10 @@ interface RelErrors {
 }
 // RELATION_TYPES replaced by API or SOCIAL_RELATIONS below
 // ── Reusable field components ─────────────────────────────────────────────────
-function Field({
+const Field = React.memo(function Field({
   label,
-  required,
   value,
+  required,
   onChange,
   placeholder,
   error,
@@ -91,10 +93,12 @@ function Field({
   onPress,
   editable,
   icon,
+  autoCapitalize = 'words',
+  autoComplete,
 }: {
   label: string;
-  required?: boolean;
   value: string;
+  required?: boolean;
   onChange: (v: string) => void;
   placeholder: string;
   error?: string;
@@ -103,52 +107,83 @@ function Field({
   onPress?: () => void;
   editable?: boolean;
   icon?: React.ReactNode;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoComplete?: any;
 }) {
   const hasErr = !!error;
+  const isPressable = !!onPress;
+  const isEditable = editable ?? !isPressable;
+
+  const [localVal, setLocalVal] = useState(value || '');
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current && value !== localVal) {
+      setLocalVal(value || '');
+    }
+  }, [value]);
+
+  const handleChangeText = (text: string) => {
+    setLocalVal(text);
+    onChange(text);
+  };
+
+  const inputContent = (
+    <View
+      style={[{
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: hasErr ? '#DC2626' : '#E5E7EB',
+        borderRadius: 12,
+        backgroundColor: isPressable ? '#F9FAFB' : '#FFF',
+        paddingHorizontal: 12,
+        height: multiline ? 100 : 48,
+      }, multiline && { alignItems: 'flex-start', paddingTop: 12 }]}>
+      {icon && <View style={{ marginRight: 8 }}>{icon}</View>}
+      <TextInput
+        style={{
+          flex: 1,
+          fontSize: 14,
+          color: '#1F2937',
+          height: '100%',
+          paddingVertical: 0,
+        }}
+        placeholder={placeholder}
+        placeholderTextColor="#64748B"
+        value={localVal}
+        onChangeText={handleChangeText}
+        onFocus={() => { isFocusedRef.current = true; }}
+        onBlur={() => { isFocusedRef.current = false; }}
+        keyboardType={keyboardType}
+        multiline={multiline}
+        numberOfLines={multiline ? 4 : 1}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        editable={isEditable}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+        autoCorrect={true}
+      />
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, marginBottom: 4 }}>
       <Text style={styles.fieldLabel}>
         {label} {required && <Text style={{ color: '#DC2626' }}>*</Text>}
       </Text>
-      <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
-        <View
-          pointerEvents={onPress ? 'none' : 'auto'}
-          style={[{
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderWidth: 1,
-            borderColor: hasErr ? '#DC2626' : '#E5E7EB',
-            borderRadius: 12,
-            backgroundColor: '#FFF',
-            paddingHorizontal: 12,
-            height: multiline ? 100 : 48,
-          }, multiline && { alignItems: 'flex-start', paddingTop: 12 }]}>
-          {icon && <View style={{ marginRight: 8 }}>{icon}</View>}
-          <TextInput
-            style={{
-              flex: 1,
-              fontSize: 14,
-              color: '#1F2937',
-              height: '100%',
-              paddingVertical: 0,
-            }}
-            placeholder={placeholder}
-            placeholderTextColor="#9CA3AF"
-            value={value}
-            onChangeText={onChange}
-            keyboardType={keyboardType}
-            multiline={multiline}
-            numberOfLines={multiline ? 4 : 1}
-            textAlignVertical={multiline ? 'top' : 'center'}
-            editable={editable ?? !onPress}
-            pointerEvents={onPress ? 'none' : 'auto'}
-          />
-        </View>
-      </TouchableOpacity>
+      {isPressable ? (
+        <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+          {inputContent}
+        </TouchableOpacity>
+      ) : (
+        inputContent
+      )}
       {hasErr && <Text style={{ color: '#DC2626', fontSize: 12, marginTop: 4 }}>⚠ {error}</Text>}
     </View>
   );
-}
+});
+const InputField = Field;
 function GenderPicker({
   value,
   onChange,
@@ -227,6 +262,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
       refetchOnMountOrArgChange: true,
     });
   const [saveProfile] = useSaveUserProfileMutation();
+  const [saveProfileImage] = useSaveUserProfileImageMutation();
   const [saveRelativeMutation] = useSaveRelativeDetailsMutation();
   const [deleteRelativeMutation] = useDeleteRelativeDetailsMutation();
   const [saveAddressV1Mutation] = useSaveAddressV1Mutation();
@@ -274,20 +310,31 @@ export default function UpdateProfileScreen({ navigation }: any) {
       if (gotraNameVal) {
         setGotra(gotraNameVal);
       }
+      if (userDetailsRaw.ctnz_profile_image) {
+        const rawImgUrl = userDetailsRaw.ctnz_profile_image;
+        const freshUrl = rawImgUrl.includes('?')
+          ? `${rawImgUrl}&t=${Date.now()}`
+          : `${rawImgUrl}?t=${Date.now()}`;
+        setProfileImageUri(freshUrl);
+      }
       setBirthPlace(userDetailsRaw.ctnz_birth_place || '');
       setAddress(userDetailsRaw.ctnz_address || '');
-      if (userDetailsRaw.ctnz_dob) {
-        const [dPart, tPart] = userDetailsRaw.ctnz_dob.split('T');
+      if (userDetailsRaw.ctnz_dob || userDetailsRaw.dob) {
+        const rawDob = userDetailsRaw.ctnz_dob || userDetailsRaw.dob || '';
+        const [dPart, tPart] = rawDob.includes('T') ? rawDob.split('T') : rawDob.split(' ');
         if (dPart) {
           const [y, m, d] = dPart.split('-');
-          setDob(`${d}/${m}/${y}`);
+          if (y && m && d) setDob(`${d}/${m}/${y}`);
         }
-        if (tPart) {
-          const [h, min] = tPart.split(':');
-          let hr = parseInt(h, 10);
-          const ampm = hr >= 12 ? 'PM' : 'AM';
-          hr = hr % 12 || 12;
-          setTimeOfBirth(`${hr.toString().padStart(2, '0')}:${min} ${ampm}`);
+        const rawTime = userDetailsRaw.ctnz_tob || userDetailsRaw.tob || tPart;
+        if (rawTime) {
+          const [h, min] = rawTime.split(':');
+          if (h && min) {
+            let hr = parseInt(h, 10);
+            const ampm = hr >= 12 ? 'PM' : 'AM';
+            hr = hr % 12 || 12;
+            setTimeOfBirth(`${hr.toString().padStart(2, '0')}:${min} ${ampm}`);
+          }
         }
       }
       // Parse relatives
@@ -345,7 +392,20 @@ export default function UpdateProfileScreen({ navigation }: any) {
             contact: r.relative_contact_no || r.relative_mobile || r.mobile_no || r.relative_phone || r.delivery_contact_no || '',
           };
         });
-        setRelatives(mappedRels);
+        const uniqueMappedRels: RelativeProfile[] = [];
+        const seenKeys = new Set<string>();
+        for (const rel of mappedRels) {
+          const key = rel.dbId && rel.dbId !== 0
+            ? `db_${rel.dbId}`
+            : rel.id && rel.id !== '0'
+              ? `id_${rel.id}`
+              : `${rel.firstName.trim().toLowerCase()}_${rel.lastName.trim().toLowerCase()}_${rel.relationTypeId}_${rel.dob}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            uniqueMappedRels.push(rel);
+          }
+        }
+        setRelatives(uniqueMappedRels);
       }
     }
   }, [userDetailsRaw, gotraList]);
@@ -372,6 +432,20 @@ export default function UpdateProfileScreen({ navigation }: any) {
     if (period === 'PM' && hours < 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+  const formatOnlyDate = (dateStr: string): string => {
+    // dateStr: DD/MM/YYYY -> YYYY-MM-DD
+    if (!dateStr) return '';
+    const [d, m, y] = dateStr.split('/');
+    if (y && m && d) {
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return dateStr;
+  };
+  const formatOnlyTime = (timeStr: string): string => {
+    // timeStr: HH:MM AM/PM -> HH:mm
+    if (!timeStr) return '';
+    return convertTo24Hour(timeStr) || '';
   };
   const formatApiDate = (dateStr: string, timeStr: string): string => {
     // dateStr: DD/MM/YYYY, timeStr: HH:MM AM/PM
@@ -441,62 +515,143 @@ export default function UpdateProfileScreen({ navigation }: any) {
     setProfileErrors(errs);
     return Object.keys(errs).length === 0;
   };
-  const handleSelectImage = async () => {
+  const processPickedImage = async (result: any) => {
+    if (result.didCancel) return;
+    if (result.errorCode) {
+      showErrorAlert(
+        isBn ? 'ছবি নির্বাচন বা ক্যাপচার করা যায়নি' : 'Could not select or capture image',
+      );
+      return;
+    }
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      // 5MB Validation (5 * 1024 * 1024 bytes)
+      const MAX_SIZE = 5 * 1024 * 1024;
+      if (asset.fileSize && asset.fileSize > MAX_SIZE) {
+        showAlert({
+          title: isBn ? 'সতর্কতা' : 'Warning',
+          message: isBn
+            ? 'ছবির আকার ৫এমবি-র বেশি হওয়া উচিত নয়'
+            : 'Image size should not exceed 5MB',
+          buttons: [{ text: 'OK' }],
+        });
+        return;
+      }
+      // Extension Validation
+      const fileName = asset.fileName || asset.uri?.split('/').pop() || 'photo.jpg';
+      const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
+      const validExtensions = ['png', 'jpg', 'jpeg', 'heic', 'webp'];
+      if (!validExtensions.includes(extension)) {
+        showAlert({
+          title: isBn ? 'অবৈধ ফাইল' : 'Invalid File',
+          message: isBn
+            ? 'শুধুমাত্র .png, .jpg, এবং .jpeg ছবি সমর্থনযোগ্য'
+            : 'Only .png, .jpg, and .jpeg images are supported.',
+          buttons: [{ text: 'OK' }],
+        });
+        return;
+      }
+      const selectedFile = {
+        uri: asset.uri,
+        type: asset.type || 'image/jpeg',
+        name: fileName,
+      };
+      setProfileImageUri(asset.uri || null);
+      setProfileImageFile(selectedFile);
+    }
+  };
+
+  const handleDirectUploadPhoto = async () => {
+    if (!profileImageFile) return;
     try {
-      const result = await launchImageLibrary({
+      setIsImageLoading(true);
+      dispatch(showLoader());
+      const targetId = user?.user_id || 0;
+      console.log('=== UPLOADING PHOTO via saveProfileImage mutation ===', targetId);
+      const res = await saveProfileImage({
+        authId: targetId,
+        file: profileImageFile,
+      }).unwrap();
+      console.log('=== DIRECT UPLOAD PHOTO RESULT ===', res);
+      if (res?.status === 0 || res?.status === '0') {
+        await refetchUserDetails();
+        showToast({
+          message: isBn ? 'প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে' : 'Profile photo updated successfully',
+          type: 'success',
+        });
+        setProfileImageFile(null);
+        setTimeout(() => {
+          navigation.navigate('EditProfile');
+        }, 300);
+      } else {
+        showErrorAlert(
+          res?.message || (isBn ? 'ছবি সংরক্ষণ করা যায়নি' : 'Failed to save photo. Please try again.'),
+        );
+      }
+    } catch (err: any) {
+      console.log('Direct Upload Photo Error:', err);
+      showErrorAlert(err?.data?.message || (isBn ? 'ছবি সংরক্ষণ করা যায়নি' : 'Failed to save photo. Please try again.'));
+    } finally {
+      setIsImageLoading(false);
+      dispatch(hideLoader());
+    }
+  };
+
+  const openCamera = async () => {
+    try {
+      const result = await launchCamera({
         mediaType: 'photo',
-        quality: 0.8,
+        quality: 0.4,
+        maxWidth: 450,
+        maxHeight: 450,
+        cameraType: 'back',
+        includeBase64: false,
+        saveToPhotos: false,
+        includeExtra: false,
       });
+
       if (result.didCancel) return;
       if (result.errorCode) {
         showErrorAlert(
-          isBn ? 'ছবি নির্বাচন করা যায়নি' : 'Could not select image',
+          result.errorMessage ||
+            (isBn ? 'ক্যামেরা খোলা সম্ভব হয়নি' : 'Could not open camera. Please try again.'),
         );
         return;
       }
-      if (result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        // 5MB Validation (5 * 1024 * 1024 bytes)
-        const MAX_SIZE = 5 * 1024 * 1024;
-        if (asset.fileSize && asset.fileSize > MAX_SIZE) {
-          showAlert({
-            title: isBn ? 'সতর্কতা' : 'Warning',
-            message: isBn
-              ? 'ছবির আকার ৫এমবি-র বেশি হওয়া উচিত নয়'
-              : 'Image size should not exceed 5MB',
-            buttons: [{ text: 'OK' }],
-          });
-          return;
-        }
-        // Extension Validation
-        const extension = asset.fileName?.split('.').pop()?.toLowerCase();
-        const validExtensions = ['png', 'jpg', 'jpeg'];
-        if (!extension || !validExtensions.includes(extension)) {
-          showAlert({
-            title: isBn ? 'অবৈধ ফাইল' : 'Invalid File',
-            message: isBn
-              ? 'শুধুমাত্র .png, .jpg, এবং .jpeg ছবি সমর্থনযোগ্য'
-              : 'Only .png, .jpg, and .jpeg images are supported.',
-            buttons: [{ text: 'OK' }],
-          });
-          return;
-        }
-        setProfileImageUri(asset.uri || null);
-        setProfileImageFile({
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || 'profile.jpg',
-        });
-      }
+      processPickedImage(result);
     } catch (error) {
-      console.log('Error selecting image:', error);
+      console.log('Error capturing photo:', error);
     }
   };
+
+  const openGallery = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.4,
+        maxWidth: 450,
+        maxHeight: 450,
+        includeBase64: false,
+        includeExtra: false,
+      });
+      if (result.didCancel || result.errorCode) return;
+      processPickedImage(result);
+    } catch (error) {
+      console.log('Error selecting image from gallery:', error);
+    }
+  };
+
   const handleAvatarPress = () => {
     const buttons: any[] = [
       {
+        text: isBn ? 'ক্যামেরা (ছবি তুলুন)' : 'Take Photo (Camera)',
+        icon: <Camera size={18} color="#D97706" />,
+        onPress: () => openCamera(),
+      },
+      {
         text: isBn ? 'গ্যালারি থেকে বেছে নিন' : 'Choose from Gallery',
-        onPress: () => handleSelectImage(),
+        icon: <ImageIcon size={18} color="#D97706" />,
+        onPress: () => openGallery(),
       },
     ];
     const isPlaceholder = profileImageUri?.includes('3A7BFF');
@@ -505,7 +660,8 @@ export default function UpdateProfileScreen({ navigation }: any) {
     // Only show "Remove" option if a real image is currently present
     if (hasRealImage) {
       buttons.push({
-        text: isBn ? 'ছবি সরান' : 'Remove Photo',
+        text: isBn ? 'ছবি সরিয়ে ফেলুন' : 'Remove Photo',
+        icon: <Trash2 size={18} color="#DC2626" />,
         style: 'destructive',
         onPress: () => handleRemoveImage(),
       });
@@ -544,13 +700,18 @@ export default function UpdateProfileScreen({ navigation }: any) {
         full_name: `${firstName} ${lastName}`.trim(),
         gotra: gotraId ?? gotra, // send ID if available, else fallback to name
         gender: genderNum,
-        dob: formatApiDate(dob, timeOfBirth),
+        dob: formatOnlyDate(dob),
+        tob: formatOnlyTime(timeOfBirth),
         birthplace: birthPlace,
         entry_user_id: user?.user_id || 0,
         ctz_address: address,
         social_relation_id: 18,
         ctnz_profile_image: profileImageFile ? undefined : '',
       };
+      console.log('==============================================');
+      console.log('=== SAVE USER PROFILE: PAYLOAD OBJECT ===');
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('==============================================');
       // Server always requires a file field in the multipart form.
       // Send the user's selected image if available, otherwise always send the placeholder.
       let fileData: any = profileImageFile;
@@ -574,6 +735,22 @@ export default function UpdateProfileScreen({ navigation }: any) {
         data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
         file: fileData,
       }).unwrap();
+      console.log('==============================================');
+      console.log('=== SAVE USER PROFILE: API RESULT ===');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('==============================================');
+      if (profileImageFile) {
+        try {
+          console.log('=== UPLOADING USER PROFILE IMAGE via save_user_profile_image ===');
+          const imgResult = await saveProfileImage({
+            authId: user?.user_id || 0,
+            file: profileImageFile,
+          }).unwrap();
+          console.log('=== SAVE USER PROFILE IMAGE RESULT ===', JSON.stringify(imgResult, null, 2));
+        } catch (imgErr) {
+          console.log('=== SAVE USER PROFILE IMAGE ERROR ===', JSON.stringify(imgErr, null, 2));
+        }
+      }
       if (result.status === 0) {
         await refetchUserDetails();
         showAlert({
@@ -754,52 +931,28 @@ export default function UpdateProfileScreen({ navigation }: any) {
           relative_auth_id: relDbIdForApi || 0,
           main_auth_id: user?.user_id || 0,
           full_name: `${relFirstName} ${relLastName}`.trim(),
-          date_of_birth: formatApiDate(relDob, relTimeOfBirth),
+          date_of_birth: formatOnlyDate(relDob),
+          time_of_birth: formatOnlyTime(relTimeOfBirth),
           place_of_birth: relPlaceOfBirth,
           contact_no: relContact,
           gender: relGenderNum,
           gotram: relGotraId,
-          created_by: 3,
+          created_by: user?.user_id || 0,
         },
       ];
-      console.log('=== SAVE RELATIVE ===');
+      console.log('==============================================');
+      console.log('=== SAVE RELATIVE DETAILS: PAYLOAD OBJECT ===');
       console.log('Mode:', editingRelId ? 'UPDATE' : 'ADD');
-      console.log('editingRelId (auth_id):', editingRelId);
-      console.log('editingDbId  (DB row):', editingDbId);
-      console.log('relative_id sent to API:', relDbIdForApi);
-      console.log('Relative Payload:', JSON.stringify(payload, null, 2));
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('==============================================');
       const result = await saveRelativeMutation({
         data: JSON.stringify({ enc_data: JSON.stringify(payload) }),
       }).unwrap();
-      console.log('=== SAVE RELATIVE RESULT ===', JSON.stringify(result, null, 2));
+      console.log('==============================================');
+      console.log('=== SAVE RELATIVE DETAILS: API RESULT ===');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('==============================================');
       if (result.status === 0) {
-        // Call save_address_v1 — same payload for both add AND update
-        try {
-          const addressPayload = {
-            in_ctzn_address_id: 0,
-            ctzn_auth_id: user?.user_id || 0,
-            address_type_id: 1,
-            label: '',
-            address: relPlaceOfBirth,
-            street: '',
-            landmark: '',
-            city: relPlaceOfBirth,
-            state: 1,
-            pincode: '',
-            is_default: 1,
-            latitude: 0,
-            longitude: 0,
-            delivery_contact_no: relContact,
-            delivery_instruction: '',
-          };
-          console.log('=== SAVE ADDRESS V1 PAYLOAD ===', JSON.stringify(addressPayload, null, 2));
-          const addrResult = await saveAddressV1Mutation({
-            data: JSON.stringify({ enc_data: JSON.stringify(addressPayload) }),
-          }).unwrap();
-          console.log('=== SAVE ADDRESS V1 RESULT ===', JSON.stringify(addrResult, null, 2));
-        } catch (addrErr: any) {
-          console.log('=== SAVE ADDRESS V1 ERROR ===', JSON.stringify(addrErr, null, 2));
-        }
         if (editingRelId) {
           setRelatives(prev =>
             prev.map(r =>
@@ -821,28 +974,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
                 : r,
             ),
           );
-        } else {
-          // Fallback optimistically if we don't have the new ID
-          setRelatives(prev => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              relationType: relName,
-              relationTypeId: relationType ?? undefined,
-              firstName: relFirstName,
-              lastName: relLastName,
-              gender: relGender,
-              dob: relDob,
-              timeOfBirth: relTimeOfBirth,
-              placeOfBirth: relPlaceOfBirth,
-              gotra: relGotra,
-              gotraId: relGotraId ?? undefined,
-              contact: relContact,
-            },
-          ]);
         }
         clearRelForm();
-        // Refetch from server so relatives list shows latest data
+        // Refetch from server so relatives list shows latest data directly from DB
         try { await refetchUserDetails(); } catch (_) { }
         const isUpdate = !!editingRelId;
         const successMsgEn = isUpdate ? 'Edit successfully' : 'New relative successfully added';
@@ -882,17 +1016,27 @@ export default function UpdateProfileScreen({ navigation }: any) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF6EF' }} edges={['bottom']}>
       {/* Header */}
-      <TopNavBar 
-        showBack={true} 
+      <TopNavBar
+        showBack={true}
         onBackPress={() => {
-          navigation.navigate('MainTabs');
-        }} 
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('MainTabs');
+          }
+        }}
       />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Back button */}
-        <TouchableOpacity onPress={() => {
-          navigation.navigate('MainTabs');
-        }} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16 }}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('MainTabs');
+            }
+          }}
+          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16 }}>
           <ArrowLeft size={20} color="#4B5563" />
           <Text style={{ marginLeft: 8, fontSize: 15, color: '#4B5563', fontWeight: '700' }}>{isBn ? 'প্রোফাইলে ফিরে যান' : 'Back to profile'}</Text>
         </TouchableOpacity>
@@ -909,21 +1053,60 @@ export default function UpdateProfileScreen({ navigation }: any) {
         </View>
         {/* Profile Photo Card */}
         <View style={{ margin: 16, backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 4, borderColor: '#FDF7F1' }}>
-              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' }}>
-                <User size={32} color="#FFF" />
-              </View>
-            </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <TouchableOpacity onPress={handleAvatarPress} style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 4, borderColor: '#FDF7F1', overflow: 'hidden' }}>
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={{ width: '100%', height: '100%', borderRadius: 36 }} resizeMode="cover" />
+              ) : (
+                <View style={{ width: '100%', height: '100%', borderRadius: 36, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' }}>
+                  <User size={32} color="#FFF" />
+                </View>
+              )}
+            </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, color: '#374151', marginBottom: 4 }}>{isBn ? 'প্রোফাইল ছবি' : 'Profile photo'}</Text>
+              <Text style={{ fontSize: 16, color: '#374151', marginBottom: 4, fontWeight: '700' }}>{isBn ? 'প্রোফাইল ছবি' : 'Profile photo'}</Text>
               <Text style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 18, marginBottom: 12 }}>
                 {isBn ? '৫ এমবি পর্যন্ত একটি জেপিজি, পিএনজি বা ওয়েবপি ছবি ব্যবহার করুন।' : 'Use a JPG, PNG or WebP image up to 5 MB.'}
               </Text>
-              <TouchableOpacity style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#F97316', backgroundColor: '#FFF9F5' }}>
-                <Camera size={16} color="#B45309" style={{ marginRight: 6 }} />
-                <Text style={{ color: '#B45309', fontSize: 14, fontWeight: '700' }}>{isBn ? 'ছবি পরিবর্তন করুন' : 'Change photo'}</Text>
-              </TouchableOpacity>
+              <View style={{ gap: 8 }}>
+                <TouchableOpacity
+                  onPress={handleAvatarPress}
+                  style={{
+                    alignSelf: 'flex-start',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#FDBA74',
+                    backgroundColor: '#FFF7ED',
+                  }}>
+                  <Camera size={16} color="#9A3412" style={{ marginRight: 8 }} />
+                  <Text style={{ color: '#9A3412', fontSize: 14, fontWeight: '800' }}>{isBn ? 'ছবি পরিবর্তন করুন' : 'Change photo'}</Text>
+                </TouchableOpacity>
+
+                {profileImageFile && (
+                  <TouchableOpacity
+                    onPress={handleDirectUploadPhoto}
+                    disabled={isImageLoading}
+                    style={{
+                      alignSelf: 'flex-start',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: '#FDBA74',
+                      backgroundColor: isImageLoading ? '#F3F4F6' : '#FFF7ED',
+                      opacity: isImageLoading ? 0.6 : 1,
+                    }}>
+                    <Upload size={16} color="#9A3412" style={{ marginRight: 8 }} />
+                    <Text style={{ color: '#9A3412', fontSize: 14, fontWeight: '800' }}>{isBn ? 'ছবি আপলোড করুন' : 'Upload Photo'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -944,22 +1127,26 @@ export default function UpdateProfileScreen({ navigation }: any) {
               required
               value={firstName}
               onChange={v => {
-                setFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                setFirstName(v);
                 if (profileErrors.firstName) setProfileErrors(p => ({ ...p, firstName: undefined }));
               }}
-              placeholder=""
+              placeholder={isBn ? 'আপনার প্রথম নাম লিখুন' : 'Enter first name'}
               error={profileErrors.firstName}
+              autoCapitalize="words"
+              autoComplete="name-given"
             />
             <View style={{ height: 16 }} />
             <Field
               label={isBn ? 'শেষ নাম' : 'LAST NAME'}
               value={lastName}
               onChange={v => {
-                setLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                setLastName(v);
                 if (profileErrors.lastName) setProfileErrors(p => ({ ...p, lastName: undefined }));
               }}
-              placeholder=""
+              placeholder={isBn ? 'আপনার শেষ নাম লিখুন' : 'Enter last name'}
               error={profileErrors.lastName}
+              autoCapitalize="words"
+              autoComplete="name-family"
             />
             <View style={{ height: 16 }} />
             <Text style={styles.fieldLabel}>{isBn ? 'লিঙ্গ' : 'GENDER'} <Text style={{ color: '#DC2626' }}>*</Text></Text>
@@ -1030,27 +1217,14 @@ export default function UpdateProfileScreen({ navigation }: any) {
               required
               value={birthPlace}
               onChange={v => {
-                setBirthPlace(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
+                setBirthPlace(v);
                 if (profileErrors.birthPlace) setProfileErrors(p => ({ ...p, birthPlace: undefined }));
               }}
-              placeholder=""
+              placeholder={isBn ? 'আপনার জন্মস্থান লিখুন' : 'Enter birth place (e.g. Kolkata)'}
               error={profileErrors.birthPlace}
+              autoCapitalize="words"
             />
             <View style={{ height: 16 }} />
-            <Field
-              label={isBn ? 'ঠিকানা' : 'ADDRESS'}
-              multiline
-              value={address}
-              onChange={v => {
-                setAddress(v.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
-                if (profileErrors.address) setProfileErrors(p => ({ ...p, address: undefined }));
-              }}
-              placeholder=""
-              error={profileErrors.address}
-            />
-            <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 12, lineHeight: 18 }}>
-              {isBn ? 'এটি আপনার প্রোফাইলের ঠিকানা। বুকিং সেবার ঠিকানাগুলো আলাদাভাবে পরিচালিত হয়।' : 'This is your profile address. Booking service addresses are managed separately.'}
-            </Text>
           </View>
           {/* Bottom Actions */}
           <View style={{ backgroundColor: '#FFFBF2', padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>

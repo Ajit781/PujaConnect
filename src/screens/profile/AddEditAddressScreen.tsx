@@ -235,12 +235,12 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
         ctzn_id: targetCtznId,
         address_type_id: addressTypeId,
         label: label.trim() || type,
-        address: addressLine1.trim(),
-        street: streetArea.trim(),
+        address: addressLine1.trim() || 'N/A',
+        street: streetArea.trim() || addressLine1.trim() || city.trim() || 'Main Street',
         landmark: landmark.trim(),
-        city: city.trim(),
+        city: city.trim() || 'N/A',
         state: stateId || 1,
-        pincode: pincode.trim(),
+        pincode: pincode.trim() || '700001',
         latitude: latitude.trim() ? parseFloat(latitude.trim()) : 0,
         longitude: longitude.trim() ? parseFloat(longitude.trim()) : 0,
         delivery_contact_no: finalDeliveryContact,
@@ -364,7 +364,7 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
               <Text style={styles.requiredNote}>
                 * {isBn ? 'আবশ্যক ক্ষেত্রসমূহ' : 'Required fields'}
               </Text>
-              
+
               {relationType === 'Relative' && contactName ? (
                 <View style={{ backgroundColor: '#FFF3EB', padding: 12, borderRadius: 8, marginTop: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#FED7AA' }}>
                   <Text style={{ fontSize: 14, color: '#c65316', fontWeight: '500' }}>

@@ -19,10 +19,10 @@ export default function AccountScreen({ navigation }: any) {
   const isBn = i18n.language === 'bn';
   const { user } = useSelector((state: RootState) => state.auth);
   const { showAlert } = useAlert();
-
   const { data: userDetailsResponse } = useGetUserDetailsQuery(user?.user_id || 0, {
     skip: !user?.user_id,
   });
+
   const userDetails = userDetailsResponse;
 
   const handleLogout = () => {

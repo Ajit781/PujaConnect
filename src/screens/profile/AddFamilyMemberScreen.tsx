@@ -66,6 +66,20 @@ const convertTo24Hour = (timeStr: string): string => {
   return `${hours.toString().padStart(2, '0')}:${minutes}`;
 };
 
+const formatOnlyDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const [d, m, y] = dateStr.split('/');
+  if (y && m && d) {
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return dateStr;
+};
+
+const formatOnlyTime = (timeStr: string): string => {
+  if (!timeStr) return '';
+  return convertTo24Hour(timeStr) || '';
+};
+
 const formatApiDate = (dateStr: string, timeStr: string): string => {
   if (!dateStr) return '';
   const [d, m, y] = dateStr.split('/');
@@ -233,12 +247,13 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
           relative_auth_id: relDbIdForApi,
           main_auth_id: user?.user_id || 0,
           full_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-          date_of_birth: formatApiDate(dob, dontKnowTime ? '' : timeOfBirth),
+          date_of_birth: formatOnlyDate(dob),
+          time_of_birth: dontKnowTime ? '' : formatOnlyTime(timeOfBirth),
           place_of_birth: birthPlace.trim(),
           contact_no: phone.trim(),
           gender: relGenderNum,
           gotram: gotraId,
-          created_by: 3,
+          created_by: user?.user_id || 0,
         },
       ];
 

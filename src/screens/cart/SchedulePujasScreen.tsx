@@ -21,6 +21,8 @@ import { Colors } from '../../constants/Colors';
 import { useAlert } from '../../context/AlertContext';
 import { ShieldCheck, ChevronRight, Check } from 'lucide-react-native';
 import TopNavBar from '../../components/common/TopNavBar';
+import { useFocusEffect } from '@react-navigation/native';
+import { useGetAddressesQuery } from '../../store/api/pujaApi';
 
 export interface ScheduleItemPayload {
   package_id: number;
@@ -33,24 +35,106 @@ export interface ScheduleItemPayload {
 export default function SchedulePujasScreen({ navigation, route }: any) {
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
-  const { showAlert } = useAlert();
-
   const user = useSelector((state: RootState) => state.auth.user);
-  // Use addresses passed from CartScreen which are already flattened
-  const addresses = route.params?.addresses || [];
+  const paramAddresses = route.params?.addresses || [];
   const { cartItems = [] } = route.params || {};
+
+  const { data: serverAddressesData, refetch: refetchAddresses } = useGetAddressesQuery(
+    { userId: user?.user_id || 0, pageNo: 1, pageSize: 50 },
+    { skip: !user?.user_id, refetchOnMountOrArgChange: true },
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.user_id) {
+        refetchAddresses();
+      }
+    }, [user?.user_id, refetchAddresses]),
+  );
+
+  const addresses = React.useMemo(() => {
+    let list: any[] = [...paramAddresses];
+
+    if (serverAddressesData) {
+      const citizen = serverAddressesData.citizen_info || serverAddressesData.citizen;
+      if (citizen && Array.isArray(citizen.address_list)) {
+        const selfAddrs = citizen.address_list
+          .filter((a: any) => a && (a.address || a.street))
+          .map((a: any, idx: number) => {
+            const stableId = (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || a.id || `self_${idx}_${a.pincode || ''}`).toString();
+            return {
+              id: stableId,
+              address_id: (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || stableId).toString(),
+              ctzn_address_id: (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || stableId).toString(),
+              type: a.address_type || a.address_type_name || a.label || 'Home',
+              label: a.label || a.address_type || '',
+              contactName: citizen.full_name || '',
+              contactNumber: a.delivery_contact_no || citizen.phone || '',
+              relationType: 'Self',
+              addressLine1: a.address || a.street || '',
+              streetArea: a.street || '',
+              landmark: a.landmark || '',
+              city: a.city || '',
+              state: a.state_name || a.state || '',
+              pincode: a.pincode || '',
+              isDefault: a.is_default === 1 || a.is_default === true || a.is_default === '1',
+            };
+          });
+        list = [...list, ...selfAddrs];
+      }
+      if (Array.isArray(serverAddressesData.relative_info)) {
+        serverAddressesData.relative_info.forEach((rel: any, relIdx: number) => {
+          if (Array.isArray(rel.address_list)) {
+            const relAddrs = rel.address_list
+              .filter((a: any) => a && (a.address || a.street))
+              .map((a: any, idx: number) => {
+                const stableId = (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || a.id || `rel_${relIdx}_${idx}_${a.pincode || ''}`).toString();
+                return {
+                  id: stableId,
+                  address_id: (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || stableId).toString(),
+                  ctzn_address_id: (a.address_id || a.ctzn_address_id || a.in_ctzn_address_id || stableId).toString(),
+                  type: a.address_type || a.address_type_name || a.label || 'Home',
+                  label: a.label || a.address_type || '',
+                  contactName: rel.full_name || '',
+                  contactNumber: a.delivery_contact_no || rel.phone || '',
+                  relationType: 'Relative',
+                  addressLine1: a.address || a.street || '',
+                  streetArea: a.street || '',
+                  landmark: a.landmark || '',
+                  city: a.city || '',
+                  state: a.state_name || a.state || '',
+                  pincode: a.pincode || '',
+                  isDefault: a.is_default === 1 || a.is_default === true || a.is_default === '1',
+                };
+              });
+            list = [...list, ...relAddrs];
+          }
+        });
+      }
+    }
+
+    const uniqueMap = new Map();
+    list.forEach(a => {
+      const key = (a.id || a.ctzn_address_id || a.address_id)?.toString();
+      if (key && !uniqueMap.has(key)) {
+        uniqueMap.set(key, a);
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [serverAddressesData, paramAddresses]);
 
   const [itemSchedules, setItemSchedules] = useState<
     Record<string, { date: Date | null; time: string | null; addressId: string | null; showInstructions: boolean; instructions: string }>
   >({});
-  
+
   const [syncDateTime, setSyncDateTime] = useState(true);
   const [syncAddress, setSyncAddress] = useState(true);
 
-  // DateTimePicker नियंत्रण के लिए स्टेट्स
+  // DateTimePicker
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
-  const [pickerTarget, setPickerTarget] = useState<string | null>(null); // 'GLOBAL' या विशिष्ट item ID
+  const [pickerTarget, setPickerTarget] = useState<string | null>(null);
 
   const [showAddressPicker, setShowAddressPicker] = useState(false);
   const [pendingAddressTarget, setPendingAddressTarget] = useState<string | null>(null);
@@ -60,14 +144,25 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
   const [preparedPayload, setPreparedPayload] = useState<ScheduleItemPayload[]>([]);
 
   useEffect(() => {
-    const defaultAddr = addresses?.find((a: any) => a.isDefault || a.is_default || a.is_default_address) || addresses?.[0];
-    const defaultAddrId = defaultAddr ? (defaultAddr.id || defaultAddr.ctzn_address_id)?.toString() : null;
+    if (!addresses || addresses.length === 0) return;
+    const defaultAddr = addresses.find((a: any) => a.isDefault || a.is_default || a.is_default_address) || addresses[0];
+    const defaultAddrId = defaultAddr ? (defaultAddr.id || defaultAddr.ctzn_address_id || defaultAddr.address_id)?.toString() : null;
 
-    const initialSchedules: Record<string, { date: Date | null; time: string | null; addressId: string | null; showInstructions: boolean; instructions: string }> = {};
-    cartItems.forEach((item: any) => {
-      initialSchedules[item.cartItemId] = { date: null, time: null, addressId: defaultAddrId, showInstructions: false, instructions: '' };
+    setItemSchedules(prev => {
+      const updated = { ...prev };
+      cartItems.forEach((item: any) => {
+        const existing = updated[item.cartItemId];
+        const chosenAddrId = existing?.addressId || defaultAddrId;
+        updated[item.cartItemId] = {
+          date: existing?.date || null,
+          time: existing?.time || null,
+          addressId: chosenAddrId,
+          showInstructions: existing?.showInstructions || false,
+          instructions: existing?.instructions || '',
+        };
+      });
+      return updated;
     });
-    setItemSchedules(initialSchedules);
   }, [cartItems, addresses]);
 
   const formatDate = (d: Date | null) => {
@@ -90,22 +185,33 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
     return `${String(h).padStart(2, '0')}:${mStr}`;
   };
 
-  // 12-घंटे के प्रारूप में समय फॉर्मेट करने का हेल्पर (जैसे: 10:00 AM)
   const formatTime12h = (date: Date) => {
     let hours = date.getHours();
     const minutes = date.getMinutes();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
-    hours = hours ? hours : 12; // '0' को '12' में बदलता है
+    hours = hours ? hours : 12;
     const minutesStr = String(minutes).padStart(2, '0');
     return `${hours}:${minutesStr} ${ampm}`;
   };
 
   const renderAddressDisplay = (addrId: string | null) => {
     if (!addrId) return isBn ? 'একটি ডেলিভারি ঠিকানা চয়ন করুন' : 'Select a delivery address';
-    const found = addresses?.find((a: any) => a.id?.toString() === addrId?.toString());
-    if (!found) return 'Address not found';
-    return `${found.type === 'Home' ? '🏠' : '📍'} ${found.addressLine1}, ${found.city}`;
+    const found = addresses?.find(
+      (a: any) =>
+        a.id?.toString() === addrId?.toString() ||
+        a.ctzn_address_id?.toString() === addrId?.toString() ||
+        a.address_id?.toString() === addrId?.toString()
+    );
+    if (!found) return '🏠 Home — Address Selected';
+    
+    const rawType = found.type || found.label || 'Home';
+    const icon = rawType.toLowerCase().includes('home') ? '🏠' : rawType.toLowerCase().includes('office') || rawType.toLowerCase().includes('work') ? '💼' : '📍';
+    const typeLabel = rawType.charAt(0).toUpperCase() + rawType.slice(1).toLowerCase();
+    const city = found.city || found.state || '';
+    const pin = found.pincode ? ` — ${found.pincode}` : '';
+
+    return `${icon} ${typeLabel}${city ? ', ' + city : ''}${pin}`;
   };
 
   // Picker की वैल्यू बदलने पर हैंडलर
@@ -312,7 +418,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
               <Text style={styles.stepLabelCompleted}>Cart</Text>
             </View>
             <View style={styles.stepLineCompleted} />
-            
+
             <View style={styles.stepperNode}>
               <View style={styles.stepCircleActiveOuter}>
                 <View style={styles.stepCircleActiveInner}>
@@ -322,7 +428,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
               <Text style={styles.stepLabelActive}>Schedule</Text>
             </View>
             <View style={styles.stepLineInactive} />
-            
+
             <View style={styles.stepperNode}>
               <View style={styles.stepCircleInactive}>
                 <Text style={styles.stepIconInactive}>💳</Text>
@@ -333,7 +439,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
 
           {/* Header Title Section */}
           <View style={styles.headerTitleSection}>
-              <View style={styles.headerTextWrapper}>
+            <View style={styles.headerTextWrapper}>
               <Text style={styles.stepCountText}>STEP 2 OF 3</Text>
               <Text style={styles.mainHeading}>Schedule your puja</Text>
               <Text style={styles.subHeading}>Choose when and where you would like the ceremony performed.</Text>
@@ -370,7 +476,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                 <Text style={styles.prefSub}>{isBn ? 'সব পূজাতে প্রযোজ্য' : 'Apply your selections to every puja'}</Text>
               </View>
               <View style={styles.prefTogglesContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.prefToggle, syncDateTime && styles.prefToggleActive]}
                   onPress={() => {
                     const next = !syncDateTime;
@@ -396,7 +502,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.prefToggle, syncAddress && styles.prefToggleActive]}
                   onPress={() => {
                     const next = !syncAddress;
@@ -435,7 +541,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
               const itemState = itemSchedules[id] || {};
               const showDateTimeForm = index === 0 || !syncDateTime;
               const showAddressForm = index === 0 || !syncAddress;
-              
+
               return (
                 <View key={id} style={styles.dateTimeCard}>
                   {showDateTimeForm && (
@@ -465,21 +571,21 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                           setPickerMode('time');
                           setShowPicker(true);
                         }}>
-                        <Text style={[styles.pillIcon, !itemState.date && {opacity: 0.5}]}>🕒</Text>
+                        <Text style={[styles.pillIcon, !itemState.date && { opacity: 0.5 }]}>🕒</Text>
                         <Text style={[styles.pillInputText, !itemState.time && styles.pillInputPlaceholder]}>
                           {itemState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
                         </Text>
                       </TouchableOpacity>
                     </View>
                   )}
-                  
+
                   <View style={styles.pujaDetailsCard}>
                     <View style={styles.pujaTitleRow}>
                       <Text style={styles.pujaTitleEmoji}>🙏</Text>
                       <Text style={styles.pujaTitleText}>{isBn ? item.titleBn : item.titleEn}</Text>
                       <Text style={styles.pujaPackageText}>{item.package_name || 'Basic Package'}</Text>
                     </View>
-                    
+
                     <TouchableOpacity
                       style={styles.instructionToggle}
                       onPress={() => {
@@ -492,7 +598,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                         {itemState.showInstructions && <Text style={styles.instructionCheck}>✓</Text>}
                       </View>
                       <Text style={styles.instructionText}>
-                         {isBn ? 'আমাদের জন্য বিশেষ নির্দেশাবলী যোগ করুন' : 'Add special instructions for us'}
+                        {isBn ? 'আমাদের জন্য বিশেষ নির্দেশাবলী যোগ করুন' : 'Add special instructions for us'}
                       </Text>
                     </TouchableOpacity>
 
@@ -540,12 +646,12 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                         {itemState.addressId ? (
                           <View style={styles.addressSelectedInner}>
                             <View style={styles.addressSelectedIconBox}>
-                              <Text style={{ fontSize: 18 }}>📍</Text>
+                              <Text style={{ fontSize: 20 }}>🏠</Text>
                             </View>
                             <View style={styles.addressSelectedInfo}>
-                              <Text style={styles.addressSelectedLabel}>{isBn ? 'নির্বাচিত ঠিকানা' : 'Selected Address'}</Text>
+                              <Text style={styles.addressSelectedLabel}>{isBn ? 'নির্বাচিত ঠিকানা (ডেলিভারি)' : 'Selected Delivery Address'}</Text>
                               <Text style={styles.addressSelectedText} numberOfLines={2}>
-                                {renderAddressDisplay(itemState.addressId).replace('🏠 ', '').replace('📍 ', '')}
+                                {renderAddressDisplay(itemState.addressId)}
                               </Text>
                             </View>
                             <View style={styles.addressChangeBtn}>
@@ -576,25 +682,25 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
       {/* Footer */}
       <View style={styles.footerRow}>
         <TouchableOpacity
-            style={styles.confirmBtn}
-            onPress={handleConfirm}>
-            <View style={styles.btnContentLeft}>
-               <ShieldCheck color={Colors.white} size={22} style={{ opacity: 0.9 }} />
-               <View style={styles.btnTextWrapper}>
-                  <Text style={styles.btnMainTitle}>
-                    {step === 1 
-                      ? (isBn ? 'সময়সূচী নিশ্চিত করুন' : 'Continue to Payment')
-                      : (isBn ? 'অর্ডার নিশ্চিত করুন' : 'Confirm Order')}
-                  </Text>
-                  <Text style={styles.btnSubTitle}>
-                    {step === 1
-                      ? (isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time')
-                      : (isBn ? 'সব ঠিক আছে' : 'Everything looks good')}
-                  </Text>
-               </View>
+          style={styles.confirmBtn}
+          onPress={handleConfirm}>
+          <View style={styles.btnContentLeft}>
+            <ShieldCheck color={Colors.white} size={22} style={{ opacity: 0.9 }} />
+            <View style={styles.btnTextWrapper}>
+              <Text style={styles.btnMainTitle}>
+                {step === 1
+                  ? (isBn ? 'সময়সূচী নিশ্চিত করুন' : 'Continue to Payment')
+                  : (isBn ? 'অর্ডার নিশ্চিত করুন' : 'Confirm Order')}
+              </Text>
+              <Text style={styles.btnSubTitle}>
+                {step === 1
+                  ? (isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time')
+                  : (isBn ? 'সব ঠিক আছে' : 'Everything looks good')}
+              </Text>
             </View>
-            <ChevronRight color={Colors.white} size={22} style={{ opacity: 0.9 }} />
-          </TouchableOpacity>
+          </View>
+          <ChevronRight color={Colors.white} size={22} style={{ opacity: 0.9 }} />
+        </TouchableOpacity>
       </View>
 
       {/* Date & Time Picker Render */}
@@ -605,138 +711,138 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  
+
   newHeaderBox: {
-      backgroundColor: Colors.extraLightWarm,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 16,
-    },
-    stepperWrapper: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-      paddingHorizontal: 10,
-    },
-    stepperNode: {
-      alignItems: 'center',
-      width: 60,
-    },
-    stepCircleCompleted: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: Colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 8,
-    },
-    stepLabelCompleted: {
-      fontSize: 12,
-      color: Colors.primary,
-      fontWeight: '800',
-    },
-    stepLineCompleted: {
-      flex: 1,
-      height: 2,
-      backgroundColor: Colors.primary,
-      marginHorizontal: 8,
-      marginBottom: 20,
-    },
-    stepCircleInactive: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      backgroundColor: '#FFF',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 8,
-    },
-    stepIconInactive: {
-      fontSize: 16,
-      opacity: 0.2,
-    },
-    stepLabelInactive: {
-      fontSize: 12,
-      color: '#D1D5DB',
-      fontWeight: '600',
-    },
-    stepLineInactive: {
-      flex: 1,
-      height: 2,
-      backgroundColor: '#E5E7EB',
-      marginHorizontal: 8,
-      marginBottom: 20,
-    },
-    stepCircleActiveOuter: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: '#FFF0D6',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 4,
-    },
-    stepCircleActiveInner: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: '#111827',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    stepIconActive: {
-      fontSize: 16,
-      color: '#FFF',
-    },
-    stepLabelActive: {
-      fontSize: 12,
-      color: '#D1D5DB', 
-      fontWeight: '600',
-    },
-    headerTitleSection: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-    },
-    backBtnCircleRow: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
-      backgroundColor: '#FFF',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 16,
-      marginTop: 8,
-    },
-    headerTextWrapper: {
-      flex: 1,
-    },
-    stepCountText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: '#F97316',
-      letterSpacing: 1.5,
-      marginBottom: 4,
-    },
-    mainHeading: {
-      fontSize: 22,
-      fontWeight: '900',
-      color: '#3B2416',
-      marginBottom: 6,
-    },
-    subHeading: {
-      fontSize: 14,
-      color: '#6B7280',
-      lineHeight: 20,
-    },
-    backBtnCircle: {
-    },
-    headerLine: {
+    backgroundColor: Colors.extraLightWarm,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  stepperWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 10,
+  },
+  stepperNode: {
+    alignItems: 'center',
+    width: 60,
+  },
+  stepCircleCompleted: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  stepLabelCompleted: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '800',
+  },
+  stepLineCompleted: {
+    flex: 1,
+    height: 2,
+    backgroundColor: Colors.primary,
+    marginHorizontal: 8,
+    marginBottom: 20,
+  },
+  stepCircleInactive: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  stepIconInactive: {
+    fontSize: 16,
+    opacity: 0.2,
+  },
+  stepLabelInactive: {
+    fontSize: 12,
+    color: '#D1D5DB',
+    fontWeight: '600',
+  },
+  stepLineInactive: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
+    marginBottom: 20,
+  },
+  stepCircleActiveOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF0D6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  stepCircleActiveInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepIconActive: {
+    fontSize: 16,
+    color: '#FFF',
+  },
+  stepLabelActive: {
+    fontSize: 12,
+    color: '#D1D5DB',
+    fontWeight: '600',
+  },
+  headerTitleSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  backBtnCircleRow: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    marginTop: 8,
+  },
+  headerTextWrapper: {
+    flex: 1,
+  },
+  stepCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F97316',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  mainHeading: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#3B2416',
+    marginBottom: 6,
+  },
+  subHeading: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  backBtnCircle: {
+  },
+  headerLine: {
     flex: 1,
     height: 1,
     backgroundColor: '#EED9C4',

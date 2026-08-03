@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/Colors';
 import LinearGradient from 'react-native-linear-gradient';
+import { useGetUserDetailsQuery } from '../../store/api/pujaApi';
 const appLogo = require('../../assets/images/Logo.webp');
 
 interface TopNavBarProps {
@@ -22,6 +23,10 @@ export default function TopNavBar({ showBack = false, onProfilePress, onBackPres
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const cartItems = useSelector((state: RootState) => state.cart.items);
+  const user = useSelector((state: RootState) => state.auth.user);
+  const { data: userDetails } = useGetUserDetailsQuery(user?.user_id || 0, {
+    skip: !user?.user_id,
+  });
   const { showToast } = useToast();
   const { t } = useTranslation();
 
@@ -79,8 +84,21 @@ export default function TopNavBar({ showBack = false, onProfilePress, onBackPres
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleProfilePress} style={styles.avatar}>
-            <UserCircle2 size={20} color="#FFF" />
+          <TouchableOpacity onPress={handleProfilePress} style={[styles.avatar, { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' }]}>
+            {userDetails?.ctnz_profile_image ? (
+              <Image
+                key={userDetails.ctnz_profile_image}
+                source={{
+                  uri: userDetails.ctnz_profile_image.includes('?')
+                    ? `${userDetails.ctnz_profile_image}&t=${Date.now()}`
+                    : `${userDetails.ctnz_profile_image}?t=${Date.now()}`,
+                }}
+                style={{ width: '100%', height: '100%', borderRadius: 16 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <UserCircle2 size={20} color="#FFF" />
+            )}
           </TouchableOpacity>
         </View>
       </View>

@@ -29,14 +29,18 @@ import { logout } from '../slices/authSlice';
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
   timeout: 30000,
-  prepareHeaders: async headers => {
+  prepareHeaders: async (headers, { endpoint }) => {
     // Priority 1: System token from AsyncStorage (used by existing logic)
     const token = await getSystemToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
     headers.set('accept', '*/*');
-    headers.set('Content-Type', 'application/json');
+    if (endpoint === 'saveUserProfileImage' || endpoint === 'saveUserProfile') {
+      headers.delete('Content-Type');
+    } else {
+      headers.set('Content-Type', 'application/json');
+    }
     return headers;
   },
 });
@@ -409,8 +413,13 @@ export const pujaApi = createApi({
     getUserDetails: builder.query<any, string | number>({
       query: userId => {
         const payload = {
-          enc_data: JSON.stringify({ user_id: userId.toString() }),
+          enc_data: JSON.stringify({ user_id: userId ? userId.toString() : '0' }),
         };
+        console.log('==============================================');
+        console.log('--- API: getUserDetails REQUEST DATA ---');
+        console.log('userId:', userId);
+        console.log('Payload:', JSON.stringify(payload, null, 2));
+        console.log('==============================================');
         return {
           url: ENDPOINTS.getUserDetails,
           method: 'POST',
@@ -418,13 +427,18 @@ export const pujaApi = createApi({
         };
       },
       transformResponse: (response: any) => {
+        console.log('==============================================');
+        console.log('--- API: getUserDetails SERVER RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
           const data =
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
+          console.log('Decoded getUserDetails Data:', data);
+          console.log('==============================================');
           return data;
         }
+        console.log('==============================================');
         return null;
       },
       providesTags: ['UserDetails'],
@@ -433,12 +447,30 @@ export const pujaApi = createApi({
       { status: number; message: string; data: any },
       { data: string }
     >({
-      query: ({ data }) => ({
-        url: ENDPOINTS.saveRelativeDetails,
-        method: 'POST',
-        body: data,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      query: ({ data }) => {
+        console.log('==============================================');
+        console.log('--- API: saveRelativeDetails REQUEST DATA ---');
+        console.log('Raw Data String:', data);
+        try {
+          const parsedData = JSON.parse(data);
+          if (parsedData.enc_data) {
+            console.log('Decoded enc_data Object:', JSON.parse(parsedData.enc_data));
+          }
+        } catch (e) { }
+        console.log('==============================================');
+        return {
+          url: ENDPOINTS.saveRelativeDetails,
+          method: 'POST',
+          body: data,
+          headers: { 'Content-Type': 'application/json' },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('==============================================');
+        console.log('--- API: saveRelativeDetails SERVER RESPONSE ---', response);
+        console.log('==============================================');
+        return response;
+      },
       invalidatesTags: ['UserDetails'],
     }),
     deleteRelativeDetails: builder.mutation<
@@ -460,8 +492,17 @@ export const pujaApi = createApi({
       query: ({ data, file }) => {
         const formData = new FormData();
         formData.append('data', data);
-        console.log('--- API: saveUserProfile PAYLOAD ---', data);
-        console.log('--- API: saveUserProfile FILE ---', file);
+        console.log('==============================================');
+        console.log('--- API: saveUserProfile REQUEST DATA ---');
+        console.log('Raw Data String:', data);
+        try {
+          const parsedData = JSON.parse(data);
+          if (parsedData.enc_data) {
+            console.log('Decoded enc_data Object:', JSON.parse(parsedData.enc_data));
+          }
+        } catch (e) { }
+        console.log('File attached:', file?.name || file?.uri || 'No File');
+        console.log('==============================================');
         if (file) {
           formData.append('file', file);
         }
@@ -469,10 +510,53 @@ export const pujaApi = createApi({
           url: ENDPOINTS.saveUserProfile,
           method: 'POST',
           body: formData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
         };
+      },
+      transformResponse: (response: any) => {
+        console.log('==============================================');
+        console.log('--- API: saveUserProfile SERVER RESPONSE ---', JSON.stringify(response, null, 2));
+        console.log('==============================================');
+        return response;
+      },
+      invalidatesTags: ['UserDetails'],
+    }),
+    saveUserProfileImage: builder.mutation<
+      { status: number; message: string; data: any },
+      { authId: number | string; file: any }
+    >({
+      query: ({ authId, file }) => {
+        const formData = new FormData();
+        const numId = Number(authId) || 0;
+        const dataValue = `{"enc_data": "{\\"auth_id\\":${numId}}"}`;
+        formData.append('data', dataValue);
+
+        const filePayload = file
+          ? {
+            uri: file.uri,
+            type: file.type || 'image/jpeg',
+            name: file.name || file.fileName || `profile_${numId}.jpg`,
+          }
+          : null;
+        if (filePayload) {
+          formData.append('file', filePayload as any);
+        }
+        console.log('==============================================');
+        console.log('--- API: saveUserProfileImage REQUEST DATA ---');
+        console.log('authId:', numId);
+        console.log('data:', dataValue);
+        console.log('file Payload:', JSON.stringify(filePayload, null, 2));
+        console.log('==============================================');
+        return {
+          url: ENDPOINTS.saveUserProfileImage,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('==============================================');
+        console.log('--- API: saveUserProfileImage SERVER RESPONSE ---', response);
+        console.log('==============================================');
+        return response;
       },
       invalidatesTags: ['UserDetails'],
     }),
@@ -965,6 +1049,7 @@ export const {
   useSaveRelativeDetailsMutation,
   useDeleteRelativeDetailsMutation,
   useSaveUserProfileMutation,
+  useSaveUserProfileImageMutation,
   useGetUserDetailsQuery,
   useSaveAddressMutation,
   useSaveAddressV1Mutation,
@@ -986,4 +1071,44 @@ export const {
   useLazyGetInvoiceDetailsQuery,
 } = pujaApi;
 
+export const uploadUserProfileImageDirectly = async (authId: number | string, file: any) => {
+  const token = await getSystemToken();
+  const formData = new FormData();
+  const numId = Number(authId) || 0;
+  const dataValue = `{"enc_data": "{\\"auth_id\\":${numId}}"}`;
+  formData.append('data', dataValue);
 
+  const fileObj = file
+    ? {
+      uri: file.uri,
+      type: file.type || 'image/jpeg',
+      name: file.name || file.fileName || `profile_${numId}.jpg`,
+    }
+    : null;
+
+  if (fileObj) {
+    formData.append('file', fileObj as any);
+  }
+
+  console.log('==============================================');
+  console.log('=== SAVE USER PROFILE IMAGE: FULL PAYLOAD ===');
+  console.log('URL:', `${API_BASE_URL}${ENDPOINTS.saveUserProfileImage}`);
+  console.log('data:', dataValue);
+  console.log('file:', JSON.stringify(fileObj, null, 2));
+  console.log('==============================================');
+
+  const res = await fetch(`${API_BASE_URL}${ENDPOINTS.saveUserProfileImage}`, {
+    method: 'POST',
+    headers: {
+      'accept': '*/*',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const json = await res.json();
+  console.log('==============================================');
+  console.log('=== SAVE USER PROFILE IMAGE: SERVER RESPONSE ===', JSON.stringify(json, null, 2));
+  console.log('==============================================');
+  return json;
+};

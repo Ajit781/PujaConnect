@@ -206,19 +206,15 @@ export async function getAllPujaTypes(userId: number): Promise<PujaType[]> {
 export async function getAllPujaTags(): Promise<PujaTag[]> {
   try {
     const response = await api.post(ENDPOINTS.getPujaTags, {});
-
-    if (response.data.status !== 0) {
-      throw new Error(response.data.message || 'Failed to fetch puja tags');
+    if (!response.data || response.data.status !== 0) {
+      return [];
     }
-
     const dataStr = response.data.data;
     if (!dataStr) return [];
-
-    const parsed: PujaTag[] = JSON.parse(dataStr);
-    return parsed;
+    return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
   } catch (error: any) {
-    console.error('[DashboardService] Error fetching puja tags:', error);
-    throw error;
+    console.warn('[DashboardService] Could not fetch puja tags:', error?.message || error);
+    return [];
   }
 }
 
@@ -228,9 +224,13 @@ export async function getAllPujaTags(): Promise<PujaTag[]> {
 export async function getSummaryCount(): Promise<SummaryCount> {
   try {
     const response = await api.post(ENDPOINTS.getSummaryCount, {});
-
-    if (response.data.status !== 0) {
-      throw new Error(response.data.message || 'Failed to fetch summary count');
+    if (!response.data || response.data.status !== 0) {
+      return {
+        total_user_qty: 0,
+        total_temple_qty: 0,
+        total_astrologer_qty: 0,
+        total_registered_priest_qty: 0,
+      };
     }
 
     const dataStr = response.data.data;
@@ -243,11 +243,15 @@ export async function getSummaryCount(): Promise<SummaryCount> {
       };
     }
 
-    const parsed: SummaryCount = JSON.parse(dataStr);
-    return parsed;
+    return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
   } catch (error: any) {
-    console.error('[DashboardService] Error fetching summary count:', error);
-    throw error;
+    console.warn('[DashboardService] Could not fetch summary count:', error?.message || error);
+    return {
+      total_user_qty: 0,
+      total_temple_qty: 0,
+      total_astrologer_qty: 0,
+      total_registered_priest_qty: 0,
+    };
   }
 }
 
@@ -272,17 +276,16 @@ export async function getPujaByTag(
       enc_data: encData,
     });
 
-    if (response.data.status !== 0) {
-      throw new Error(response.data.message || 'Failed to fetch tagged pujas');
+    if (!response.data || response.data.status !== 0) {
+      return [];
     }
 
     const dataStr = response.data.data;
     if (!dataStr) return [];
 
-    const parsed: PujaType[] = JSON.parse(dataStr);
-    return parsed;
+    return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
   } catch (error: any) {
-    console.error('[DashboardService] Error fetching tagged pujas:', error);
-    throw error;
+    console.warn('[DashboardService] Could not fetch tagged pujas:', error?.message || error);
+    return [];
   }
 }

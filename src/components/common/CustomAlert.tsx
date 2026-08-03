@@ -14,6 +14,7 @@ export interface AlertButton {
   text: string;
   onPress?: () => void;
   style?: 'default' | 'cancel' | 'destructive';
+  icon?: React.ReactNode;
 }
 
 interface CustomAlertProps {
@@ -63,7 +64,7 @@ export function CustomAlert({
       animationType="fade"
       statusBarTranslucent={true}
       onRequestClose={
-        buttons && buttons.length ? () => {} : onDismiss || (() => {})
+        buttons && buttons.length ? () => { } : onDismiss || (() => { })
       }
     >
       <TouchableWithoutFeedback onPress={onDismiss}>
@@ -104,22 +105,25 @@ export function CustomAlert({
                           styles.button,
                           btn.style === 'cancel' && styles.buttonCancel,
                           btn.style === 'destructive' &&
-                            styles.buttonDestructive,
+                          styles.buttonDestructive,
                           buttons.length === 1 && styles.buttonFull,
                           buttons.length > 2 && styles.buttonFullCol,
                           index > 0 && buttons.length <= 2 && styles.buttonLeft,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.buttonText,
-                            btn.style === 'cancel' && styles.buttonTextCancel,
-                            btn.style === 'destructive' &&
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                          {btn.icon ? <View style={{ marginRight: 8 }}>{btn.icon}</View> : null}
+                          <Text
+                            style={[
+                              styles.buttonText,
+                              btn.style === 'cancel' && styles.buttonTextCancel,
+                              btn.style === 'destructive' &&
                               styles.buttonTextDestructive,
-                          ]}
-                        >
-                          {btn.text}
-                        </Text>
+                            ]}
+                          >
+                            {btn.text}
+                          </Text>
+                        </View>
                       </TouchableOpacity>
                     ))}
                   </View>
