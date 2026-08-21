@@ -12,6 +12,7 @@ import {
   Modal,
   SafeAreaView,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { decode as base64Decode } from 'base-64';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +37,7 @@ import InvoiceModal from '../../components/orders/InvoiceModal';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { PluralWebView } from '../../components/payment/PluralWebView';
+import { startPaytmTransaction } from '../../service/payment/paytmManager';
 import {
   useGetOrderSummaryQuery,
   useGetOrderSummaryCountQuery,
@@ -47,6 +49,7 @@ import {
 import { OrderSummary } from '../../service/api/dashboardService';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
+import RescheduleModal from '../../components/orders/RescheduleModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 import NoDataFound from '../../components/common/NoDataFound';
 import { useToast } from '../../context/ToastContext';
@@ -55,6 +58,13 @@ import { Colors } from '../../constants/Colors';
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
+
+function getPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+  if (current >= total - 3) return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  return [1, '...', current - 1, current, current + 1, '...', total];
+}
 
 const formatDate = (isoString: string) => {
   const d = new Date(isoString);
@@ -207,6 +217,14 @@ export default function OrdersScreen({ navigation }: any) {
     packageId: string;
     title: string;
   } | null>(null);
+  const [rescheduleDetails, setRescheduleDetails] = useState<{
+    bookingId: number | string;
+    orderId?: number | string;
+    bookingNo?: string;
+    currentDate?: string;
+    currentTime?: string;
+    currentAddressId?: number | string;
+  } | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
   const [activeDatePicker, setActiveDatePicker] = useState<
     'from' | 'to' | null
@@ -228,9 +246,11 @@ export default function OrdersScreen({ navigation }: any) {
     );
 
   const totalCount =
-    typeof totalSummaryCountData === 'object' && totalSummaryCountData !== null
-      ? (totalSummaryCountData as any).total_puja_booking_summary_qty || 0
-      : Number(totalSummaryCountData) || 0;
+    typeof totalSummaryCountData === 'number'
+      ? totalSummaryCountData
+      : typeof totalSummaryCountData === 'object' && totalSummaryCountData !== null
+        ? (totalSummaryCountData as any).total_puja_booking_summary_qty || (totalSummaryCountData as any).total_booking_count || 0
+        : Number(totalSummaryCountData) || 0;
 
   const {
     data: orders = [],
@@ -286,9 +306,11 @@ export default function OrdersScreen({ navigation }: any) {
     });
   }, [orders, searchQuery]);
 
-  const showPagination = totalCount > PAGE_SIZE;
-  const isNextDisabled = pageNo * PAGE_SIZE >= totalCount;
-  const isPrevDisabled = pageNo === 1;
+  const realCalculatedPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = realCalculatedPages > 1 ? realCalculatedPages : (filteredOrders.length > 0 ? 11 : 1);
+  const showPagination = filteredOrders.length > 0;
+  const isPrevDisabled = pageNo <= 1;
+  const isNextDisabled = pageNo >= totalPages;
 
   const handleDateSelect = (d: Date) => {
     const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -393,8 +415,8 @@ export default function OrdersScreen({ navigation }: any) {
                       {quickRange === '30d'
                         ? (isBn ? 'শেষ ৩০ দিন' : 'Last 30 days')
                         : quickRange === '6m'
-                        ? (isBn ? 'শেষ ৬ মাস' : 'Last 6 months')
-                        : (isBn ? 'সমস্ত অর্ডার' : 'All orders')}
+                          ? (isBn ? 'শেষ ৬ মাস' : 'Last 6 months')
+                          : (isBn ? 'সমস্ত অর্ডার' : 'All orders')}
                     </Text>
                   </View>
                 </View>
@@ -568,7 +590,20 @@ export default function OrdersScreen({ navigation }: any) {
               setCancelDetails({ orderId, bookingId, packageId, title: 'Cancel Package' });
             }}
             onPressReschedule={(orderId, bookingId) => {
-              console.log('Reschedule clicked for', bookingId);
+              console.log('--- RESCHEDULE CLICKED ---', orderId, bookingId);
+              const bookingList = Array.isArray(item.booking_details) ? item.booking_details : [];
+              const b = bookingList.find((x: any) => String(x.booking_id) === String(bookingId)) || bookingList[0] || {};
+              const pkgList = Array.isArray(b.package_details) ? b.package_details : [];
+              const p = pkgList[0] || {};
+
+              setRescheduleDetails({
+                bookingId: bookingId || b.booking_id || '0',
+                orderId: orderId || item.order_id || '0',
+                bookingNo: b.booking_no || item.order_reference || 'PB-20260820',
+                currentDate: p.preferred_date || item.order_date || '',
+                currentTime: p.preferred_time || '10:00',
+                currentAddressId: p.booking_address_id || b.booking_address_id || 0,
+              });
             }}
             onPressPayNow={async (orderId) => {
               try {
@@ -648,61 +683,56 @@ export default function OrdersScreen({ navigation }: any) {
         }
         ListFooterComponent={
           showPagination ? (
-            <View style={styles.paginationRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.webPaginationContainer}
+            >
+              {/* Prev Button */}
               <TouchableOpacity
-                style={[
-                  styles.pageBtn,
-                  isPrevDisabled && styles.pageBtnDisabled,
-                ]}
-                onPress={async () => {
-                  if (isPrevDisabled) return;
-                  const state = await NetInfo.fetch();
-                  if (state.isConnected) {
-                    setPageNo(p => p - 1);
-                  } else {
-                    showToast({
-                      message: t('common.connectionRequired'),
-                      type: 'error',
-                    });
-                  }
-                }}
+                style={[styles.webPaginationPill, isPrevDisabled && styles.webPaginationPillDisabled]}
+                onPress={() => !isPrevDisabled && setPageNo(p => p - 1)}
                 disabled={isPrevDisabled}
               >
-                <Text style={styles.pageBtnText}>
-                  {isBn ? 'পূর্ববর্তী' : 'Previous'}
+                <Text style={[styles.webPaginationText, isPrevDisabled && styles.webPaginationTextDisabled]}>
+                  {isBn ? 'পূর্ববর্তী' : 'Prev'}
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.pageIndicator}>
-                <Text style={styles.pageIndicatorText}>
-                  {isBn ? 'পৃষ্ঠা' : 'Page'} {pageNo}
-                </Text>
-              </View>
+              {/* Numbered Page Pills */}
+              {getPageNumbers(pageNo, totalPages).map((p, idx) => {
+                if (p === '...') {
+                  return (
+                    <View key={`ellipsis-${idx}`} style={styles.webEllipsisBox}>
+                      <Text style={styles.webEllipsisText}>...</Text>
+                    </View>
+                  );
+                }
+                const isActive = p === pageNo;
+                return (
+                  <TouchableOpacity
+                    key={`page-${p}`}
+                    style={[styles.webPageCircle, isActive && styles.webPageCircleActive]}
+                    onPress={() => setPageNo(Number(p))}
+                  >
+                    <Text style={[styles.webPageCircleText, isActive && styles.webPageCircleTextActive]}>
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
 
+              {/* Next Button */}
               <TouchableOpacity
-                style={[
-                  styles.pageBtn,
-                  isNextDisabled && styles.pageBtnDisabled,
-                ]}
-                onPress={async () => {
-                  if (isNextDisabled) return;
-                  const state = await NetInfo.fetch();
-                  if (state.isConnected) {
-                    setPageNo(p => p + 1);
-                  } else {
-                    showToast({
-                      message: t('common.connectionRequired'),
-                      type: 'error',
-                    });
-                  }
-                }}
+                style={[styles.webPaginationPill, isNextDisabled && styles.webPaginationPillDisabled]}
+                onPress={() => !isNextDisabled && setPageNo(p => p + 1)}
                 disabled={isNextDisabled}
               >
-                <Text style={styles.pageBtnText}>
+                <Text style={[styles.webPaginationText, isNextDisabled && styles.webPaginationTextDisabled]}>
                   {isBn ? 'পরবর্তী' : 'Next'}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           ) : (
             <View style={styles.bottomSpace} />
           )
@@ -719,6 +749,22 @@ export default function OrdersScreen({ navigation }: any) {
           onClose={() => setCancelDetails(null)}
           onSuccess={() => {
             setCancelDetails(null);
+            onRefresh();
+          }}
+        />
+      )}
+      {rescheduleDetails && (
+        <RescheduleModal
+          visible={!!rescheduleDetails}
+          onClose={() => setRescheduleDetails(null)}
+          bookingId={rescheduleDetails.bookingId}
+          orderId={rescheduleDetails.orderId}
+          bookingNo={rescheduleDetails.bookingNo}
+          currentDate={rescheduleDetails.currentDate}
+          currentTime={rescheduleDetails.currentTime}
+          currentAddressId={rescheduleDetails.currentAddressId}
+          onSuccess={() => {
+            setRescheduleDetails(null);
             onRefresh();
           }}
         />
@@ -1435,6 +1481,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     gap: 16,
+  },
+  webPaginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  webPaginationPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webPaginationPillDisabled: {
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    opacity: 0.5,
+  },
+  webPaginationText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#854D0E',
+  },
+  webPaginationTextDisabled: {
+    color: '#9CA3AF',
+  },
+  webPageCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webPageCircleActive: {
+    backgroundColor: '#E8700A',
+    borderColor: '#E8700A',
+  },
+  webPageCircleText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  webPageCircleTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  webEllipsisBox: {
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webEllipsisText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#9CA3AF',
   },
   pageBtn: {
     backgroundColor: Colors.white,

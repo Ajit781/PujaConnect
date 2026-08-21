@@ -12,14 +12,29 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import DateTimePicker from '@react-native-community/datetimepicker'; // datetimepicker लाइब्रेरी इम्पोर्ट की गई
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { Colors } from '../../constants/Colors';
 import { useAlert } from '../../context/AlertContext';
-import { ShieldCheck, ChevronRight, Check } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import {
+  ShieldCheck,
+  Shield,
+  ChevronRight,
+  Check,
+  Calendar,
+  Clock,
+  MapPin,
+  Sparkles,
+  Receipt,
+  CheckCircle2,
+  Users,
+  ShoppingCart,
+  CreditCard,
+} from 'lucide-react-native';
 import TopNavBar from '../../components/common/TopNavBar';
 import { useFocusEffect } from '@react-navigation/native';
 import { useGetAddressesQuery } from '../../store/api/pujaApi';
@@ -33,11 +48,26 @@ export interface ScheduleItemPayload {
 }
 
 export default function SchedulePujasScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
+  const { showAlert } = useAlert();
   const { i18n } = useTranslation();
   const isBn = i18n.language === 'bn';
   const user = useSelector((state: RootState) => state.auth.user);
   const paramAddresses = route.params?.addresses || [];
   const { cartItems = [] } = route.params || {};
+
+  const subtotal = React.useMemo(() => {
+    return cartItems.reduce((acc: number, item: any) => {
+      const price = Number(item.price) || 1501;
+      return acc + price;
+    }, 0);
+  }, [cartItems]);
+
+  const platformFee = 17.8;
+  const gst = 3.2;
+  const grandTotal = subtotal + platformFee + gst;
+  const payOnlineAmount = 21;
+  const cashOnDeliveryAmount = grandTotal > 21 ? grandTotal - 21 : 0;
 
   const { data: serverAddressesData, refetch: refetchAddresses } = useGetAddressesQuery(
     { userId: user?.user_id || 0, pageNo: 1, pageSize: 50 },
@@ -152,7 +182,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
       const updated = { ...prev };
       cartItems.forEach((item: any) => {
         const existing = updated[item.cartItemId];
-        const chosenAddrId = existing?.addressId || defaultAddrId;
+        const chosenAddrId = existing?.addressId || null;
         updated[item.cartItemId] = {
           date: existing?.date || null,
           time: existing?.time || null,
@@ -406,198 +436,198 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
       <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
       <TopNavBar showBack={true} />
 
-      {/* Top Header */}
-      {step === 1 ? (
-        <View style={styles.newHeaderBox}>
-          {/* Stepper */}
-          <View style={styles.stepperWrapper}>
-            <View style={styles.stepperNode}>
-              <View style={styles.stepCircleCompleted}>
-                <Check color={Colors.white} size={16} strokeWidth={3} />
-              </View>
-              <Text style={styles.stepLabelCompleted}>Cart</Text>
-            </View>
-            <View style={styles.stepLineCompleted} />
-
-            <View style={styles.stepperNode}>
-              <View style={styles.stepCircleActiveOuter}>
-                <View style={styles.stepCircleActiveInner}>
-                  <Text style={styles.stepIconActive}>📅</Text>
-                </View>
-              </View>
-              <Text style={styles.stepLabelActive}>Schedule</Text>
-            </View>
-            <View style={styles.stepLineInactive} />
-
-            <View style={styles.stepperNode}>
-              <View style={styles.stepCircleInactive}>
-                <Text style={styles.stepIconInactive}>💳</Text>
-              </View>
-              <Text style={styles.stepLabelInactive}>Payment</Text>
-            </View>
-          </View>
-
-          {/* Header Title Section */}
-          <View style={styles.headerTitleSection}>
-            <View style={styles.headerTextWrapper}>
-              <Text style={styles.stepCountText}>STEP 2 OF 3</Text>
-              <Text style={styles.mainHeading}>Schedule your puja</Text>
-              <Text style={styles.subHeading}>Choose when and where you would like the ceremony performed.</Text>
-            </View>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.headerBox}>
-          <View style={{ position: 'absolute', top: 10, left: 20 }}>
-            <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: '800' }}>STEP 2 OF 2</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            <TouchableOpacity onPress={() => setStep(1)} style={{ marginRight: 8, padding: 4 }}>
-              <Text style={{ fontSize: 18 }}>⬅️</Text>
-            </TouchableOpacity>
-            <Text style={{ fontSize: 22, marginRight: 8 }}>📋</Text>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: Colors.textMain }}>
-              {isBn ? 'শিডিউল রিভিউ' : 'Review Schedule'}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Body */}
+      {/* Body ScrollView (Whole Page Scrolls Together!) */}
       <ScrollView
         style={styles.bodyScroll}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: Math.max(140, insets.bottom + 100),
+        }}
         showsVerticalScrollIndicator={false}>
         {step === 1 ? (
           <View>
-            <View style={styles.prefCard}>
-              <View style={styles.prefHeaderRow}>
-                <Text style={styles.prefTitle}>{isBn ? 'বুকিং পছন্দ' : 'Booking preferences'}</Text>
-                <Text style={styles.prefSub}>{isBn ? 'সব পূজাতে প্রযোজ্য' : 'Apply your selections to every puja'}</Text>
-              </View>
-              <View style={styles.prefTogglesContainer}>
-                <TouchableOpacity
-                  style={[styles.prefToggle, syncDateTime && styles.prefToggleActive]}
-                  onPress={() => {
-                    const next = !syncDateTime;
-                    setSyncDateTime(next);
-                    if (next && cartItems.length > 0) {
-                      const firstItem = itemSchedules[cartItems[0].cartItemId];
-                      if (firstItem) {
-                        setItemSchedules(prev => {
-                          const newSchedules = { ...prev };
-                          Object.keys(newSchedules).forEach(k => {
-                            newSchedules[k] = { ...newSchedules[k], date: firstItem.date, time: firstItem.time };
-                          });
-                          return newSchedules;
-                        });
-                      }
-                    }
-                  }}>
-                  <View style={[styles.prefCheck, syncDateTime && styles.prefCheckActive]}>
-                    {syncDateTime && <Text style={styles.prefCheckMark}>✓</Text>}
+            {/* Top Header Inside ScrollView */}
+            <View style={styles.newHeaderBox}>
+              {/* Stepper */}
+              <View style={styles.stepperWrapper}>
+                <View style={styles.stepperNode}>
+                  <View style={styles.stepCircleInactive}>
+                    <ShoppingCart color="#9CA3AF" size={16} />
                   </View>
-                  <Text style={[styles.prefToggleText, syncDateTime && styles.prefToggleTextActive]}>
-                    {isBn ? 'সব পূজার জন্য একই তারিখ ও সময়' : 'Use the same date and time for all pujas'}
-                  </Text>
-                </TouchableOpacity>
+                  <Text style={styles.stepLabelInactive}>Cart</Text>
+                </View>
+                <View style={styles.stepLineInactive} />
 
-                <TouchableOpacity
-                  style={[styles.prefToggle, syncAddress && styles.prefToggleActive]}
-                  onPress={() => {
-                    const next = !syncAddress;
-                    setSyncAddress(next);
-                    if (next && cartItems.length > 0) {
-                      const firstItem = itemSchedules[cartItems[0].cartItemId];
-                      if (firstItem) {
-                        setItemSchedules(prev => {
-                          const newSchedules = { ...prev };
-                          Object.keys(newSchedules).forEach(k => {
-                            newSchedules[k] = { ...newSchedules[k], addressId: firstItem.addressId };
-                          });
-                          return newSchedules;
-                        });
-                      }
-                    }
-                  }}>
-                  <View style={[styles.prefCheck, syncAddress && styles.prefCheckActive]}>
-                    {syncAddress && <Text style={styles.prefCheckMark}>✓</Text>}
+                <View style={styles.stepperNode}>
+                  <View style={styles.stepCircleActiveOuter}>
+                    <View style={styles.stepCircleActiveInner}>
+                      <Calendar color="#FFFFFF" size={16} />
+                    </View>
                   </View>
-                  <Text style={[styles.prefToggleText, syncAddress && styles.prefToggleTextActive]}>
-                    {isBn ? 'সব পূজার জন্য একই ঠিকানা' : 'Use the same address for all pujas'}
-                  </Text>
-                </TouchableOpacity>
+                  <Text style={styles.stepLabelActive}>Schedule</Text>
+                </View>
+                <View style={styles.stepLineInactive} />
+
+                <View style={styles.stepperNode}>
+                  <View style={styles.stepCircleInactive}>
+                    <CreditCard color="#D1D5DB" size={16} />
+                  </View>
+                  <Text style={styles.stepLabelInactive}>Payment</Text>
+                </View>
+              </View>
+
+              {/* Header Title Section */}
+              <View style={styles.headerTitleSection}>
+                <View style={styles.headerTextWrapper}>
+                  <Text style={styles.stepCountText}>STEP 2 OF 3</Text>
+                  <Text style={styles.mainHeading}>Schedule your puja</Text>
+                  <Text style={styles.subHeading}>Choose when and where you would like the ceremony performed.</Text>
+                </View>
               </View>
             </View>
-
+            {/* Section 1: DATE & TIME */}
             <View style={styles.sectionDividerRow}>
-              <Text style={styles.sectionDividerIcon}>📅</Text>
+              <Calendar size={18} color="#C84400" style={{ marginRight: 8 }} />
               <Text style={styles.sectionDividerText}>{isBn ? 'তারিখ ও সময়' : 'DATE & TIME'}</Text>
               <View style={styles.sectionLineFull} />
             </View>
 
-            {cartItems.map((item: any, index: number) => {
-              const id = item.cartItemId;
-              const itemState = itemSchedules[id] || {};
-              const showDateTimeForm = index === 0 || !syncDateTime;
-              const showAddressForm = index === 0 || !syncAddress;
+            {(() => {
+              const firstId = cartItems[0]?.cartItemId;
+              const firstState = itemSchedules[firstId] || {};
 
               return (
-                <View key={id} style={styles.dateTimeCard}>
-                  {showDateTimeForm && (
-                    <View>
-                      <Text style={styles.goldLabel}>📅 {isBn ? 'শুভ তারিখ' : 'AUSPICIOUS DATE'}</Text>
-                      <TouchableOpacity
-                        style={[styles.pillInput, showPicker && pickerTarget === id && pickerMode === 'date' && styles.pillInputActive]}
-                        onPress={() => {
-                          setPickerTarget(id);
-                          setPickerMode('date');
-                          setShowPicker(true);
-                        }}>
-                        <Text style={styles.pillIcon}>🗓️</Text>
-                        <Text style={[styles.pillInputText, !itemState.date && styles.pillInputPlaceholder]}>
-                          {itemState.date ? formatDate(itemState.date) : (isBn ? 'পছন্দের তারিখ নির্বাচন করুন' : 'Select preferred date')}
-                        </Text>
-                      </TouchableOpacity>
+                <View style={styles.sectionCardWhite}>
+                  <Text style={styles.goldLabel}>📅 {isBn ? 'শুভ তারিখ' : 'AUSPICIOUS DATE'}</Text>
+                  <TouchableOpacity
+                    style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'date' && styles.pillInputActive]}
+                    onPress={() => {
+                      setPickerTarget(firstId);
+                      setPickerMode('date');
+                      setShowPicker(true);
+                    }}>
+                    <Calendar size={20} color="#EA580C" style={{ marginRight: 12 }} />
+                    <Text style={[styles.pillInputText, !firstState.date && styles.pillInputPlaceholder]}>
+                      {firstState.date ? formatDate(firstState.date) : (isBn ? 'পছন্দের তারিখ নির্বাচন করুন' : 'Select preferred date')}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.dateAvailableHelperText}>
+                    Available from 27 Aug to 20 Nov 2026
+                  </Text>
 
-                      <Text style={[styles.greyLabel, !itemState.date && { opacity: 0.5 }]}>
-                        🕒 {isBn ? 'পছন্দের সময় (প্রথমে তারিখ নির্বাচন করুন)' : 'PREFERRED TIME (select date first)'}
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.pillInput, showPicker && pickerTarget === id && pickerMode === 'time' && styles.pillInputActive, !itemState.date && styles.pillInputDisabled]}
-                        disabled={!itemState.date}
-                        onPress={() => {
-                          setPickerTarget(id);
-                          setPickerMode('time');
-                          setShowPicker(true);
-                        }}>
-                        <Text style={[styles.pillIcon, !itemState.date && { opacity: 0.5 }]}>🕒</Text>
-                        <Text style={[styles.pillInputText, !itemState.time && styles.pillInputPlaceholder]}>
-                          {itemState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 8 }}>
+                    <Text style={[styles.greyLabel, !firstState.date && { opacity: 0.7 }]}>
+                      ⏱ {isBn ? 'পছন্দের সময়' : 'PREFERRED TIME'}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}>
+                      {isBn ? 'প্রথমে তারিখ নির্বাচন করুন' : 'Select a date first'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'time' && styles.pillInputActive, !firstState.date && styles.pillInputDisabled]}
+                    disabled={!firstState.date}
+                    onPress={() => {
+                      setPickerTarget(firstId);
+                      setPickerMode('time');
+                      setShowPicker(true);
+                    }}>
+                    <Clock size={20} color={firstState.date ? "#EA580C" : "#9CA3AF"} style={{ marginRight: 12 }} />
+                    <Text style={[styles.pillInputText, !firstState.time && styles.pillInputPlaceholder]}>
+                      {firstState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
 
-                  <View style={styles.pujaDetailsCard}>
-                    <View style={styles.pujaTitleRow}>
-                      <Text style={styles.pujaTitleEmoji}>🙏</Text>
-                      <Text style={styles.pujaTitleText}>{isBn ? item.titleBn : item.titleEn}</Text>
-                      <Text style={styles.pujaPackageText}>{item.package_name || 'Basic Package'}</Text>
+            {/* Section 2: PUJA LOCATION */}
+            <View style={styles.sectionDividerRow}>
+              <MapPin size={18} color="#C84400" style={{ marginRight: 8 }} />
+              <Text style={styles.sectionDividerText}>{isBn ? 'পূজা লোকেশন' : 'PUJA LOCATION'}</Text>
+              <View style={styles.sectionLineFull} />
+            </View>
+
+            {(() => {
+              const firstId = cartItems[0]?.cartItemId;
+              const firstState = itemSchedules[firstId] || {};
+              const selectedAddrText = firstState.addressId ? renderAddressDisplay(firstState.addressId) : null;
+
+              return (
+                <View style={styles.sectionCardWhite}>
+                  <TouchableOpacity
+                    style={styles.dashedAddressBtn}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      navigation.navigate('Address', {
+                        mode: 'select',
+                        onSelect: (addrId: string) => {
+                          setItemSchedules(prev => {
+                            const newSchedules = { ...prev };
+                            Object.keys(newSchedules).forEach(k => {
+                              newSchedules[k] = { ...newSchedules[k], addressId: addrId };
+                            });
+                            return newSchedules;
+                          });
+                        }
+                      });
+                    }}>
+                    <View style={styles.dashedAddressInner}>
+                      <View style={styles.dashedIconCircle}>
+                        <MapPin size={22} color="#C84400" />
+                      </View>
+                      <View style={{ flex: 1, paddingHorizontal: 12 }}>
+                        <Text style={styles.dashedAddressTitle}>
+                          {selectedAddrText ? (isBn ? 'নির্বাচিত পূজা লোকেশন' : 'Selected Puja Location') : (isBn ? 'পূজার জায়গা চয়ন করুন' : 'Select Puja Location')}
+                        </Text>
+                        <Text style={styles.dashedAddressSub} numberOfLines={2}>
+                          {selectedAddrText || (isBn ? 'কোথায় পূজা করা হবে?' : 'Where should the puja be performed?')}
+                        </Text>
+                      </View>
+                      <ChevronRight size={20} color="#F59E0B" />
                     </View>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
+            {/* Section 3: SPECIAL INSTRUCTIONS (Below Puja Location!) */}
+            <View style={styles.sectionDividerRow}>
+              <Sparkles size={18} color="#C84400" style={{ marginRight: 8 }} />
+              <Text style={styles.sectionDividerText}>{isBn ? 'বিশেষ নির্দেশাবলী' : 'SPECIAL INSTRUCTIONS'}</Text>
+              <View style={styles.optionalBadge}>
+                <Text style={styles.optionalBadgeText}>OPTIONAL</Text>
+              </View>
+              <View style={styles.sectionLineFull} />
+            </View>
+
+            <View style={styles.sectionCardWhite}>
+              <Text style={styles.instructionsHeaderSubText}>
+                {isBn
+                  ? 'অনুষ্ঠানের পছন্দগুলি শেয়ার করুন। আপনি প্রতিটি পূজার জন্য একটি পৃথক নোট যোগ করতে পারেন।'
+                  : 'Share ceremony preferences or accessibility needs. You can add a separate note for each puja.'}
+              </Text>
+
+              {cartItems.map((item: any) => {
+                const id = item.cartItemId;
+                const itemState = itemSchedules[id] || {};
+                return (
+                  <View key={id} style={styles.pujaInstructionCard}>
+                    <Text style={styles.pujaTitleBold}>{isBn ? item.titleBn : item.titleEn}</Text>
+                    <Text style={styles.pujaPkgSub}>{item.package_name || (item.titleEn + ' Verification Package')}</Text>
 
                     <TouchableOpacity
-                      style={styles.instructionToggle}
+                      style={[styles.instructionBtnOutline, itemState.showInstructions && styles.instructionBtnOutlineActive]}
                       onPress={() => {
                         setItemSchedules(prev => ({
                           ...prev,
                           [id]: { ...prev[id], showInstructions: !itemState.showInstructions },
                         }));
                       }}>
-                      <View style={[styles.instructionCheckbox, itemState.showInstructions && styles.instructionCheckActive]}>
-                        {itemState.showInstructions && <Text style={styles.instructionCheck}>✓</Text>}
+                      <View style={[styles.instructionBoxCheck, itemState.showInstructions && styles.instructionBoxCheckActive]}>
+                        {itemState.showInstructions && <Text style={styles.instructionCheckMark}>✓</Text>}
                       </View>
-                      <Text style={styles.instructionText}>
+                      <Text style={styles.instructionBtnText}>
                         {isBn ? 'আমাদের জন্য বিশেষ নির্দেশাবলী যোগ করুন' : 'Add special instructions for us'}
                       </Text>
                     </TouchableOpacity>
@@ -607,7 +637,8 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                         <TextInput
                           style={styles.instructionInput}
                           placeholder="Enter special instructions..."
-                          placeholderTextColor={Colors.textMuted}
+                          placeholderTextColor="#9CA3AF"
+                          multiline
                           value={itemState.instructions}
                           onChangeText={txt => {
                             setItemSchedules(prev => ({
@@ -619,87 +650,172 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                       </View>
                     )}
                   </View>
+                );
+              })}
+            </View>
 
-                  {showAddressForm && (
-                    <View style={styles.addressSection}>
-                      <Text style={styles.goldLabel}>📍 {isBn ? 'ঠিকানা' : 'ADDRESS'}</Text>
-                      <TouchableOpacity
-                        style={itemState.addressId ? styles.addressSelectedCard : styles.addressSelectBtn}
-                        onPress={() => {
-                          navigation.navigate('Address', {
-                            mode: 'select',
-                            onSelect: (addrId: string) => {
-                              setItemSchedules(prev => {
-                                const newSchedules = { ...prev };
-                                if (syncAddress) {
-                                  Object.keys(newSchedules).forEach(k => {
-                                    newSchedules[k] = { ...newSchedules[k], addressId: addrId };
-                                  });
-                                } else {
-                                  newSchedules[id] = { ...newSchedules[id], addressId: addrId };
-                                }
-                                return newSchedules;
-                              });
-                            }
-                          });
-                        }}>
-                        {itemState.addressId ? (
-                          <View style={styles.addressSelectedInner}>
-                            <View style={styles.addressSelectedIconBox}>
-                              <Text style={{ fontSize: 20 }}>🏠</Text>
-                            </View>
-                            <View style={styles.addressSelectedInfo}>
-                              <Text style={styles.addressSelectedLabel}>{isBn ? 'নির্বাচিত ঠিকানা (ডেলিভারি)' : 'Selected Delivery Address'}</Text>
-                              <Text style={styles.addressSelectedText} numberOfLines={2}>
-                                {renderAddressDisplay(itemState.addressId)}
-                              </Text>
-                            </View>
-                            <View style={styles.addressChangeBtn}>
-                              <Text style={styles.addressChangeBtnText}>{isBn ? 'পরিবর্তন' : 'Change'}</Text>
-                            </View>
-                          </View>
-                        ) : (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={styles.addressSelectBtnText}>
-                              {isBn ? 'ডেলিভারি ঠিকানা নির্বাচন করুন' : 'Select Delivery Address'}
-                            </Text>
-                            <Text style={styles.addressSelectBtnIcon}>+</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
+            {/* Section 4: ORDER DETAILS */}
+            {(() => {
+              const firstId = cartItems[0]?.cartItemId;
+              const firstState = itemSchedules[firstId] || {};
+
+              return (
+                <View style={{ marginTop: 4 }}>
+                  <View style={styles.sectionDividerRow}>
+                    <Receipt size={18} color="#C84400" style={{ marginRight: 8 }} />
+                    <Text style={styles.sectionDividerText}>{isBn ? 'অর্ডার বিবরণ' : 'Order Details'}</Text>
+                    <View style={styles.sectionLineFull} />
+                  </View>
+
+                  {/* 1. BOOKING READINESS */}
+                  <View style={styles.readinessCard}>
+                    <Text style={styles.readinessCardTitle}>BOOKING READINESS</Text>
+                    <View style={styles.readinessGrid}>
+                      <View style={[styles.readinessGridBox, firstState?.date && firstState?.time && styles.readinessGridBoxDone]}>
+                        <Calendar size={18} color={firstState?.date && firstState?.time ? "#059669" : "#C84400"} />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={styles.readinessBoxTitle}>Date and time</Text>
+                          <Text style={[styles.readinessBoxStatus, firstState?.date && firstState?.time ? { color: '#059669' } : { color: '#EF4444' }]}>
+                            {firstState?.date && firstState?.time ? 'Selected' : 'Required'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.readinessGridBox, firstState?.addressId && styles.readinessGridBoxDone]}>
+                        <MapPin size={18} color={firstState?.addressId ? "#059669" : "#C84400"} />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={styles.readinessBoxTitle}>Puja location</Text>
+                          <Text style={[styles.readinessBoxStatus, firstState?.addressId ? { color: '#059669' } : { color: '#EF4444' }]}>
+                            {firstState?.addressId ? 'Selected' : 'Required'}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
-                  )}
+                  </View>
+
+                  {/* 2. 1 PUJA SELECTED */}
+                  <View style={styles.selectedPujasCard}>
+                    <View style={styles.selectedPujasHeaderBanner}>
+                      <Text style={styles.selectedPujasBannerText}>{cartItems.length} PUJA SELECTED</Text>
+                    </View>
+                    {cartItems.map((item: any) => (
+                      <View key={item.cartItemId} style={styles.selectedPujaRow}>
+                        <Image source={{ uri: item.packageImage || item.imagePlaceholder || 'https://via.placeholder.com/60' }} style={styles.selectedPujaImg} />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={styles.selectedPujaName}>{isBn ? item.titleBn : item.titleEn}</Text>
+                            <Text style={styles.selectedPujaPrice}>₹{item.price?.toLocaleString('en-IN') || '1,501'}</Text>
+                          </View>
+                          <Text style={styles.selectedPujaPkgName}>{item.package_name || (item.titleEn + ' Verification Package')}</Text>
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            <View style={styles.pillSmall}><Users size={12} color="#C84400" /><Text style={styles.pillSmallText}>1</Text></View>
+                            <View style={styles.pillSmall}><Clock size={12} color="#C84400" /><Text style={styles.pillSmallText}>2h</Text></View>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* 3. PRICE BREAKDOWN */}
+                  <View style={styles.priceBreakdownCard}>
+                    <View style={styles.priceHeaderBanner}>
+                      <Text style={styles.priceBannerText}>PRICE BREAKDOWN</Text>
+                    </View>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabelOrange}>Puja services</Text>
+                      <Text style={styles.priceValBold}>₹{subtotal.toLocaleString('en-IN')}</Text>
+                    </View>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabelOrange}>Platform Fee</Text>
+                      <Text style={styles.priceValBold}>₹{platformFee.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabelOrange}>GST (18%)</Text>
+                      <Text style={styles.priceValBold}>₹{gst.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.priceDivider} />
+                    <View style={styles.priceGrandTotalRow}>
+                      <Text style={styles.grandTotalLabelLarge}>Grand Total</Text>
+                      <Text style={styles.grandTotalValLarge}>₹{grandTotal.toLocaleString('en-IN')}</Text>
+                    </View>
+                  </View>
+
+                  {/* 4. DUAL SPLIT PAYMENT CARDS */}
+                  <View style={styles.dualPaymentContainer}>
+                    <View style={styles.payNowBoxBlue}>
+                      <Text style={styles.payNowTitleBlue}>💳 PAY NOW</Text>
+                      <Text style={styles.payNowAmountBlue}>₹{payOnlineAmount || 21}</Text>
+                      <Text style={styles.payNowSubBlue}>Secure booking payment</Text>
+                    </View>
+                    <View style={styles.duringServiceBoxGreen}>
+                      <Text style={styles.duringServiceTitleGreen}>🏠 DURING SERVICE</Text>
+                      <Text style={styles.duringServiceAmountGreen}>₹{cashOnDeliveryAmount?.toLocaleString('en-IN') || '1,501'}</Text>
+                      <Text style={styles.duringServiceSubGreen}>Remaining balance</Text>
+                    </View>
+                  </View>
+
+                  {/* 5. SECURE BOOKING CARD */}
+                  <View style={styles.secureBookingCardOutline}>
+                    <CheckCircle2 size={20} color="#059669" style={{ marginTop: 2 }} />
+                    <Text style={styles.secureBookingText}>
+                      <Text style={styles.secureBookingBold}>Secure Booking — </Text>
+                      Certified pandits and authentic Vedic rituals.
+                    </Text>
+                  </View>
                 </View>
               );
-            })}
+            })()}
           </View>
         ) : (
           renderReviewStep()
         )}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Footer */}
-      <View style={styles.footerRow}>
+      {/* Sticky Footer Bar */}
+      <View style={[styles.fixedFooterBar, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
         <TouchableOpacity
-          style={styles.confirmBtn}
-          onPress={handleConfirm}>
-          <View style={styles.btnContentLeft}>
-            <ShieldCheck color={Colors.white} size={22} style={{ opacity: 0.9 }} />
-            <View style={styles.btnTextWrapper}>
-              <Text style={styles.btnMainTitle}>
-                {step === 1
-                  ? (isBn ? 'সময়সূচী নিশ্চিত করুন' : 'Continue to Payment')
-                  : (isBn ? 'অর্ডার নিশ্চিত করুন' : 'Confirm Order')}
-              </Text>
-              <Text style={styles.btnSubTitle}>
-                {step === 1
-                  ? (isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time')
-                  : (isBn ? 'সব ঠিক আছে' : 'Everything looks good')}
-              </Text>
+          activeOpacity={0.88}
+          disabled={!isFormValid()}
+          style={{ width: '100%' }}
+          onPress={handleConfirm}
+        >
+          {isFormValid() ? (
+            <LinearGradient
+              colors={['#FF9933', '#E07800']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.continueBtnGradientActive}
+            >
+              <View style={styles.footerBtnLeft}>
+                <ShieldCheck size={20} color="#FFFFFF" />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.footerBtnTitleActive}>
+                    {isBn ? 'পেমেন্টে এগিয়ে যান' : 'Continue to Payment'}
+                  </Text>
+                  <Text style={styles.footerBtnSubActive}>
+                    ₹{payOnlineAmount || 21} now · ₹{cashOnDeliveryAmount?.toLocaleString('en-IN')} later
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={22} color="#FFFFFF" />
+            </LinearGradient>
+          ) : (
+            <View style={styles.continueBtnDisabledBox}>
+              <View style={styles.footerBtnLeft}>
+                <Shield size={20} color="#9CA3AF" />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.footerBtnTitleDisabled}>
+                    {isBn ? 'পেমেন্টে এগিয়ে যান' : 'Continue to Payment'}
+                  </Text>
+                  <Text style={styles.footerBtnSubDisabled}>
+                    {isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time'}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={22} color="#9CA3AF" />
             </View>
-          </View>
-          <ChevronRight color={Colors.white} size={22} style={{ opacity: 0.9 }} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -714,9 +830,9 @@ const styles = StyleSheet.create({
 
   newHeaderBox: {
     backgroundColor: Colors.extraLightWarm,
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 16,
+    marginBottom: 8,
   },
   stepperWrapper: {
     flexDirection: 'row',
@@ -926,23 +1042,20 @@ const styles = StyleSheet.create({
   sectionDividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionDividerIcon: {
-    fontSize: 12,
-    marginRight: 6,
+    marginTop: 8,
+    marginBottom: 12,
   },
   sectionDividerText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#3B2416',
-    marginRight: 12,
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginRight: 8,
     letterSpacing: 0.5,
   },
   sectionLineFull: {
     flex: 1,
     height: 1,
-    backgroundColor: '#EED9C4',
+    backgroundColor: '#FED7AA',
   },
   dateTimeCard: {
     backgroundColor: Colors.white,
@@ -955,7 +1068,7 @@ const styles = StyleSheet.create({
   goldLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#D4AF37',
+    color: '#854D0E',
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
@@ -963,30 +1076,30 @@ const styles = StyleSheet.create({
   greyLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#A68A7A',
+    color: '#6B7280',
     letterSpacing: 0.5,
-    marginBottom: 8,
     textTransform: 'uppercase',
   },
   pillInput: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: '#EED9C4',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 48,
-    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 52,
+    marginBottom: 6,
   },
   pillInputActive: {
-    backgroundColor: '#FFF8F3',
-    borderColor: '#F97316',
+    backgroundColor: '#FFF8F0',
+    borderColor: '#EA580C',
     borderWidth: 1.5,
   },
   pillInputDisabled: {
-    borderColor: '#EED9C4',
-    backgroundColor: '#FDFBFA',
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
   },
   pillIcon: {
     fontSize: 18,
@@ -1085,7 +1198,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: Colors.border,
   },
-  bodyScroll: { flex: 1, padding: 16 },
+  bodyScroll: { flex: 1 },
   toggleCard: {
     backgroundColor: Colors.white,
     borderWidth: 1,
@@ -1344,7 +1457,460 @@ const styles = StyleSheet.create({
     color: Colors.textMain,
     flex: 1,
   },
-  checkboxTextActive: {
-    color: Colors.primary,
+  // Section & Card Base Styles
+  sectionCardWhite: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    marginBottom: 20,
+  },
+  dateAvailableHelperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 14,
+  },
+
+  // Dashed Location Card (Matches user image 100%)
+  dashedAddressBtn: {
+    backgroundColor: '#FFFDF0',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#EAB308',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  addressSelectedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+  },
+  dashedAddressInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dashedIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FEF08A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  dashedAddressTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#78350F',
+    marginBottom: 2,
+  },
+  dashedAddressSub: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#D97706',
+  },
+
+  // Optional Badge & Instructions
+  optionalBadge: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+  },
+  optionalBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  instructionsHeaderSubText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  pujaInstructionCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 14,
+    marginBottom: 10,
+  },
+  pujaTitleBold: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  pujaPkgSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  instructionBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  instructionBtnOutlineActive: {
+    borderColor: '#EA580C',
+    backgroundColor: '#FFF8F0',
+  },
+  instructionBoxCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  instructionBoxCheckActive: {
+    backgroundColor: '#EA580C',
+    borderColor: '#EA580C',
+  },
+  instructionCheckMark: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  instructionBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#C84400',
+  },
+
+  // Booking Readiness Grid
+  readinessCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    marginBottom: 16,
+  },
+  readinessCardTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1C1917',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  readinessGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  readinessGridBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    padding: 12,
+  },
+  readinessGridBoxDone: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  readinessBoxTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  readinessBoxStatus: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  // Puja Selected Card
+  selectedPujasCard: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  selectedPujasHeaderBanner: {
+    backgroundColor: '#FFF8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  selectedPujasBannerText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#C84400',
+    letterSpacing: 0.5,
+  },
+  selectedPujaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  selectedPujaImg: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+  },
+  selectedPujaName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1C1917',
+  },
+  selectedPujaPrice: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#C84400',
+  },
+  selectedPujaPkgName: {
+    fontSize: 12,
+    color: '#EA580C',
+    marginTop: 2,
+  },
+  pillSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF8F0',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  pillSmallText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C84400',
+  },
+
+  // Price Breakdown Card
+  priceBreakdownCard: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  priceHeaderBanner: {
+    backgroundColor: '#FFF8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  priceBannerText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#C84400',
+    letterSpacing: 0.5,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  priceLabelOrange: {
+    fontSize: 14,
+    color: '#C84400',
+    fontWeight: '600',
+  },
+  priceValBold: {
+    fontSize: 15,
+    color: '#1C1917',
+    fontWeight: '700',
+  },
+  priceDivider: {
+    height: 1,
+    backgroundColor: '#FED7AA',
+    marginHorizontal: 16,
+    marginVertical: 4,
+  },
+  priceGrandTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  grandTotalLabelLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1C1917',
+  },
+  grandTotalValLarge: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#C84400',
+  },
+
+  // Dual Split Payment Container
+  dualPaymentContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  payNowBoxBlue: {
+    flex: 1,
+    backgroundColor: '#F0F7FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 20,
+    padding: 14,
+    alignItems: 'center',
+  },
+  payNowTitleBlue: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  payNowAmountBlue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0369A1',
+    marginBottom: 2,
+  },
+  payNowSubBlue: {
+    fontSize: 11,
+    color: '#38BDF8',
+    fontWeight: '600',
+  },
+  duringServiceBoxGreen: {
+    flex: 1,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 20,
+    padding: 14,
+    alignItems: 'center',
+  },
+  duringServiceTitleGreen: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#166534',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  duringServiceAmountGreen: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#15803D',
+    marginBottom: 2,
+  },
+  duringServiceSubGreen: {
+    fontSize: 11,
+    color: '#4ADE80',
+    fontWeight: '600',
+  },
+
+  // Secure Booking Outline Card
+  secureBookingCardOutline: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 16,
+  },
+  secureBookingText: {
+    fontSize: 13,
+    color: '#4B5563',
+    flex: 1,
+    lineHeight: 18,
+  },
+  secureBookingBold: {
+    fontWeight: '700',
+    color: '#059669',
+  },
+
+  // Sticky Fixed Footer Bar
+  fixedFooterBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    zIndex: 999,
+    elevation: 10,
+  },
+  continueBtnGradientActive: {
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  continueBtnDisabledBox: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  footerBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  footerBtnTitleActive: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  footerBtnSubActive: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  footerBtnTitleDisabled: {
+    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  footerBtnSubDisabled: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

@@ -10,6 +10,7 @@ import UpdateProfileScreen from '../screens/profile/UpdateProfileScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
 import OrdersScreen from '../screens/profile/OrdersScreen';
 import SchedulePujasScreen from '../screens/cart/SchedulePujasScreen';
+import BlessingsScreen from '../screens/profile/BlessingsScreen';
 
 import AddEditAddressScreen from '../screens/profile/AddEditAddressScreen';
 import AddFamilyMemberScreen from '../screens/profile/AddFamilyMemberScreen';
@@ -27,6 +28,7 @@ export type MainStackParamList = {
   AddEditAddress: { address?: any; relationType?: string; targetCtznId?: number } | undefined;
   AddFamilyMember: { relative?: any } | undefined;
   Orders: undefined;
+  Blessings: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -44,6 +46,7 @@ export function MainNavigator() {
       <Stack.Screen name="UpdateProfile" component={UpdateProfileScreen} />
       <Stack.Screen name="Address" component={AddressScreen} />
       <Stack.Screen name="Orders" component={OrdersScreen} />
+      <Stack.Screen name="Blessings" component={BlessingsScreen} />
       <Stack.Screen name="AddEditAddress" component={AddEditAddressScreen} />
       <Stack.Screen name="AddFamilyMember" component={AddFamilyMemberScreen} />
     </Stack.Navigator>

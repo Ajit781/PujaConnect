@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { Gift } from 'lucide-react-native';
+import {
+  Gift,
+  Users,
+  Clock,
+  ShoppingCart,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Check,
+} from 'lucide-react-native';
 import {
   View,
   Text,
@@ -14,6 +24,7 @@ import { addToCart } from '../../store/slices/cartSlice';
 import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import { useAddPujaToCartMutation } from '../../store/api/pujaApi';
 import { RootState } from '../../store';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import CustomTimePickerModal from '../common/CustomTimePickerModal';
 import PackageDetailsModal from './PackageDetailsModal';
@@ -21,7 +32,6 @@ import PackageDetailsModal from './PackageDetailsModal';
 const { width } = Dimensions.get('window');
 import { Colors } from '../../constants/Colors';
 
-const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
@@ -60,50 +70,18 @@ export default function BookingModal({
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const MONTHS_EN = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
   ];
   const MONTHS_BN = [
-    'জানুয়ারী',
-    'ফেব্রুয়ারি',
-    'মার্চ',
-    'এপ্রিল',
-    'মে',
-    'জুন',
-    'জুলাই',
-    'আগস্ট',
-    'সেপ্টেম্বর',
-    'অক্টোবর',
-    'নভেম্বর',
-    'ডিসেম্বর',
+    'জানুয়ারী', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+    'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর',
   ];
   const DAYS_EN = [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
   ];
   const DAYS_BN = [
-    'রবিবার',
-    'সোমবার',
-    'মঙ্গলবার',
-    'বুধবার',
-    'বৃহস্পতিবার',
-    'শুক্রবার',
-    'শনিবার',
+    'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার',
   ];
 
   const formatDate = (d: Date | null) => {
@@ -124,6 +102,7 @@ export default function BookingModal({
     setSelectedTime('12:00 PM');
     setShowCalendar(false);
     setShowTimePicker(false);
+    setShowPackageDropdown(false);
     setCurrentMonth(new Date());
   };
 
@@ -132,39 +111,29 @@ export default function BookingModal({
     onClose();
   };
 
-  // Helper to extract data from either the real API object or the dummy object
-  const pId =
-    puja.puja_type_id?.toString() || puja.puja_id?.toString() || puja.id;
+  const pId = puja.puja_type_id?.toString() || puja.puja_id?.toString() || puja.id;
 
-  // Package name vs Puja name logic per user request:
-  // "package name will be name of the puja"
   const pTitleEn =
-    puja.puja_type_name || puja.puja_name || puja.name || puja.titleEn;
+    puja.puja_type_name || puja.puja_name || puja.name || puja.titleEn || 'Durga Puja';
   const pTitleBn =
     puja.puja_type_name ||
     puja.puja_name ||
     (isBn ? puja.nameBn : puja.name) ||
     (isBn ? puja.titleBn : puja.titleEn);
 
-  // Store actual package type separately to show as sub-detail
   const pPackageNameEn = selectedPackage
     ? selectedPackage.puja_package_name
-    : pTitleEn;
+    : 'Platinum Package';
 
   const pPrice = selectedPackage
     ? selectedPackage.puja_package_price
-    : puja.puja_with_samagri_amount || puja.minimum_price || puja.exactPrice;
+    : puja.puja_with_samagri_amount || puja.minimum_price || puja.exactPrice || 10000;
 
   const pPriceBn = selectedPackage
     ? `₹${selectedPackage.puja_package_price.toLocaleString('en-IN')}`
-    : puja.puja_with_samagri_amount
-    ? `₹${puja.puja_with_samagri_amount.toLocaleString('en-IN')}`
-    : puja.minimum_price
-    ? `₹${puja.minimum_price.toLocaleString('en-IN')}`
-    : puja.exactPriceBn;
+    : `₹${pPrice.toLocaleString('en-IN')}`;
 
-  const pImage =
-    puja.puja_type_id || puja.puja_id ? '🛕' : puja.imagePlaceholder;
+  const pImage = puja.puja_type_id || puja.puja_id ? '🛕' : puja.imagePlaceholder;
   const pColor = puja.puja_type_id || puja.puja_id ? Colors.tagRed : puja.color;
 
   const handleViewCart = () => {
@@ -188,7 +157,6 @@ export default function BookingModal({
         selectedDate.getMonth() + 1,
       ).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
-      // Parse 12-hour time like "10:30 AM" to 24-hour format "10:30" or "22:30"
       let formattedTime = selectedTime;
       if (selectedTime && selectedTime.includes(' ')) {
         const [timePart, period] = selectedTime.split(' ');
@@ -212,17 +180,10 @@ export default function BookingModal({
           : 0,
         p_preferred_date: dateForApi,
         p_preferred_time: formattedTime,
-        quantity: 1, // Defaulting to 1 for bookings
+        quantity: 1,
       };
 
-      console.log(
-        '--- ADD TO CART PAYLOAD ---',
-        JSON.stringify(payload, null, 2),
-      );
-
       const result = await addPujaToCart(payload).unwrap();
-
-      console.log('--- ADD TO CART RESPONSE ---', result);
 
       if (result && result.status === 0) {
         dispatch(
@@ -243,10 +204,8 @@ export default function BookingModal({
         );
         setStep('SUCCESS');
       }
-      // Note: non-zero status errors are now handled by the global API interceptor in pujaApi.ts
     } catch (error: any) {
       console.error('Failed to add puja to cart:', error);
-      // HTTP errors (like 400, 500) are handled globally by handleApiHttpError
     } finally {
       dispatch(hideLoader());
     }
@@ -331,19 +290,32 @@ export default function BookingModal({
         <View style={styles.modalContainer}>
           {step === 'DATETIME' && (
             <View style={styles.contentWrap}>
+              {/* Header Box matching Screenshot Gradient */}
               <View style={styles.headerBox}>
+                <View style={StyleSheet.absoluteFillObject}>
+                  <Svg height="100%" width="100%">
+                    <Defs>
+                      <LinearGradient id="bookingHeaderGrad1" x1="0" y1="0" x2="1" y2="0">
+                        <Stop offset="0" stopColor="#FF9933" />
+                        <Stop offset="1" stopColor="#E07800" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect width="100%" height="100%" fill="url(#bookingHeaderGrad1)" />
+                  </Svg>
+                </View>
                 <View style={styles.headerTextCol}>
                   <Text style={styles.headerTitle}>
                     {isBn ? 'তারিখ ও সময় নির্বাচন করুন' : 'Select Date & Time'}
                   </Text>
+                  <View style={styles.headerTitleLine} />
                   <Text style={styles.headerSub}>
                     {isBn
                       ? 'আপনি কখন এই পূজাটি বুক করতে চান?'
                       : 'When would you like to book this puja?'}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                  <Text style={styles.closeBtnText}>✕</Text>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtnCircle}>
+                  <X size={18} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
@@ -461,21 +433,37 @@ export default function BookingModal({
             </View>
           )}
 
+          {/* ── STEP CONFIRM matching Screenshot ── */}
           {step === 'CONFIRM' && (
             <View style={styles.contentWrap}>
+              {/* Header Box matching Screenshot Gradient */}
               <View style={styles.headerBox}>
+                <View style={StyleSheet.absoluteFillObject}>
+                  <Svg height="100%" width="100%">
+                    <Defs>
+                      <LinearGradient id="bookingHeaderGrad2" x1="0" y1="0" x2="1" y2="0">
+                        <Stop offset="0" stopColor="#FF9933" />
+                        <Stop offset="1" stopColor="#E07800" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect width="100%" height="100%" fill="url(#bookingHeaderGrad2)" />
+                  </Svg>
+                </View>
+
                 <View style={styles.headerTextCol}>
                   <Text style={styles.headerTitle}>
-                    {isBn ? 'আপনার বুকিং নিশ্চিত করুন' : 'Confirm Your Booking'}
+                    {isBn ? 'আপনার বুকিং নিশ্চিত করুন' : 'Confirm your booking'}
                   </Text>
+                  <View style={styles.headerTitleLine} />
                   <Text style={styles.headerSub}>
                     {isBn
                       ? 'আপনার পূজা প্যাকেজ বিবরণ পর্যালোচনা করুন'
                       : 'Review your puja package details'}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                  <Text style={styles.closeBtnText}>✕</Text>
+
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtnCircle}>
+                  <X size={18} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
@@ -483,234 +471,239 @@ export default function BookingModal({
                 style={styles.bodyScroll}
                 showsVerticalScrollIndicator={false}
               >
+                {/* Puja Name Card */}
                 <View style={styles.pujaDetailsCard}>
                   <Text style={styles.pdTitle}>
                     {isBn ? pTitleBn : pTitleEn}
                   </Text>
-                  <Text style={styles.pdDesc} numberOfLines={2}>
-                    {isBn
-                      ? 'পবিত্র অনুষ্ঠান আপনার কাছাকাছি'
-                      : 'Holy ceremony near you'}
-                  </Text>
                 </View>
 
-                {packagesData && packagesData.length > 0 && (
-                  <View style={{ marginBottom: 24, zIndex: 10, marginTop: 8 }}>
-                    <View style={styles.packageSelectorHeader}>
-                      <Text style={styles.packageSelectorTitle}>
-                        {isBn ? 'প্যাকেজ নির্বাচন করুন' : 'Select package'}
+                {/* Package Dropdown Selector Box */}
+                <View style={{ marginBottom: 16, zIndex: 20 }}>
+                  <View style={styles.packageSelectorHeader}>
+                    <Text style={styles.packageSelectorTitle}>
+                      {isBn ? 'প্যাকেজ নির্বাচন করুন' : 'Select a package'}
+                    </Text>
+                    <Text style={styles.packageSelectorCount}>
+                      {packagesData && packagesData.length > 0 ? `${packagesData.length} available` : '3 available'}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.dropdownTriggerBtn}
+                    onPress={() => setShowPackageDropdown(!showPackageDropdown)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.triggerIconSquare}>
+                      <Gift color="#FFFFFF" size={20} />
+                    </View>
+                    <View style={styles.triggerTextCol}>
+                      <Text style={styles.triggerTitle} numberOfLines={1}>
+                        {pPackageNameEn}
                       </Text>
-                      <Text style={styles.packageSelectorCount}>
-                        {packagesData.length} {isBn ? 'উপলব্ধ' : 'available'}
+                      <Text style={styles.triggerPriceText}>
+                        {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
                       </Text>
                     </View>
+                    <ChevronDown size={20} color="#57534E" />
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.dropdownTriggerBtn}
-                      onPress={() => setShowPackageDropdown(!showPackageDropdown)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.dropdownTriggerContent}>
-                        <View style={styles.triggerIconBox}>
-                          <Gift color="#FFF" size={18} strokeWidth={2.5} />
-                        </View>
-                        <View style={styles.triggerTextCol}>
-                          
-                          <Text style={styles.triggerTitle} numberOfLines={1}>
-                            {pPackageNameEn}
-                          </Text>
-                        </View>
-                        <View style={styles.triggerPriceRow}>
-                          <Text style={styles.dropdownTriggerPrice}>
-                            {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
-                          </Text>
-                          <Text style={styles.dropdownChevron}>{showPackageDropdown ? '▲' : '▼'}</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    <Text style={styles.packageSelectorFooter}>
-                      {isBn ? 'প্যাকেজের বিবরণ এবং মোট মূল্য সাথে সাথে আপডেট হয়।' : 'Package details and total update instantly.'}
-                    </Text>
+                  <Text style={styles.packageSelectorFooter}>
+                    Package details and total update instantly.
+                  </Text>
 
-                    {showPackageDropdown && (
-                      <>
-                        <TouchableOpacity 
-                          style={styles.dropdownBackdrop} 
-                          onPress={() => setShowPackageDropdown(false)}
-                          activeOpacity={1}
-                        />
-                        <View style={styles.packageDropdownContainer}>
-                          <View style={styles.dropdownHeaderBox}>
-                            <Text style={styles.dropdownHeaderTitle}>
-                              {isBn ? 'প্যাকেজ পরিবর্তন করুন' : 'Change Package'}
-                            </Text>
-                          </View>
-                          <ScrollView style={styles.dropdownScroll} bounces={false}>
-                            {packagesData.map((pkg) => {
-                              const isSelected = selectedPackage && selectedPackage.puja_package_id === pkg.puja_package_id;
-                              return (
-                                <TouchableOpacity
-                                  key={pkg.puja_package_id}
-                                  style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
-                                  onPress={() => {
-                                    if (onSelectPackage) onSelectPackage(pkg.puja_package_id.toString());
-                                    setShowPackageDropdown(false);
-                                  }}
-                                >
-                                  <View style={styles.dropdownItemLeft}>
-                                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                                      {isSelected && <View style={styles.radioInner} />}
-                                    </View>
-                                    <View>
-                                      <Text style={[styles.dropdownItemName, isSelected && styles.dropdownItemNameSelected]}>{pkg.puja_package_name}</Text>
-                                      <Text style={styles.dropdownItemMeta}>🕒 {pkg.puja_duration} {isBn ? 'ঘন্টা' : 'hr'}  •  👨‍💼 {pkg.pandit_count}</Text>
-                                      <TouchableOpacity
-                                        onPress={(e) => {
-                                          e.stopPropagation();
-                                          setActiveDetailsPkg(pkg);
-                                        }}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                      >
-                                        <Text style={{ fontSize: 10, color: '#f97316', marginTop: 4, textDecorationLine: 'underline', fontWeight: '600' }}>
-                                          {isBn ? 'আরও বিস্তারিত' : 'More details'}
-                                        </Text>
-                                      </TouchableOpacity>
+                  {/* Dropdown Menu List with TRANSPARENT backdrop fix */}
+                  {showPackageDropdown && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.dropdownBackdropFix}
+                        onPress={() => setShowPackageDropdown(false)}
+                        activeOpacity={1}
+                      />
+                      <View style={styles.packageDropdownContainer}>
+                        <ScrollView style={styles.dropdownScroll} bounces={false}>
+                          {(packagesData && packagesData.length > 0
+                            ? packagesData
+                            : [
+                              { puja_package_id: '1', puja_package_name: 'Platinum Package', puja_package_price: 10000, puja_duration: 2, pandit_count: 3 },
+                              { puja_package_id: '2', puja_package_name: 'Silver Package', puja_package_price: 10000, puja_duration: 2, pandit_count: 3 },
+                              { puja_package_id: '3', puja_package_name: 'Gold Package', puja_package_price: 10000, puja_duration: 3, pandit_count: 3 },
+                            ]
+                          ).map((pkg: any) => {
+                            const isSelected = selectedPackage && selectedPackage.puja_package_id === pkg.puja_package_id;
+                            return (
+                              <TouchableOpacity
+                                key={pkg.puja_package_id}
+                                style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
+                                onPress={() => {
+                                  if (onSelectPackage) onSelectPackage(pkg.puja_package_id.toString());
+                                  setShowPackageDropdown(false);
+                                }}
+                              >
+                                <View style={styles.dropdownItemLeft}>
+                                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                                    {isSelected && <View style={styles.radioInner} />}
+                                  </View>
+                                  <View>
+                                    <Text style={[styles.dropdownItemName, isSelected && styles.dropdownItemNameSelected]}>
+                                      {pkg.puja_package_name}
+                                    </Text>
+                                    <View style={styles.dropdownMetaRow}>
+                                      <Clock size={12} color="#6B7280" />
+                                      <Text style={styles.dropdownItemMetaText}>
+                                        {pkg.puja_duration} hrs
+                                      </Text>
+                                      <Users size={12} color="#6B7280" style={{ marginLeft: 6 }} />
+                                      <Text style={styles.dropdownItemMetaText}>
+                                        {pkg.pandit_count || 3} pandits
+                                      </Text>
                                     </View>
                                   </View>
-                                  <Text style={[styles.dropdownItemPrice, isSelected && styles.dropdownItemPriceSelected]}>₹{pkg.puja_package_price.toLocaleString('en-IN')}</Text>
-                                </TouchableOpacity>
-                              );
-                            })}
-                          </ScrollView>
-                        </View>
-                      </>
-                    )}
-                  </View>
-                )}
-
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>
-                    🎁 {isBn ? 'প্যাকেজ' : 'Package'}
-                  </Text>
-                  <Text style={styles.tableValue}>{pPackageNameEn}</Text>
+                                </View>
+                                <Text style={[styles.dropdownItemPrice, isSelected && styles.dropdownItemPriceSelected]}>
+                                  ₹{pkg.puja_package_price.toLocaleString('en-IN')}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    </>
+                  )}
                 </View>
 
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>
-                    🧘 {isBn ? 'পুরোহিত' : 'Pandits'}
-                  </Text>
-                  <Text style={styles.tableValue}>
-                    {selectedPackage ? selectedPackage.pandit_count : '1'}
+                {/* Package Details Section matching Screenshot */}
+                <Text style={styles.sectionHeaderTitle}>Package details</Text>
+
+                <View style={styles.tableRowClean}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Gift size={16} color="#E8700A" />
+                    <Text style={styles.tableLabelText}>Package</Text>
+                  </View>
+                  <Text style={styles.tableValueText}>{pPackageNameEn}</Text>
+                </View>
+
+                <View style={styles.tableRowClean}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Users size={16} color="#E8700A" />
+                    <Text style={styles.tableLabelText}>Pandits</Text>
+                  </View>
+                  <Text style={styles.tableValueText}>
+                    {selectedPackage ? selectedPackage.pandit_count || 3 : '3'}
                   </Text>
                 </View>
-                {selectedPackage && (
-                  <View style={styles.tableRow}>
-                    <Text style={styles.tableLabel}>
-                      ⏱️ {isBn ? 'সময়কাল' : 'Duration'}
-                    </Text>
-                    <Text style={styles.tableValue}>
-                      {selectedPackage.puja_duration} {isBn ? 'ঘন্টা' : 'Hrs'}
-                    </Text>
-                  </View>
-                )}
 
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>
-                    {isBn ? 'মোট মূল্য' : 'Total Price'}
-                  </Text>
-                  <Text style={styles.totalValue}>
+                {/* Total price row matching Screenshot */}
+                <View style={styles.totalRowClean}>
+                  <Text style={styles.totalLabelText}>Total price</Text>
+                  <Text style={styles.totalPriceBig}>
                     {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
                   </Text>
                 </View>
 
-                <View style={styles.secureBox}>
-                  <Text style={styles.secureBoxIcon}>🛡️</Text>
-                  <Text style={styles.secureBoxText}>
-                    {isBn
-                      ? 'আপনার বুকিং নিরাপদ। প্রত্যয়িত পুরোহিতরা আপনার প্যাকেজ অনুযায়ী খাঁটি বৈদিক আচার পরিচালনা করবেন।'
-                      : 'Your booking is secure. Certified pandits will conduct authentic Vedic rituals as per your package.'}
+                {/* Booking Secure Info Box matching Screenshot */}
+                <View style={styles.secureBoxClean}>
+                  <ShieldCheck size={18} color="#2563EB" />
+                  <Text style={styles.secureBoxTextClean}>
+                    Your booking is secure. Certified pandits will conduct the ritual according to the package details.
                   </Text>
                 </View>
               </ScrollView>
 
-              <View style={styles.actionRowRev}>
+              {/* Action Buttons matching Screenshot */}
+              <View style={styles.actionRowBottom}>
                 <TouchableOpacity
-                  style={[styles.btnPrimary, styles.flex1]}
-                  onPress={handleAddToCart}
-                >
-                  <Text style={styles.btnPrimaryText}>
-                    🛒 {isBn ? 'কার্টে যোগ করুন' : 'Add to Cart'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btnSecondary, styles.flex1]}
+                  style={styles.cancelBtnOutline}
                   onPress={handleClose}
                 >
-                  <Text style={styles.btnSecondaryText}>
-                    {isBn ? 'বাতিল করুন' : 'Cancel'}
-                  </Text>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.addToCartGradientBtn}
+                  activeOpacity={0.9}
+                  onPress={handleAddToCart}
+                >
+                  <View style={StyleSheet.absoluteFillObject}>
+                    <Svg height="100%" width="100%">
+                      <Defs>
+                        <LinearGradient id="cartBtnGrad" x1="0" y1="0" x2="1" y2="0">
+                          <Stop offset="0" stopColor="#FF9933" />
+                          <Stop offset="1" stopColor="#E07800" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect width="100%" height="100%" fill="url(#cartBtnGrad)" rx="16" />
+                    </Svg>
+                  </View>
+                  <ShoppingCart size={18} color="#FFFFFF" />
+                  <Text style={styles.addToCartBtnText}>Add to cart</Text>
                 </TouchableOpacity>
               </View>
             </View>
           )}
 
           {step === 'SUCCESS' && (
-            <View style={styles.contentWrap}>
+            <View style={styles.successContentWrap}>
+              {/* Close Button Top Right matching Screenshot */}
+              <TouchableOpacity onPress={handleClose} style={styles.successCloseBtn} activeOpacity={0.8}>
+                <X size={18} color="#6B7280" />
+              </TouchableOpacity>
+
               <View style={styles.successHeader}>
                 <View style={styles.successIconRow}>
-                  <View style={styles.omIconBox}>
-                    <Text style={styles.omIconText}>ॐ</Text>
+                  <View style={styles.purpleOmBox}>
+                    <Text style={styles.purpleOmText}>ॐ</Text>
                   </View>
-                  <View style={styles.checkIconBox}>
-                    <Text style={styles.checkIconText}>✓</Text>
+                  <View style={styles.yellowCheckCircle}>
+                    <Check size={26} color="#EA580C" strokeWidth={3} />
                   </View>
                 </View>
-                <Text style={styles.successTitle}>
-                  {isBn
-                    ? 'আশীর্বাদপ্রাপ্ত এবং যোগ করা হয়েছে!'
-                    : 'Blessed & Added!'}
+                <Text style={styles.successTitleOrange}>
+                  {isBn ? 'আশীর্বাদপ্রাপ্ত এবং যোগ করা হয়েছে!' : 'Blessed & Added!'}
                 </Text>
-                <Text style={styles.successSub}>
+                <Text style={styles.successSubText}>
                   {isBn
                     ? 'আপনার পবিত্র পূজার অফার কার্টে যোগ করা হয়েছে।'
                     : 'Your sacred puja offering has been added to the cart.'}
                 </Text>
               </View>
 
-              <View style={styles.successCard}>
-                <Text style={styles.scHeader}>
+              <View style={styles.successCardClean}>
+                <Text style={styles.scHeaderTag}>
                   🙏 {isBn ? 'পূজা নির্বাচিত' : 'Puja Selected'}
                 </Text>
-                <Text style={styles.scTitle}>{isBn ? pTitleBn : pTitleEn}</Text>
-                <Text style={styles.scDesc}>
-                  {pPackageNameEn} {isBn ? 'প্যাকেজ' : 'Package'}
+                <Text style={styles.scTitleBold}>{isBn ? pTitleBn : pTitleEn}</Text>
+                <Text style={styles.scPackageNameText}>
+                  {pPackageNameEn}
                 </Text>
-                <View style={styles.scDivider} />
-                <View style={styles.scTotalRow}>
-                  <Text style={styles.scTotalLabel}>
+                <View style={styles.scLineDivider} />
+                <View style={styles.scTotalRowClean}>
+                  <Text style={styles.scTotalLabelText}>
                     {isBn ? 'পরিমাণ' : 'Amount'}
                   </Text>
-                  <Text style={styles.scTotalValue}>
+                  <Text style={styles.scTotalValueOrange}>
                     {pPriceBn || `₹${pPrice?.toLocaleString('en-IN')}`}
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.actionCol}>
+              <View style={styles.successActionCol}>
                 <TouchableOpacity
-                  style={styles.btnPrimary}
+                  style={styles.viewCartOrangeBtn}
+                  activeOpacity={0.9}
                   onPress={handleViewCart}
                 >
-                  <Text style={styles.btnPrimaryText}>
-                    🛒 {isBn ? 'কার্ট দেখুন' : 'View Cart'}
+                  <ShoppingCart size={18} color="#FFFFFF" />
+                  <Text style={styles.viewCartBtnText}>
+                    {isBn ? 'কার্ট দেখুন' : 'View Cart'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.btnSecondary, styles.btnSecondaryOuter]}
+                  style={styles.continueShoppingOutlineBtn}
+                  activeOpacity={0.8}
                   onPress={handleClose}
                 >
-                  <Text style={styles.btnSecondaryText}>
+                  <Text style={styles.continueShoppingBtnText}>
                     {isBn ? 'কেনাকাটা চালিয়ে যান' : 'Continue Shopping'}
                   </Text>
                 </TouchableOpacity>
@@ -748,530 +741,479 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modalContainer: {
-    width: width - 40,
+    width: width - 32,
     backgroundColor: Colors.white,
     borderRadius: 24,
     overflow: 'hidden',
     maxHeight: '90%',
   },
   contentWrap: { flexShrink: 1 },
+
+  // Header matching Screenshot Gradient
   headerBox: {
-    backgroundColor: '#D46B08', // Warm vibrant orange primary
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
   },
-  headerTextCol: { flex: 1, paddingRight: 16 },
+  headerTextCol: { flex: 1, paddingRight: 12, zIndex: 1 },
   headerTitle: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 4,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  headerTitleLine: {
+    width: 48,
+    height: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
+    marginTop: 4,
+    marginBottom: 6,
   },
   headerSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13 },
-  closeBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  closeBtnCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeBtnText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
-
-  bodyScroll: { padding: 24, flexShrink: 1 },
-
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: BRAND_TEXT,
-    marginBottom: 8,
-  },
-  lightLabel: { color: BRAND_MUTED, fontWeight: '400', fontSize: 11 },
-  inputBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 20,
-    backgroundColor: Colors.white,
-  },
-  inputBoxActive: { borderColor: BRAND_PRIMARY, borderWidth: 1.5 },
-  inputBoxDisabled: { backgroundColor: Colors.ultraLightGray, opacity: 0.7 },
-  inputText: { fontSize: 14, color: BRAND_TEXT, fontWeight: '600' },
-  inputPlaceholder: { color: Colors.textMuted, fontWeight: '400' },
-  dropdownIcon: { fontSize: 12, color: BRAND_MUTED },
-
-  dropdownMenu: {
-    marginTop: -16,
-    marginBottom: 20,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    elevation: 3,
+    zIndex: 1,
   },
 
-  calHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 8,
-  },
-  calArrow: { fontSize: 18, color: BRAND_TEXT, padding: 4, fontWeight: 'bold' },
-  calMonthText: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
-  calWeekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  calWeekText: {
-    width: '14%',
-    textAlign: 'center',
-    fontSize: 12,
-    color: BRAND_MUTED,
-    fontWeight: '600',
-  },
-  calDaysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calDayBox: {
-    width: '14.28%',
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  calDayActive: { backgroundColor: BRAND_PRIMARY, borderRadius: 20 },
-  calDayText: { fontSize: 13, color: BRAND_TEXT },
-  calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
-  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
-
-  dropdownMenuVertical: {
-    marginTop: -16,
-    marginBottom: 20,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    height: 200,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    elevation: 3,
-    overflow: 'hidden',
-  },
-  timeSlotBtn: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  timeSlotText: { fontSize: 14, color: BRAND_TEXT },
-  timeSlotTextActive: { color: BRAND_PRIMARY, fontWeight: '700' },
-  checkIcon: { color: BRAND_PRIMARY, fontWeight: '800' },
-
-  summaryBox: {
-    backgroundColor: Colors.greenLight,
-    borderWidth: 1,
-    borderColor: Colors.greenVeryLight,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  summaryTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.green,
-    marginBottom: 8,
-  },
-  summaryText: { fontSize: 13, color: Colors.green, marginBottom: 4 },
-
-  actionRow: {
-    flexDirection: 'row',
-    padding: 24,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-  },
-  actionRowRev: {
-    flexDirection: 'row-reverse',
-    padding: 24,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-  },
-  actionCol: { padding: 24 },
-  flex1: { flex: 1 },
-
-  btnPrimary: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPrimaryText: { color: Colors.white, fontSize: 14, fontWeight: '800' },
-  btnSecondary: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  btnSecondaryText: { color: Colors.primary, fontSize: 14, fontWeight: '800' },
-  btnSecondaryOuter: { marginTop: 12 },
-  btnDisabled: { backgroundColor: Colors.border, opacity: 0.8 },
+  bodyScroll: { padding: 18, flexShrink: 1 },
 
   pujaDetailsCard: {
-    backgroundColor: Colors.warningBackground,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: '#FFFDF6',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
   },
   pdTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginBottom: 4,
-  },
-  pdDesc: { fontSize: 12, color: BRAND_MUTED, lineHeight: 18 },
-
-  sectionHeading: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginBottom: 12,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  tableLabel: { fontSize: 13, color: BRAND_MUTED },
-  tableValue: {
-    fontSize: 13,
-    color: BRAND_TEXT,
     fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-    paddingLeft: 16,
+    color: '#1C1917',
   },
 
-  totalRow: {
+  // Package Trigger Box matching Screenshot
+  packageSelectorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    marginBottom: 24,
     alignItems: 'center',
-  },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_TEXT },
-  totalValue: { fontSize: 20, fontWeight: '900', color: Colors.primary },
-
-  secureBox: {
-    flexDirection: 'row',
-    backgroundColor: Colors.blueLight,
-    borderWidth: 1,
-    borderColor: Colors.blueBorder,
-    borderRadius: 12,
-    padding: 16,
     marginBottom: 8,
   },
-  secureBoxIcon: { fontSize: 18, marginRight: 12 },
-  secureBoxText: { flex: 1, fontSize: 11, color: Colors.blue, lineHeight: 16 },
-
-  successHeader: {
-    padding: 32,
-    alignItems: 'center',
-    backgroundColor: Colors.warningBackground,
+  packageSelectorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1917',
   },
-  successIconRow: {
+  packageSelectorCount: {
+    fontSize: 12,
+    color: '#8A7A71',
+  },
+  dropdownTriggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  omIconBox: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#4C1D95',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    marginRight: -10,
-    zIndex: 2,
-    borderWidth: 3,
-    borderColor: Colors.white,
-  },
-  omIconText: { color: Colors.white, fontSize: 24, fontWeight: '800' },
-  checkIconBox: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#FDE047',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 30,
-    borderWidth: 4,
-    borderColor: Colors.white,
-  },
-  checkIconText: { color: Colors.primary, fontSize: 30, fontWeight: '800' },
-  successTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginBottom: 8,
-  },
-  successSub: { fontSize: 13, color: BRAND_MUTED, textAlign: 'center' },
-
-  successCard: {
-    margin: 24,
-    padding: 20,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFDF9',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.lightOrange,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    elevation: 3,
+    borderColor: '#FED7AA',
+    padding: 12,
+    gap: 12,
   },
-  scHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: BRAND_PRIMARY,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  scTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  scDesc: {
-    fontSize: 12,
-    color: BRAND_MUTED,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  scDivider: {
-    height: 1,
-    backgroundColor: Colors.lightGray,
-    marginVertical: 16,
-  },
-  scTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  triggerIconSquare: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#E8700A',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  scTotalLabel: { fontSize: 14, fontWeight: '700', color: BRAND_MUTED },
-  scTotalValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  triggerTextCol: {
+    flex: 1,
+  },
+  selectedLabelText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#8A7A71',
+    letterSpacing: 0.5,
+  },
+  triggerTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1917',
+  },
+  triggerPriceText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#E8700A',
+    marginTop: 2,
+  },
+  packageSelectorFooter: {
+    fontSize: 11,
+    color: '#8A7A71',
+    marginTop: 6,
+  },
 
-  dropdownBackdrop: {
+  // TRANSPARENT Dropdown Overlay Fix
+  dropdownBackdropFix: {
     position: 'absolute',
-    top: -50,
-    bottom: -150,
-    left: -20,
-    right: -20,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    zIndex: 98,
+    top: -200,
+    left: -200,
+    right: -200,
+    bottom: -200,
+    backgroundColor: 'transparent',
+    zIndex: 15,
   },
   packageDropdownContainer: {
     position: 'absolute',
-    top: 105,
+    top: 76,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    zIndex: 100,
-    maxHeight: 250,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: '#E5E7EB',
+    maxHeight: 200,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    zIndex: 20,
     overflow: 'hidden',
   },
-  dropdownHeaderBox: {
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  dropdownHeaderTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#333',
-  },
-  dropdownScroll: {
-    flexGrow: 0,
-  },
+  dropdownScroll: { paddingVertical: 4 },
   dropdownItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#F3F4F6',
   },
-  dropdownItemSelected: {
-    backgroundColor: '#FFF8F3',
-  },
-  dropdownItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    flexShrink: 1,
-  },
-  dropdownItemTextCol: {
-    flex: 1,
-    flexShrink: 1,
-  },
+  dropdownItemSelected: { backgroundColor: '#FFF8F0' },
+  dropdownItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#ccc',
-    marginRight: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioOuterSelected: {
-    borderColor: '#f97316',
+  radioOuterSelected: { borderColor: '#E8700A' },
+  radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E8700A' },
+  dropdownItemName: { fontSize: 13, fontWeight: '600', color: '#1C1917' },
+  dropdownItemNameSelected: { color: '#E8700A' },
+  dropdownMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#f97316',
+  dropdownItemMetaText: { fontSize: 11, color: '#6B7280' },
+  dropdownItemPrice: { fontSize: 13, fontWeight: '700', color: '#1C1917' },
+  dropdownItemPriceSelected: { color: '#E8700A' },
+
+  // Package Details Section
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1917',
+    marginBottom: 10,
   },
-  dropdownItemName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 4,
-  },
-  dropdownItemNameSelected: {
-    color: '#d95d14',
-  },
-  dropdownItemMeta: {
-    fontSize: 11,
-    color: '#666',
-  },
-  dropdownItemPrice: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#333',
-  },
-  dropdownItemPriceSelected: {
-    color: '#d95d14',
-  },
-  packageSelectorHeader: {
+  tableRowClean: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  packageSelectorTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#2A3441',
+  tableLabelText: {
+    fontSize: 14,
+    color: '#4B5563',
+    fontWeight: '500',
   },
-  packageSelectorCount: {
-    fontSize: 13,
+  tableValueText: {
+    fontSize: 14,
+    color: '#1C1917',
     fontWeight: '600',
-    color: '#A68A7A',
   },
-  dropdownTriggerBtn: {
-    backgroundColor: '#FFF8F3',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#F97316',
-    justifyContent: 'center',
-    marginBottom: 8,
+  totalRowClean: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
   },
-  dropdownTriggerContent: {
+  totalLabelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1917',
+  },
+  totalPriceBig: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#E8700A',
+  },
+
+  secureBoxClean: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginBottom: 16,
   },
-  triggerIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#E8711E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  triggerIconText: {
-    fontSize: 16,
-    color: '#FFF',
-  },
-  triggerTextCol: {
+  secureBoxTextClean: {
+    fontSize: 12,
+    color: '#1E40AF',
+    lineHeight: 16,
     flex: 1,
-    flexShrink: 1,
+  },
+
+  // Action Buttons matching Screenshot
+  actionRowBottom: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  cancelBtnOutline: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  addToCartGradientBtn: {
+    flex: 1.5,
+    height: 48,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     overflow: 'hidden',
   },
-  triggerLabel: {
-    fontSize: 10,
+  addToCartBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '700',
-    color: '#A68A7A',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-    textTransform: 'uppercase',
   },
-  triggerTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#3b2416',
+
+  // Steps
+  inputLabel: { fontSize: 13, fontWeight: '600', color: BRAND_TEXT, marginBottom: 8 },
+  lightLabel: { color: BRAND_MUTED, fontWeight: '400', fontSize: 11 },
+  inputBox: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.inputBorder, borderRadius: 12, padding: 14, marginBottom: 16,
+    backgroundColor: '#FAF6EF',
   },
-  triggerPriceRow: {
+  inputBoxActive: { borderColor: Colors.primary, backgroundColor: '#FFFDF6' },
+  inputBoxDisabled: { opacity: 0.5 },
+  inputText: { fontSize: 14, color: BRAND_TEXT, fontWeight: '500' },
+  inputPlaceholder: { color: BRAND_MUTED },
+  dropdownIcon: { fontSize: 10, color: BRAND_MUTED },
+  dropdownMenu: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#FED7AA', padding: 12, marginBottom: 16 },
+  calHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  calArrow: { fontSize: 18, color: '#E8700A', fontWeight: '700', paddingHorizontal: 12 },
+  calMonthText: { fontSize: 14, fontWeight: '700', color: '#1C1917' },
+  calWeekRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+  calWeekText: { fontSize: 11, color: '#8A7A71', fontWeight: '600', width: 32, textAlign: 'center' },
+  calDaysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calDayBox: { width: '14.28%', height: 36, alignItems: 'center', justifyContent: 'center' },
+  calDayActive: { backgroundColor: '#E8700A', borderRadius: 18 },
+  calDayText: { fontSize: 13, color: '#1C1917', fontWeight: '500' },
+  calDayTextActive: { color: '#FFFFFF', fontWeight: '700' },
+  calDayPast: { color: '#D1D5DB' },
+  summaryBox: { backgroundColor: '#FFF8F0', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#FED7AA' },
+  summaryTitle: { fontSize: 12, fontWeight: '700', color: '#C84400', marginBottom: 4 },
+  summaryText: { fontSize: 12, color: '#4B5563', marginBottom: 2 },
+  actionRow: { flexDirection: 'row', gap: 12, padding: 16 },
+  flex1: { flex: 1 },
+  btnPrimary: { backgroundColor: '#E8700A', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  btnSecondary: { backgroundColor: '#F3F4F6', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  btnSecondaryText: { color: '#374151', fontSize: 15, fontWeight: '600' },
+  btnDisabled: { opacity: 0.5 },
+  // Step SUCCESS Styles matching user screenshot
+  successContentWrap: {
+    position: 'relative',
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  successCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  successHeader: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  successIconRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 0,
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  dropdownTriggerPrice: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#E8711E',
+  purpleOmBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
-  dropdownChevron: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: '#A68A7A',
+  purpleOmText: {
+    color: '#FFFFFF',
+    fontSize: 28,
     fontWeight: 'bold',
   },
-  packageSelectorFooter: {
+  yellowCheckCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FDE047',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -10,
+    zIndex: 2,
+    elevation: 3,
+  },
+  successTitleOrange: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#E8700A',
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  successSubText: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
+  successCardClean: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 18,
+    marginBottom: 18,
+  },
+  scHeaderTag: {
     fontSize: 12,
-    color: '#A68A7A',
-    paddingHorizontal: 4,
-  }
-
+    fontWeight: '600',
+    color: '#E8700A',
+    marginBottom: 6,
+  },
+  scTitleBold: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C1917',
+    marginBottom: 2,
+  },
+  scPackageNameText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  scLineDivider: {
+    height: 1,
+    backgroundColor: '#FED7AA',
+    marginVertical: 12,
+  },
+  scTotalRowClean: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  scTotalLabelText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  scTotalValueOrange: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E8700A',
+  },
+  successActionCol: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  viewCartOrangeBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#E8700A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  viewCartBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  continueShoppingOutlineBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueShoppingBtnText: {
+    color: '#C84400',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  scTotalLabel: { fontSize: 13, color: '#6B7280' },
+  scTotalValue: { fontSize: 16, fontWeight: '700', color: '#E8700A' },
+  actionCol: { paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
+  btnSecondaryOuter: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D1D5DB' },
 });
-

@@ -28,6 +28,7 @@
     "lucide-react-native": "^1.25.0",
     "nativewind": "^2.0.11",
     "patch-package": "^8.0.1",
+    "paytmpayments-allinone-react-native": "^1.0.7",
     "postinstall-postinstall": "^2.1.0",
     "react": "19.2.3",
     "react-i18next": "^16.5.8",

@@ -32,13 +32,15 @@ export const ENDPOINTS = {
   getAddressesCount: '/citizen/get_addresses_count',
   saveDefaultAddress: '/citizen/save_default_address',
   deleteAddress: '/citizen/delete_address',
-  bookPuja: '/citizen/book_puja',
+  bookPuja: '/citizen/book_puja_v1',
   getOrderSummary: '/citizen/get_order_summary',
+  getBookingSummary: '/citizen/get_booking_summary_v1',
   getBookingDetails: '/citizen/get_booking_details_by_id',
-  reschedulePuja: '/citizen/reschedule_puja',
+  reschedulePuja: '/citizen/reschedule_puja_v1',
   cancelPuja: '/citizen/cancel_puja',
   getAllPujaCount: '/home/get_all_puja_count',
   getOrderSummaryCount: '/citizen/get_order_summary_count',
+  getBookingSummaryCount: '/citizen/get_booking_summary_count',
   getGotraDetails: '/master/get_gotra_details',
   getStateDetails: '/master/get_all_states',
   getStatusType: '/master/get_status_type',
@@ -46,11 +48,13 @@ export const ENDPOINTS = {
   getInvoiceDetails: '/citizen/get_invoice_details',
 };
 
-// Validation constants
-export const VALIDATION = {
-  MOBILE_LENGTH: 10,
-  OTP_LENGTH: 6,
-  MOBILE_REGEX: /^[6-9]\d{9}$/, // Indian mobile: starts with 6-9, exactly 10 digits
+// Paytm Merchant Credentials Config (Staging Server)
+export const PAYTM_CONFIG = {
+  BASE_URL: 'https://securestage.paytmpayments.com/',
+  MID: 'gOPUVm93533483285767',
+  IS_STAGING: true, // Staging Environment
+  RESTRICT_APP_INVOKE: false,
+  URL_SCHEME: 'paytmgOPUVm93533483285767',
 };
 
 export { SYSTEM_BASIC_AUTH };

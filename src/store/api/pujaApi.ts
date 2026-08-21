@@ -123,17 +123,18 @@ export const pujaApi = createApi({
     }),
     getTagPujas: builder.query<
       PujaType[],
-      { userId: number; tagId: number; pageNo: number; limit: number }
+      { userId: number; tagId: number; pageNo: number; limit: number; purposeId?: number }
     >({
-      query: ({ userId, tagId, pageNo, limit }) => ({
+      query: ({ userId, tagId, pageNo, limit, purposeId = 0 }) => ({
         url: ENDPOINTS.getTagPujas,
         method: 'POST',
         body: {
           enc_data: JSON.stringify({
-            page_no: pageNo,
-            limit,
+            page_no: pageNo || 1,
+            limit: limit || 30,
             puja_tag_id: tagId,
             ctnz_id: userId,
+            purpose_id: purposeId || 0,
           }),
         },
       }),
@@ -783,16 +784,82 @@ export const pujaApi = createApi({
       },
       providesTags: ['Orders'],
     }),
-    getBookingDetails: builder.query<BookingDetail[], number | string>({
-      query: bookingId => ({
-        url: ENDPOINTS.getBookingDetails,
+    getBookingSummary: builder.query<
+      OrderSummary[],
+      {
+        userId: number;
+        status: number;
+        paymentStatus: number;
+        pageNo: number;
+        pageSize: number;
+        fromDate: string | null;
+        toDate: string | null;
+      }
+    >({
+      query: ({
+        userId,
+        status,
+        paymentStatus,
+        pageNo,
+        pageSize,
+        fromDate,
+        toDate,
+      }) => ({
+        url: ENDPOINTS.getBookingSummary,
         method: 'POST',
         body: {
           enc_data: JSON.stringify({
-            booking_id: Number(bookingId),
+            citizen_id: userId,
+            ctzn_id: userId,
+            order_status: status,
+            start_date: fromDate,
+            end_date: toDate,
+            page_no: pageNo,
+            limit: pageSize,
           }),
         },
       }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getBookingSummary (POST /citizen/get_booking_summary_v1) RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+
+          if (Array.isArray(data)) {
+            return data.map((item: any) => ({
+              ...item,
+              booking_id: item.booking_id || item.order_id,
+              booking_no: item.booking_no || item.order_no || item.order_ref,
+              booking_create_date: item.booking_create_date || item.order_date || item.created_at,
+              booking_status: item.booking_status || item.order_status_name || item.order_status,
+              total_amount: item.total_amount || item.order_amount || 0,
+              total_amount_paid: item.total_amount_paid || item.paid_amount || 0,
+              payment_status: item.payment_status || item.payment_status_name || 'PENDING',
+            }));
+          }
+          return [];
+        }
+        return [];
+      },
+      providesTags: ['Orders'],
+    }),
+    getBookingDetails: builder.query<any[], number | string | { bookingId: number | string; citizenId?: number | string }>({
+      query: (arg) => {
+        const bookingId = typeof arg === 'object' ? arg.bookingId : arg;
+        const citizenId = typeof arg === 'object' ? arg.citizenId : 925;
+        return {
+          url: ENDPOINTS.getBookingDetails,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify({
+              citizen_id: Number(citizenId || 925),
+              booking_id: Number(bookingId),
+            }),
+          },
+        };
+      },
       transformResponse: (response: any) => {
         console.log('--- API: getBookingDetails RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
@@ -810,25 +877,55 @@ export const pujaApi = createApi({
       any,
       {
         bookingId: number | string;
+        orderId?: number | string;
         ctznId: number | string;
-        packageId: number | string;
         newDate: string; // YYYY-MM-DD
         newTime: string; // HH:mm
+        addressId?: number | string;
       }
     >({
-      query: ({ bookingId, ctznId, packageId, newDate, newTime }) => ({
-        url: ENDPOINTS.reschedulePuja,
-        method: 'POST',
-        body: {
-          enc_data: JSON.stringify({
-            booking_id: Number(bookingId),
-            ctzn_id: Number(ctznId),
-            package_id: Number(packageId),
-            new_preferred_date: newDate,
-            new_preferred_time: newTime,
-          }),
-        },
-      }),
+      query: ({ bookingId, orderId, ctznId, newDate, newTime, addressId }) => {
+        const finalUserId = Number(ctznId) || 925;
+        const payloadObj = {
+          booking_id: Number(bookingId),
+          order_id: Number(orderId || 0),
+          ctzn_id: finalUserId,
+          citizen_id: finalUserId,
+          ctzn_user_id: finalUserId,
+          new_preferred_date: newDate,
+          new_preferred_time: newTime.length > 5 ? newTime.slice(0, 5) : newTime,
+          address_id: Number(addressId || 0),
+        };
+        console.log('==============================================');
+        console.log('--- API: reschedulePuja REQUEST ---');
+        console.log('Endpoint:', ENDPOINTS.reschedulePuja);
+        console.log('Payload Object:', payloadObj);
+        console.log('==============================================');
+        return {
+          url: ENDPOINTS.reschedulePuja,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify(payloadObj),
+          },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('==============================================');
+        console.log('--- API: reschedulePuja SERVER RESPONSE ---');
+        console.log('Raw Response:', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          console.log('Decoded Response Data:', data);
+          console.log('==============================================');
+          return { status: 0, message: response.message || 'Puja rescheduled successfully.', data };
+        }
+        console.log('==============================================');
+        return response;
+      },
+      invalidatesTags: ['Orders'],
     }),
     cancelPuja: builder.mutation<
       any,
@@ -894,12 +991,20 @@ export const pujaApi = createApi({
         },
       }),
       transformResponse: (response: any) => {
+        console.log('--- API: getOrderSummaryCount RAW RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
           const data =
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
-          return data?.total_puja_booking_summary_qty || 0;
+          console.log('--- API: getOrderSummaryCount PARSED DATA ---', data);
+          if (Array.isArray(data) && data.length > 0) {
+            return Number(data[0].total_puja_booking_summary_qty || data[0].total_booking_count || data[0].count || data.length);
+          }
+          if (typeof data === 'object' && data !== null) {
+            return Number(data.total_puja_booking_summary_qty || data.total_booking_count || data.count || 0);
+          }
+          return Number(data) || 0;
         }
         return 0;
       },
@@ -961,6 +1066,48 @@ export const pujaApi = createApi({
           }
         }
         return [];
+      },
+    }),
+    getBookingSummaryCount: builder.query<
+      number,
+      {
+        userId: number;
+        status: number;
+        paymentStatus: number;
+        fromDate: string | null;
+        toDate: string | null;
+      }
+    >({
+      query: ({ userId, status, paymentStatus, fromDate, toDate }) => ({
+        url: ENDPOINTS.getBookingSummaryCount,
+        method: 'POST',
+        body: {
+          enc_data: JSON.stringify({
+            citizen_id: userId,
+            start_date: fromDate,
+            end_date: toDate,
+          }),
+        },
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getBookingSummaryCount (POST /citizen/get_booking_summary_count) RAW RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          console.log('--- API: getBookingSummaryCount PARSED DATA ---', data);
+          if (Array.isArray(data) && data.length > 0) {
+            return Number(data[0].total_puja_booking_summary_qty || data[0].total_booking_count || data[0].count || data.length);
+          }
+          if (typeof data === 'object' && data !== null) {
+            return Number(data.total_puja_booking_summary_qty || data.total_booking_count || data.count || 0);
+          }
+          if (typeof data === 'number') {
+            return data;
+          }
+        }
+        return 0;
       },
     }),
     getAddressesCount: builder.query<number, { ctznId: number }>({
@@ -1058,11 +1205,13 @@ export const {
   useDeleteAddressMutation,
   useBookPujaMutation,
   useGetOrderSummaryQuery,
+  useGetBookingSummaryQuery,
   useGetBookingDetailsQuery,
   useReschedulePujaMutation,
   useCancelPujaMutation,
   useGetAllPujaCountQuery,
   useGetOrderSummaryCountQuery,
+  useGetBookingSummaryCountQuery,
   useGetGotraDetailsQuery,
   useGetStateDetailsQuery,
   useGetStatusTypeQuery,

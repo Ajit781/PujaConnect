@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import {
-  Home, ShoppingCart, User, Package, Flame, MapPin, Users, LayoutGrid, HelpCircle, LogOut
+  Home, ShoppingCart, User, Package, Flame, MapPin, Users, LayoutGrid, HelpCircle, LogOut, Sparkles
 } from 'lucide-react-native';
 import { View, Image, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import OrdersScreen from '../screens/profile/OrdersScreen';
 import CartScreen from '../screens/cart/CartScreen';
 import AccountScreen from '../screens/profile/AccountScreen';
+import BlessingsScreen from '../screens/profile/BlessingsScreen';
 import appLogo from '../assets/images/Logo.webp';
 
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -23,6 +24,7 @@ import AddFamilyMemberScreen from '../screens/profile/AddFamilyMemberScreen';
 export type DrawerParamList = {
   HomeTab: undefined;
   OrdersTab: undefined;
+  Blessings: undefined;
   CartTab: undefined;
   AccountTab: undefined;
   EditProfile: undefined;
@@ -37,6 +39,7 @@ const Drawer = createDrawerNavigator<DrawerParamList>();
 const DRAWER_ITEMS = [
   { id: 'HomeTab', label: 'Home', icon: Home },
   { id: 'OrdersTab', label: 'My Orders', icon: Package },
+  { id: 'Blessings', label: 'My Blessings', icon: Sparkles },
   { id: 'CartTab', label: 'Cart', icon: ShoppingCart },
   { id: 'EditProfile', label: 'Edit Profile', icon: User },
   { id: 'Address', label: 'Saved Addresses', icon: MapPin },
@@ -105,7 +108,7 @@ function CustomDrawerContent(props: any) {
           <LogOut size={16} color="#DC2626" />
           <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>Log out</Text>
         </TouchableOpacity>
-        
+
         <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
           Version v1.0.0
         </Text>
@@ -128,6 +131,7 @@ export function DrawerNavigator() {
     >
       <Drawer.Screen name="HomeTab" component={DashboardScreen} />
       <Drawer.Screen name="OrdersTab" component={OrdersScreen} />
+      <Drawer.Screen name="Blessings" component={BlessingsScreen} />
       <Drawer.Screen name="CartTab" component={CartScreen} />
       <Drawer.Screen name="AccountTab" component={AccountScreen} />
       <Drawer.Screen name="EditProfile" component={EditProfileScreen} />
@@ -169,7 +173,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   menuItemActive: {
-    backgroundColor: '#FFF5F0', 
+    backgroundColor: '#FFF5F0',
   },
   menuItemLeft: {
     flexDirection: 'row',

@@ -25,7 +25,6 @@ interface PluralWebViewProps {
   stopNavigationOnMatch?: boolean;
 }
 
-
 const CustomPaymentLoader = () => {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const dot1Anim = useRef(new Animated.Value(0)).current;
@@ -72,7 +71,7 @@ const CustomPaymentLoader = () => {
   return (
     <View style={customStyles.overlayContainer} pointerEvents="none">
       <View style={customStyles.modalCard}>
-        
+
         {/* Spinner Graphic */}
         <View style={customStyles.spinnerWrapper}>
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
@@ -180,7 +179,7 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasCalledResult = useRef(false);
-  const hasLoadedOnce = useRef(false); // track first successful load
+  const hasLoadedOnce = useRef(false);
 
   const fireResult = (res: {
     status: 'response' | 'error';
@@ -191,18 +190,27 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
   }) => {
     if (hasCalledResult.current) return;
     hasCalledResult.current = true;
-    console.log('[PluralWebView]   Full Res :', JSON.stringify(res, null, 2));
+    console.log('[PluralWebView] 💳 Final Res :', JSON.stringify(res, null, 2));
     onPaymentResult(res);
   };
 
-  // Extract enc_data and order info from a Plural callback URL
+  // Extract enc_data and order info from callback URL
   const extractPluralCallbackData = (url: string) => {
     try {
-      const urlObj = new URL(url);
-      const encData = urlObj.searchParams.get('enc_data') || undefined;
-      const status = urlObj.searchParams.get('status') || undefined;
-      // Decode enc_data: it's base64 JSON like {order_id, txn_number}
+      let encData: string | undefined;
+      let status: string | undefined;
       let orderId: string | undefined;
+
+      if (url.includes('?')) {
+        const queryString = url.split('?')[1];
+        const params = queryString.split('&');
+        params.forEach(p => {
+          const [key, val] = p.split('=');
+          if (key === 'enc_data') encData = val;
+          if (key === 'status') status = val;
+        });
+      }
+
       if (encData) {
         try {
           const decoded = JSON.parse(base64Decode(encData));
@@ -211,7 +219,7 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
             JSON.stringify(decoded, null, 2),
           );
           orderId = String(decoded.order_id || decoded.txn_number || '');
-        } catch {}
+        } catch { }
       }
       return { encData, orderId, status };
     } catch {
@@ -225,16 +233,20 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
     const lowerUrl = url.toLowerCase();
     const lowerTitle = (title || '').toLowerCase();
 
-    // ✅ Detect success via PAGE TITLE or URL patterns
+    // Check if error message exists in params
+    const hasErrorParam = lowerUrl.includes('errormessage=') || lowerUrl.includes('error=');
+
+    // ✅ DETECT SUCCESS
     const isSuccess =
-      lowerTitle.includes('payment-success') ||
-      lowerTitle.includes('payment_success') ||
-      lowerTitle.includes('payment success') ||
-      lowerUrl.includes('payment-success') ||
-      lowerUrl.includes('payment_success') ||
-      lowerUrl.includes('txn_status=success') ||
-      lowerUrl.includes('payment_status=success') ||
-      lowerUrl.includes('status=success');
+      !hasErrorParam &&
+      (lowerTitle.includes('payment-success') ||
+        lowerTitle.includes('payment_success') ||
+        lowerTitle.includes('payment success') ||
+        lowerUrl.includes('payment-success') ||
+        lowerUrl.includes('payment_success') ||
+        lowerUrl.includes('txn_status=success') ||
+        lowerUrl.includes('payment_status=success') ||
+        lowerUrl.includes('status=success'));
 
     if (isSuccess) {
       console.log('[PluralWebView] ✅ SUCCESS DETECTED!');
@@ -250,22 +262,36 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
       return true;
     }
 
-    // Detect failure via URL patterns
+    // ❌ DETECT FAILURE / CANCELLED / LOCALHOST REDIRECT
     const isFailure =
+      hasErrorParam ||
       lowerUrl.includes('payment-fail') ||
       lowerUrl.includes('payment_fail') ||
       lowerUrl.includes('txn_status=failure') ||
       lowerUrl.includes('payment_status=failure') ||
       lowerUrl.includes('status=failure') ||
-      lowerUrl.includes('status=cancelled');
+      lowerUrl.includes('status=cancelled') ||
+      lowerUrl.includes('localhost');
 
     if (isFailure) {
-      console.log('[PluralWebView] ❌ FAILURE DETECTED!');
+      console.log('[PluralWebView] ❌ FAILURE OR LOCALHOST REDIRECT DETECTED!');
       if (stopNavigationOnMatch) webviewRef.current?.stopLoading();
+
+      // Extract error message if present in URL
+      let reason = 'Payment failed or cancelled';
+      try {
+        if (url.includes('errorMessage=')) {
+          const errorMsgParam = url.split('errorMessage=')[1]?.split('&')[0];
+          if (errorMsgParam) {
+            reason = decodeURIComponent(errorMsgParam.replace(/\+/g, ' '));
+          }
+        }
+      } catch (e) { }
+
       fireResult({
         status: 'error',
         url,
-        reason: 'Payment failed or cancelled',
+        reason: reason,
       });
       return true;
     }
@@ -331,15 +357,26 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
           mixedContentMode="compatibility"
           scalesPageToFit={false}
           allowsBackForwardNavigationGestures={false}
+
+          // 🚀 Intercept Localhost / Payment Status redirects BEFORE WebView opens them
+          onShouldStartLoadWithRequest={(request) => {
+            const { url } = request;
+            console.log('[PluralWebView] 🚦 Navigation Request URL:', url);
+
+            if (url.includes('localhost') || url.includes('payment-status') || url.includes('payment-success') || url.includes('payment-fail')) {
+              checkAndFireSuccess(url, '');
+              return false; // Prevent loading unreachable localhost
+            }
+            return true;
+          }}
+
           injectedJavaScriptBeforeContentLoaded={`
             (function() {
-              // Set viewport BEFORE page renders to avoid wrong initial layout
               var meta = document.createElement('meta');
               meta.name = 'viewport';
               meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0';
               document.head && document.head.appendChild(meta);
               
-              // Also set it via a style to override any existing rules
               var style = document.createElement('style');
               style.innerHTML = 'html, body { width: 100% !important; max-width: 100vw !important; overflow-x: hidden !important; }';
               document.head && document.head.appendChild(style);
@@ -348,7 +385,6 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
           `}
           injectedJavaScript={`
             (function() {
-              // After content loads, check if page is wider than screen and scale down
               var pageWidth = document.documentElement.scrollWidth;
               var viewWidth = window.innerWidth;
               if (pageWidth > viewWidth) {
@@ -363,7 +399,6 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
           onNavigationStateChange={handleNavigationStateChange}
           onMessage={onMessage}
           onLoadStart={() => {
-            // Only show loading overlay on very first load
             if (!hasLoadedOnce.current) {
               setIsLoading(true);
               setLoadError(null);
@@ -377,13 +412,10 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
             const ev = e.nativeEvent;
             console.log('[PluralWebView] ⚠️ Load Error:', ev);
 
-            // ✅ KEY: Plural redirects to localhost:5173 on success — it fails on Android
-            // but the checkAndFireSuccess logic will catch it via title/url in the error event.
             if (checkAndFireSuccess(ev.url, ev.title)) {
-              return; // Success detected even though navigation failed
+              return; // Success or failure detected even though navigation failed
             }
 
-            // Genuine load error — show error UI
             if (!hasCalledResult.current) {
               setLoadError(ev.description || 'Failed to load checkout page');
               setIsLoading(false);
@@ -398,7 +430,7 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
           }}
         />
 
-        {/* Loading overlay — hides once onLoadEnd fires */}
+        {/* Loading overlay */}
         {isLoading && !loadError && <CustomPaymentLoader />}
 
         {/* Error state */}
@@ -458,18 +490,6 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 14,
-    fontSize: 14,
-    color: '#888',
-    fontWeight: '500',
   },
   errorContainer: {
     ...StyleSheet.absoluteFillObject,

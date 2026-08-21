@@ -13,11 +13,13 @@ import { Colors } from '../../constants/Colors';
 
 interface Props {
   visible: boolean;
-  mode: 'date' | 'datetime' | 'time';
+  mode?: 'date' | 'datetime' | 'time';
   initialDate?: Date;
   minimumDate?: Date;
   maximumDate?: Date;
-  onSelect: (date: Date, time?: string) => void;
+  minDate?: Date;
+  onSelect?: (date: Date, time?: string) => void;
+  onSelectDate?: (date: Date) => void;
   onClose: () => void;
 }
 
@@ -72,11 +74,13 @@ const YEARS = Array.from(
 
 export default function CustomDatePickerModal({
   visible,
-  mode,
+  mode = 'date',
   initialDate,
   minimumDate,
   maximumDate,
+  minDate,
   onSelect,
+  onSelectDate,
   onClose,
 }: Props) {
   const { i18n } = useTranslation();
@@ -122,7 +126,8 @@ export default function CustomDatePickerModal({
     setSelectedDate(d);
 
     if (mode === 'date') {
-      onSelect(d);
+      if (typeof onSelect === 'function') onSelect(d);
+      if (typeof onSelectDate === 'function') onSelectDate(d);
       onClose();
     } else {
       setShowTimePicker(true);
@@ -134,8 +139,9 @@ export default function CustomDatePickerModal({
   };
 
   const handleConfirmDateTime = () => {
-    if (selectedDate && selectedTime) {
-      onSelect(selectedDate, selectedTime);
+    if (selectedDate) {
+      if (typeof onSelect === 'function') onSelect(selectedDate, selectedTime || undefined);
+      if (typeof onSelectDate === 'function') onSelectDate(selectedDate);
       onClose();
     }
   };

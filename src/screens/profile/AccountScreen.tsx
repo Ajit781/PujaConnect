@@ -8,7 +8,7 @@ import { RootState } from '../../store';
 import { performLogout } from '../../utils/authUtils';
 import { useGetUserDetailsQuery } from '../../store/api/pujaApi';
 import { useAlert } from '../../context/AlertContext';
-import { User, MapPin, Package, Heart, LogOut, ChevronRight } from 'lucide-react-native';
+import { User, MapPin, Package, Heart, LogOut, ChevronRight, Sparkles } from 'lucide-react-native';
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_BG = Colors.background;
@@ -49,6 +49,12 @@ export default function AccountScreen({ navigation }: any) {
       title: isBn ? 'প্রোফাইল' : 'Profile',
       icon: <User color={BRAND_PRIMARY} size={22} />,
       onPress: () => navigation.navigate('EditProfile'),
+    },
+    {
+      id: 'blessings',
+      title: isBn ? 'আমার আশীর্বাদ' : 'My Blessings',
+      icon: <Sparkles color={BRAND_PRIMARY} size={22} />,
+      onPress: () => navigation.navigate('Blessings'),
     },
     {
       id: 'address',

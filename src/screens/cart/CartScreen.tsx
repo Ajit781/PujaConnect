@@ -7,7 +7,8 @@ import React, {
   useCallback,
 } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import { ActivityIndicator,
+import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -23,6 +24,8 @@ import { ActivityIndicator,
 } from 'react-native';
 import { decode as base64Decode } from 'base-64';
 import { PluralWebView } from '../../components/payment/PluralWebView';
+import { startPaytmTransaction } from '../../service/payment/paytmManager';
+import { PAYTM_CONFIG } from '../../config/apiConfig';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,7 +56,19 @@ import SchedulePujasModal, {
   ScheduleItemPayload,
 } from '../../components/booking/SchedulePujasModal';
 import { Colors } from '../../constants/Colors';
-import { ShieldCheck } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import {
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  Users,
+  Trash2,
+  Plus,
+  MapPin,
+  Sparkles,
+  Receipt,
+  Star,
+} from 'lucide-react-native';
 
 const BRAND_PRIMARY = Colors.primary;
 const BRAND_TEXT = Colors.textMain;
@@ -412,16 +427,14 @@ export default function CartScreen({ navigation, route }: any) {
       console.log('--- CHECKOUT AUTH_ID TO SEND ---', user?.auth_id || user?.user_id);
 
       const payload = {
-        in_booking_id: 0,
-        auth_id: user?.auth_id || user?.user_id || 0,
-        ctzn_id: user?.auth_id || user?.user_id || 0,
-        cart_id: cart_id,
-        payment_mode: 1,
-        payment_status: 1,
-        payable_amount: grandTotal,
-        total_amount: grandTotal,
-        ctzn_address_id: topAddressId,
-        puja_schedule_list: schedulesToUse,
+        ctzn_id: user?.auth_id || user?.user_id || 925,
+        puja_schedule_list: schedulesToUse.map((s: any) => ({
+          package_id: s.package_id,
+          ctzn_address_id: s.ctzn_address_id || topAddressId,
+          preferred_date: s.preferred_date,
+          preferred_time: s.preferred_time,
+          special_instructions: s.special_instruction || s.special_instructions || '',
+        })),
       };
 
       console.log(
@@ -451,37 +464,86 @@ export default function CartScreen({ navigation, route }: any) {
           bookingData = response.data || {};
         }
 
-        // Handle Payment Redirect via Plural WebView
+        // Extract Paytm parameters from response (prioritize txn_number matching Web code)
+        const txnToken = bookingData?.txn_token || bookingData?.txnToken;
+        const orderId = String(bookingData?.txn_number || bookingData?.order_ref || bookingData?.order_id || bookingData?.booking_id || '770');
+        const txnAmount = bookingData?.txn_amount || grandTotal || 21;
+
+        console.log('🚀 [PAYTM CHECKOUT] Extracted Parameters:', {
+          txnToken,
+          orderId,
+          txnAmount,
+          redirect_url: bookingData?.redirect_url,
+        });
+
+        // 1. If Paytm txnToken is present, launch Paytm Checkout with txn_number!
+        if (txnToken) {
+          // KEY DISCOVERY FROM WEB CODE: orderId MUST be txn_number (e.g. "00000775-1")
+          const paytmOrderId = String(
+            bookingData?.txn_number ||
+            bookingData?.order_ref ||
+            bookingData?.order_id ||
+            bookingData?.booking_id ||
+            orderId,
+          );
+          const amountStr =
+            typeof txnAmount === 'number'
+              ? txnAmount.toFixed(2)
+              : String(txnAmount);
+          const callbackUrl = `${PAYTM_CONFIG.BASE_URL}theia/paytmCallback?ORDER_ID=${paytmOrderId}`;
+
+          console.log('====================================================');
+          console.log('🚀 [PAYTM CHECKOUT] Invoking Paytm with txn_number:', paytmOrderId);
+          console.log('====================================================');
+
+          dispatch(hideLoader());
+          setShowAddressModal(false);
+
+          startPaytmTransaction({
+            orderId: paytmOrderId,
+            mid: PAYTM_CONFIG.MID,
+            txnToken: txnToken,
+            amount: amountStr,
+            callbackUrl: callbackUrl,
+            isStaging: PAYTM_CONFIG.IS_STAGING,
+            restrictAppInvoke: PAYTM_CONFIG.RESTRICT_APP_INVOKE,
+            urlScheme: PAYTM_CONFIG.URL_SCHEME,
+          })
+            .then((result: any) => {
+              console.log('====================================================');
+              console.log('✅ [PAYTM SDK SUCCESS RESPONSE]:', JSON.stringify(result, null, 2));
+              console.log('====================================================');
+              showToast({ message: isBn ? 'পেটিএম পেমেন্ট সফল হয়েছে!' : 'Paytm Payment Successful!', type: 'success' });
+            })
+            .catch((err: any) => {
+              console.log('====================================================');
+              console.log('❌ [PAYTM SDK ERROR / CANCELLED RESPONSE]:', err);
+              console.log('====================================================');
+              const webUrl = `${PAYTM_CONFIG.BASE_URL}theia/processTransaction?txnToken=${txnToken}`;
+              setPaymentUrl(webUrl);
+            });
+
+          return;
+        }
+
+        // 2. Handle Payment Redirect via Plural / Paytm WebView if redirect_url is given
         if (bookingData.redirect_url) {
           try {
-            const redirectUrl = base64Decode(bookingData.redirect_url);
-            console.log('Decoded redirect URL:', redirectUrl);
-
-            // Validate it's a proper HTTPS URL before opening WebView
-            if (!redirectUrl || !redirectUrl.startsWith('http')) {
-              throw new Error('Invalid URL: ' + redirectUrl);
+            let redirectUrl = base64Decode(bookingData.redirect_url);
+            if (!redirectUrl.startsWith('http')) {
+              redirectUrl = bookingData.redirect_url;
             }
-
-            // Pass the decoded URL directly to PluralWebView
+            console.log('🌐 Decoded redirect URL:', redirectUrl);
             setPaymentUrl(redirectUrl);
           } catch (e) {
             console.error('Base64 decode or URL validation failed:', e);
-            setAlertConfig({
-              visible: true,
-              title: isBn ? 'পেমেন্ট ত্রুটি' : 'Payment Error',
-              message: 'Failed to open the payment page. Please try again.',
-              buttons: [
-                {
-                  text: 'OK',
-                  onPress: () =>
-                    setAlertConfig(prev => ({ ...prev, visible: false })),
-                },
-              ],
-            });
+            if (bookingData.redirect_url.startsWith('http')) {
+              setPaymentUrl(bookingData.redirect_url);
+            }
           }
           dispatch(hideLoader());
           setShowAddressModal(false);
-          return; // Payment is pending — do not navigate to booking confirmed
+          return;
         }
 
         const now = new Date();
@@ -734,74 +796,77 @@ export default function CartScreen({ navigation, route }: any) {
   }
 
   const renderOrderSummary = (isModal = false) => (
-    <View
-      style={isModal ? styles.modalOrderSummaryBox : styles.orderSummaryBox}
-    >
+    <View style={isModal ? styles.modalOrderSummaryBox : styles.orderSummaryCardClean}>
       {!isModal && (
-        <View style={styles.osHeader}>
-          <Animated.View
-            style={[styles.omIconBoxSm, { transform: [{ rotate: spin }] }]}
-          >
-            <Text style={styles.omTextSm}>ॐ</Text>
-          </Animated.View>
-          <Text style={styles.osTitle}>
+        <View style={styles.osHeaderBanner}>
+          <Receipt size={18} color="#C84400" />
+          <Text style={styles.osTitleHeader}>
             {isBn ? 'অর্ডার সারাংশ' : 'Order Summary'}
           </Text>
         </View>
       )}
 
-      <View style={styles.osRow}>
-        <Text style={styles.osLabel}>
+      <View style={styles.osDividerLine} />
+
+      <View style={styles.osRowClean}>
+        <Text style={styles.osLabelText}>
           {isBn
-            ? `সাবটোটাল (${cartItemsMapped.length} পূজা)`
-            : `Subtotal (${cartItemsMapped.length} pujas)`}
+            ? `সাবটোটাল (${cartItemsMapped.length} সেবা)`
+            : `Subtotal (${cartItemsMapped.length} services)`}
         </Text>
-        <Text style={styles.osValueBox}>
+        <Text style={styles.osValueTextBold}>
           ₹{subtotal.toLocaleString('en-IN')}
         </Text>
       </View>
-      <View style={styles.osDivider} />
+      <View style={styles.osDividerLine} />
 
-      <View style={styles.osRow}>
-        <Text style={styles.osLabel}>
-          {isBn ? 'প্ল্যাটফর্ম ফি' : 'Platform Fee'}{' '}
-          <Text style={styles.fixedBadge}>Fixed</Text>
-        </Text>
-        <Text style={styles.osValueBox}>₹{platformFee.toFixed(1)}</Text>
+      <View style={styles.osRowClean}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={styles.osLabelText}>
+            {isBn ? 'প্ল্যাটফর্ম ফি' : 'Platform Fee'}
+          </Text>
+          <View style={styles.fixedBadgeBox}>
+            <Text style={styles.fixedBadgeText}>Fixed</Text>
+          </View>
+        </View>
+        <Text style={styles.osValueTextBold}>₹{platformFee.toFixed(1)}</Text>
       </View>
-      <View style={styles.osDivider} />
+      <View style={styles.osDividerLine} />
 
-      <View style={styles.osRow}>
-        <Text style={styles.osLabel}>
+      <View style={styles.osRowClean}>
+        <Text style={styles.osLabelText}>
           {isBn ? 'জিএসটি (১৮%)' : 'GST (18%)'}
         </Text>
-        <Text style={styles.osValueBox}>₹{gst.toFixed(1)}</Text>
+        <Text style={styles.osValueTextBold}>₹{gst.toFixed(1)}</Text>
       </View>
+      <View style={styles.osDividerLine} />
 
-      <View style={styles.yellowBox}>
-        <View style={styles.grandTotalRow}>
-          <Text style={styles.grandTotalLabel}>
+      <View style={styles.grandTotalSplitCard}>
+        <View style={styles.grandTotalHeaderRow}>
+          <Text style={styles.grandTotalTitle}>
             {isBn ? 'সর্বমোট' : 'Grand Total'}
           </Text>
-          <Text style={styles.grandTotalValue}>
+          <Text style={styles.grandTotalAmountOrange}>
             ₹{grandTotal.toLocaleString('en-IN')}
           </Text>
         </View>
-        <View style={styles.yellowDivider} />
-        <View style={styles.paymentSplitRow}>
-          <Text style={styles.paymentSplitLabel}>
-            💳 {isBn ? 'অনলাইনে পরিশোধ' : 'Pay Online'}{' '}
-            <Text style={styles.smallMuted}>(platform fee)</Text>
+
+        <View style={styles.splitDividerLine} />
+
+        <View style={styles.splitPayRow}>
+          <Text style={styles.splitPayLabelBlue}>
+            💳 {isBn ? 'এখন পরিশোধ' : 'Pay now'} <Text style={styles.splitPaySubText}>(secure booking payment)</Text>
           </Text>
-          <Text style={styles.paymentSplitValueBlue}>
+          <Text style={styles.splitPayValBlue}>
             ₹{payOnlineAmount.toLocaleString('en-IN')}
           </Text>
         </View>
-        <View style={styles.paymentSplitRowDistant}>
-          <Text style={styles.paymentSplitLabel}>
-            🏠 {isBn ? 'ক্যাশ অন ডেলিভারি' : 'Cash on Delivery'}
+
+        <View style={styles.splitPayRow}>
+          <Text style={styles.splitPayLabelGreen}>
+            🏠 {isBn ? 'সার্ভিসের সময় বাকি' : 'Remaining during service'}
           </Text>
-          <Text style={styles.paymentSplitValueGreen}>
+          <Text style={styles.splitPayValGreen}>
             ₹{cashOnDeliveryAmount.toLocaleString('en-IN')}
           </Text>
         </View>
@@ -822,7 +887,7 @@ export default function CartScreen({ navigation, route }: any) {
         style={styles.body}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 30,
+          paddingBottom: Math.max(110, insets.bottom + 90),
           paddingTop: 12,
         }}
         refreshControl={
@@ -838,47 +903,60 @@ export default function CartScreen({ navigation, route }: any) {
         <View style={styles.listSection}>
           <View style={styles.itemListContainer}>
             {cartItemsMapped.map(item => (
-              <View key={item.cartItemId} style={styles.cartCard}>
-                <View style={styles.cardHeaderRow}>
-                  <View
-                    style={[
-                      styles.cardImgPlaceholder,
-                      { backgroundColor: item.color || Colors.lightGray },
-                    ]}
-                  >
-                    {item.imagePlaceholder &&
-                      item.imagePlaceholder.startsWith('http') ? (
+              <View key={item.cartItemId} style={styles.cartCardClean}>
+                <View style={styles.cardHeaderRowClean}>
+                  <View style={styles.cardImgWrap}>
+                    {item.imagePlaceholder && item.imagePlaceholder.startsWith('http') ? (
                       <Image
                         source={{ uri: item.imagePlaceholder }}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          borderRadius: 12,
-                        }}
+                        style={styles.cardImg}
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text style={styles.cardImgEmoji}>
-                        {item.imagePlaceholder || '🛕'}
-                      </Text>
+                      <Text style={styles.cardImgEmoji}>🛕</Text>
                     )}
                   </View>
-                  <View style={styles.cardHeaderInfo}>
-                    <Text style={styles.cardTitle}>
+                  <View style={styles.cardHeaderInfoClean}>
+                    <Text style={styles.cardTitleClean}>
                       {isBn ? item.titleBn : item.titleEn}
                     </Text>
-                    <Text style={styles.cardPackageText}>
-                      {item.pkg_name ||
-                        (isBn
-                          ? item.titleBn + ' প্যাকেজ'
-                          : item.titleEn + ' Package')}
+                    <View style={styles.pkgEditRow}>
+                      <Text style={styles.cardPackageTextOrange} numberOfLines={1}>
+                        {item.pkg_name || (isBn ? item.titleBn + ' প্যাকেজ' : item.titleEn + ' Package')}
+                      </Text>
+                      <TouchableOpacity onPress={() => navigation.navigate('PujaDetails', { pujaId: item.pujaId })}>
+                        <Text style={styles.editPkgLink}>Edit package</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.cardDescTextClean} numberOfLines={2}>
+                      Verification package created to confirm database and API package persistence.
                     </Text>
-                    <Text style={styles.cardDescText} numberOfLines={1}>
-                      {isBn
-                        ? 'বাস্তু আচার সহ হিন্দু পূজা।'
-                        : 'Authentic Hindu puja with rituals.'}
-                    </Text>
+
+                    <View style={styles.metaPillsRow}>
+                      <View style={styles.metaPill}>
+                        <Clock size={12} color="#C84400" />
+                        <Text style={styles.metaPillText}>{item.duration || '2'}h</Text>
+                      </View>
+                      <View style={styles.metaPill}>
+                        <Users size={12} color="#C84400" />
+                        <Text style={styles.metaPillText}>{item.pandits || 1} {item.pandits > 1 ? 'Pandits' : 'Pandit'}</Text>
+                      </View>
+                      <View style={styles.metaPillYellow}>
+                        <Star size={12} color="#EAB308" fill="#EAB308" />
+                        <Text style={styles.metaPillTextDark}>{item.rating || 4}</Text>
+                      </View>
+                    </View>
                   </View>
+                </View>
+
+                <View style={styles.cardBottomRow}>
+                  <View>
+                    <Text style={styles.exactPriceLarge}>
+                      ₹{item.exactPrice?.toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={styles.packageTotalSub}>Package total</Text>
+                  </View>
+
                   <TouchableOpacity
                     onPress={async () => {
                       const state = await NetInfo.fetch();
@@ -891,39 +969,18 @@ export default function CartScreen({ navigation, route }: any) {
                         });
                       }
                     }}
-                    style={styles.deleteBtn}
+                    style={styles.trashDeleteBtn}
                   >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
+                    <Trash2 size={18} color="#EF4444" />
                   </TouchableOpacity>
-                </View>
-
-                <View style={styles.tagsRow}>
-                  <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>⏱️ {item.duration || 1}h</Text>
-                  </View>
-                  <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>
-                      🧘 {item.pandits || 1} Pandits
-                    </Text>
-                  </View>
-                  <View style={styles.tagBox}>
-                    <Text style={styles.tagText}>⭐ {item.rating || 5}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.priceRow}>
-                  <Text style={styles.exactPriceMain}>
-                    ₹{item.exactPrice?.toLocaleString('en-IN')}
-                  </Text>
-                  <Text style={styles.exactPriceSub}>
-                    ₹{item.exactPrice?.toLocaleString('en-IN')} × 1
-                  </Text>
                 </View>
               </View>
             ))}
 
+            {/* Dashed Add More Pujas Button */}
             <TouchableOpacity
-              style={styles.addMoreBtn}
+              style={styles.addMorePujasDashedBtn}
+              activeOpacity={0.8}
               onPress={async () => {
                 const state = await NetInfo.fetch();
                 if (state.isConnected) {
@@ -936,8 +993,9 @@ export default function CartScreen({ navigation, route }: any) {
                 }
               }}
             >
-              <Text style={styles.addMoreBtnText}>
-                + {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
+              <Plus size={18} color="#E8700A" strokeWidth={2.5} />
+              <Text style={styles.addMorePujasText}>
+                {isBn ? 'আরও পূজা যোগ করুন' : 'Add More Pujas'}
               </Text>
             </TouchableOpacity>
 
@@ -980,14 +1038,50 @@ export default function CartScreen({ navigation, route }: any) {
           </View>
         </View>
 
+        {/* Guided Booking Card (What Happens Next?) */}
+        <View style={styles.guidedBookingCard}>
+          <Text style={styles.guidedCategoryLabel}>SIMPLE, GUIDED BOOKING</Text>
+          <Text style={styles.guidedTitle}>What happens next?</Text>
+
+          <View style={styles.guidedStepRow}>
+            <View style={styles.guidedIconPill}>
+              <Clock size={16} color="#C84400" />
+            </View>
+            <View style={styles.guidedTextWrap}>
+              <Text style={styles.guidedStepTitle}>Choose your schedule</Text>
+              <Text style={styles.guidedStepSub}>Select a preferred date and time.</Text>
+            </View>
+          </View>
+
+          <View style={styles.guidedStepRow}>
+            <View style={styles.guidedIconPill}>
+              <MapPin size={16} color="#C84400" />
+            </View>
+            <View style={styles.guidedTextWrap}>
+              <Text style={styles.guidedStepTitle}>Confirm the location</Text>
+              <Text style={styles.guidedStepSub}>Add the address for the ceremony.</Text>
+            </View>
+          </View>
+
+          <View style={styles.guidedStepRow}>
+            <View style={styles.guidedIconPill}>
+              <ShieldCheck size={16} color="#C84400" />
+            </View>
+            <View style={styles.guidedTextWrap}>
+              <Text style={styles.guidedStepTitle}>Book securely</Text>
+              <Text style={styles.guidedStepSub}>Pay the booking amount now and the remaining balance during service.</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Order Summary Form */}
         <View style={styles.summarySection}>
           {renderOrderSummary(false)}
 
-          <View style={styles.infoBoxGreen}>
-            <Text style={styles.infoBoxIcon}>✅</Text>
-            <Text style={styles.infoBoxText}>
-              <Text style={styles.infoBoxBold}>
+          <View style={styles.trustBadgeOutlineCard}>
+            <CheckCircle2 size={20} color="#4B5563" style={{ marginTop: 2 }} />
+            <Text style={styles.trustBadgeTextMain}>
+              <Text style={styles.trustBadgeBold}>
                 {isBn ? 'নিরাপদ বুকিং' : 'Secure Booking'}
               </Text>
               {isBn
@@ -996,10 +1090,10 @@ export default function CartScreen({ navigation, route }: any) {
             </Text>
           </View>
 
-          <View style={styles.infoBoxBlue}>
-            <Text style={styles.infoBoxIcon}>✨</Text>
-            <Text style={styles.infoBoxTextBlue}>
-              <Text style={styles.infoBoxBold}>
+          <View style={styles.trustBadgeOutlineCard}>
+            <Sparkles size={20} color="#4B5563" style={{ marginTop: 2 }} />
+            <Text style={styles.trustBadgeTextMain}>
+              <Text style={styles.trustBadgeBold}>
                 {isBn ? 'ঐশ্বরিক আশীর্বাদ' : 'Divine Blessings'}
               </Text>
               {isBn
@@ -1031,54 +1125,49 @@ export default function CartScreen({ navigation, route }: any) {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Fixed Checkout Footer */}
+      {/* Fixed Checkout Footer matching Screenshot 100% */}
       {cartItemsMapped.length > 0 &&
         !showScheduleModal &&
         !showAddressModal &&
         !showConfirmModal && (
-          <View
-            style={[
-              styles.fixedFooter,
-              {
-                paddingBottom: Math.max(16, insets.bottom + 16),
-                paddingTop: 16,
-                marginBottom: isKeyboardVisible ? 20 : 0,
-              },
-            ]}
-          >
-            <View style={styles.fixedFooterInner}>
-              <View style={styles.fixedFooterPriceBox}>
-                <Text style={styles.fixedFooterPriceLabel}>
-                  {isBn ? 'সর্বমোট প্রদেয়' : 'Total Amount'}
-                </Text>
-                <Text style={styles.fixedFooterPriceValue}>
-                  ₹{grandTotal.toLocaleString('en-IN')}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.fixedFooterBtn}
-                onPress={async () => {
-                  const state = await NetInfo.fetch();
-                  if (state.isConnected) {
-                    navigation.navigate('SchedulePujas' as never, {
-                      cartItems: cartItemsMapped,
-                      addresses,
-                      grandTotal,
-                    } as never);
-                  } else {
-                    showToast({
-                      message: t('common.connectionRequired'),
-                      type: 'error',
-                    });
-                  }
-                }}
+          <View style={[styles.fixedCheckoutBar, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={{ width: '100%' }}
+              onPress={async () => {
+                const state = await NetInfo.fetch();
+                if (state.isConnected) {
+                  navigation.navigate('SchedulePujas' as never, {
+                    cartItems: cartItemsMapped,
+                    addresses,
+                    grandTotal,
+                  } as never);
+                } else {
+                  showToast({
+                    message: t('common.connectionRequired'),
+                    type: 'error',
+                  });
+                }
+              }}
+            >
+              <LinearGradient
+                colors={['#FF9933', '#E07800']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.proceedCheckoutBtnGradient}
               >
-                <ShieldCheck size={18} color="#FFF" />
-                <Text style={styles.fixedFooterBtnText}>
-                  {isBn ? 'এগিয়ে যান' : 'Proceed to checkout'}
+                <View style={styles.checkoutBtnLeft}>
+                  <ShieldCheck size={18} color="#FFFFFF" />
+                  <Text style={styles.checkoutBtnText} numberOfLines={1}>
+                    {isBn ? 'এগিয়ে যান' : 'Proceed to Checkout'}
+                  </Text>
+                </View>
+
+                <Text style={styles.checkoutPriceTagText} numberOfLines={1}>
+                  ₹{payOnlineAmount || 21} now · ₹{cashOnDeliveryAmount?.toLocaleString('en-IN')} later
                 </Text>
-              </TouchableOpacity>
-            </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1363,7 +1452,7 @@ export default function CartScreen({ navigation, route }: any) {
         onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
 
-            {/* Custom Payment Initialization Loader */}
+      {/* Custom Payment Initialization Loader */}
       <Modal visible={isPaymentInitializing} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: '#fff', padding: 24, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
@@ -1767,7 +1856,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: Colors.white,
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingTop: 12,
     // paddingBottom removed to allow insets in component
     borderTopWidth: 1,
@@ -2291,5 +2380,265 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1E293B',
     fontWeight: '700',
+  },
+
+  // Screenshot-matched Cart Item Card styles
+  cartCardClean: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    marginBottom: 14,
+  },
+  cardHeaderRowClean: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  cardImgWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#FFF8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardImg: { width: '100%', height: '100%', borderRadius: 12 },
+  cardHeaderInfoClean: { flex: 1 },
+  cardTitleClean: { fontSize: 16, fontWeight: '700', color: '#1C1917', marginBottom: 2 },
+  pkgEditRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  cardPackageTextOrange: { fontSize: 13, fontWeight: '600', color: '#C84400', flexShrink: 1 },
+  editPkgLink: { fontSize: 12, fontWeight: '600', color: '#C84400', textDecorationLine: 'underline', marginLeft: 8 },
+  cardDescTextClean: { fontSize: 12, color: '#6B7280', lineHeight: 16, marginBottom: 8 },
+  metaPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFDF9',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  metaPillYellow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF9C3',
+    borderWidth: 1,
+    borderColor: '#FDE047',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  metaPillText: { fontSize: 11, fontWeight: '600', color: '#C84400' },
+  metaPillTextDark: { fontSize: 11, fontWeight: '700', color: '#854D0E' },
+  cardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  exactPriceLarge: { fontSize: 20, fontWeight: '800', color: '#1C1917' },
+  packageTotalSub: { fontSize: 11, color: '#6B7280' },
+  trashDeleteBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Dashed Add More Pujas Button
+  addMorePujasDashedBtn: {
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#E8700A',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginVertical: 14,
+  },
+  addMorePujasText: { color: '#E8700A', fontSize: 15, fontWeight: '700' },
+
+  // Guided Booking Section (What Happens Next?)
+  guidedBookingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    marginHorizontal: 0,
+    marginBottom: 16,
+  },
+  guidedCategoryLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#C84400',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  guidedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1C1917',
+    marginBottom: 14,
+  },
+  guidedStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFDF9',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+  },
+  guidedIconPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF8F0',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 2,
+  },
+  guidedTextWrap: { flex: 1 },
+  guidedStepTitle: { fontSize: 14, fontWeight: '700', color: '#1C1917', marginBottom: 2 },
+  guidedStepSub: { fontSize: 12, color: '#6B7280', lineHeight: 16 },
+
+  // Order Summary Card Styles
+  orderSummaryCardClean: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  osHeaderBanner: {
+    backgroundColor: '#FFF8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  osTitleHeader: { fontSize: 16, fontWeight: '700', color: '#C84400' },
+  osRowClean: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  osLabelText: { fontSize: 14, color: '#374151', fontWeight: '500' },
+  osValueTextBold: { fontSize: 14, color: '#111827', fontWeight: '700' },
+  fixedBadgeBox: {
+    backgroundColor: '#FFEDD5',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  fixedBadgeText: { fontSize: 10, fontWeight: '700', color: '#C84400' },
+  grandTotalSplitCard: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 14,
+    marginTop: 12,
+  },
+  grandTotalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  grandTotalTitle: { fontSize: 16, fontWeight: '700', color: '#1C1917' },
+  grandTotalAmountOrange: { fontSize: 24, fontWeight: '800', color: '#C84400' },
+  splitDividerLine: { height: 1, backgroundColor: '#FED7AA', marginVertical: 10 },
+  splitPayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  splitPayLabelBlue: { fontSize: 13, fontWeight: '600', color: '#2563EB' },
+  splitPaySubText: { fontSize: 11, color: '#6B7280', fontWeight: '400' },
+  splitPayValBlue: { fontSize: 14, fontWeight: '800', color: '#2563EB' },
+  splitPayLabelGreen: { fontSize: 13, fontWeight: '600', color: '#059669' },
+  splitPayValGreen: { fontSize: 14, fontWeight: '800', color: '#059669' },
+
+  // Trust Badges matching screenshot 100%
+  trustBadgeOutlineCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  trustBadgeTextMain: { fontSize: 13, color: '#4B5563', flex: 1, lineHeight: 18 },
+  trustBadgeBold: { fontWeight: '700', color: '#1F2937' },
+
+  // Sticky Fixed Checkout Footer Bar
+  fixedCheckoutBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    zIndex: 999,
+    elevation: 10,
+  },
+  proceedCheckoutBtnGradient: {
+    width: '100%',
+    height: 54,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
+  checkoutBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    marginRight: 8,
+  },
+  checkoutBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  checkoutPriceTagText: {
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 0,
   },
 });

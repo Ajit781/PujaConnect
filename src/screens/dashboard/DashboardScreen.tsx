@@ -24,7 +24,7 @@ import RNLinearGradient from 'react-native-linear-gradient';
 import {
   Search, SlidersHorizontal, ChevronDown, ChevronUp, Clock, Check, ShieldCheck,
   House, Gem, HeartPulse, UsersRound, GraduationCap, Orbit, PartyPopper, Sparkles,
-  CalendarClock, BadgeCheck, Eye, Menu, LayoutGrid, ShoppingCart, User, Heart, Trash2, UserCircle2, X, MapPin, LogOut
+  CalendarClock, BadgeCheck, Eye, Menu, LayoutGrid, ShoppingCart, User, Heart, Trash2, UserCircle2, X, MapPin, LogOut, Scale, RotateCcw
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -59,6 +59,7 @@ import appLogo from '../../assets/images/Logo.webp';
 import NoDataFound from '../../components/common/NoDataFound';
 import ProfileCompletionModal from '../../components/common/ProfileCompletionModal';
 import ImagePlaceholder from '../../components/common/ImagePlaceholder';
+import PackageComparisonModal, { PackageComparisonItem } from '../../components/puja/PackageComparisonModal';
 import { Colors } from '../../constants/Colors';
 
 const PriceSlider = ({ value, onValueChange, maxLimit = 15000 }: any) => {
@@ -167,14 +168,14 @@ const CATEGORIES = [
   { id: 'Festivals', labelEn: 'Festivals', labelBn: 'উৎসব', Icon: PartyPopper, recommended: true },
 ];
 
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  Home: ['home', 'griha', 'sanskar', 'house', 'vastu', 'shanti', 'path', 'grah', 'durga'],
-  Prosperity: ['lakshmi', 'dhan', 'kuber', 'prosperity', 'wealth', 'ganesh', 'chandi', 'success', 'kali'],
-  Health: ['health', 'ayush', 'mrityunjaya', 'cure', 'healing', 'dhanvantari', 'roga', 'shiva', 'mahadev'],
-  Family: ['family', 'satyanarayan', 'sanskar', 'marriage', 'vivah', 'shanti', 'welfare', 'chandi'],
-  Education: ['saraswati', 'education', 'study', 'knowledge', 'vidya', 'exam'],
-  Astrology: ['graha', 'shani', 'navagraha', 'rahusketu', 'dosh', 'astrology', 'kundli', 'kaal sarp'],
-  Festivals: ['durga', 'diwali', 'ganesh', 'navratri', 'festival', 'utsav', 'janmashtami', 'puja', 'chandi'],
+const PURPOSE_PATTERNS: Record<string, RegExp> = {
+  Home: /(griha|home|house|vastu|bhumi|property|kalash sthapana)/i,
+  Prosperity: /(lakshmi|prosper|wealth|dhanteras|abundance|business|govardhan|kuber|ganesh|dhan)/i,
+  Health: /(health|ayush|mrityunjaya|protection|hanuman|sundarkand|raksha|dhanvantari|roga)/i,
+  Family: /(marriage|vivah|wedding|engagement|family|naamkaran|annaprashan|mundan|tulsi vivah|satyanarayan|sanskar)/i,
+  Education: /(education|vidya|saraswati|vidyarambh|study|learning|gayatri|exam)/i,
+  Astrology: /(navagraha|shani|mangal|kaal sarp|dosh|planet|graha|pitru|astrology)/i,
+  Festivals: /(navratri|janmashtami|shivratri|raksha bandhan|dhanteras|durga|kali|karwa|ganesh|festival|utsav)/i,
 };
 
 export default function DashboardScreen({ navigation }: any) {
@@ -209,10 +210,12 @@ export default function DashboardScreen({ navigation }: any) {
   const [showSortModal, setShowSortModal] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(12);
 
-  // Packages Modal State
+  // Packages Modal & Comparison State
   const [showPackagesModal, setShowPackagesModal] = useState(false);
   const [selectedPujaForPackages, setSelectedPujaForPackages] = useState<any>(null);
   const [openingPujaId, setOpeningPujaId] = useState<number | null>(null);
+  const [comparePackages, setComparePackages] = useState<PackageComparisonItem[]>([]);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
 
   // Fetch Packages dynamically for the selected Puja
   const [fetchPackages, { data: modalPackagesData, isFetching: isLoadingModalPackages }] = useLazyGetPujaPackagesQuery();
@@ -509,14 +512,25 @@ export default function DashboardScreen({ navigation }: any) {
       });
     }
 
-    // 2. Category (Purpose) Filter
+    // 2. Category (Purpose) Filter matching Web (pujaDiscovery.ts)
     if (selectedCategory !== 'All') {
-      const keywords = CATEGORY_KEYWORDS[selectedCategory] || [];
-      list = list.filter((p) => {
-        const pName = (p.puja_name || p.puja_type_name || '').toLowerCase();
-        const pDesc = (p.description || p.puja_description || '').toLowerCase();
-        return keywords.some(kw => pName.includes(kw) || pDesc.includes(kw));
-      });
+      const pattern = PURPOSE_PATTERNS[selectedCategory];
+      if (pattern) {
+        list = list.filter((p: any) => {
+          const searchableText = [
+            p.puja_name,
+            p.puja_type_name,
+            p.puja_sub_name,
+            p.description,
+            p.puja_description,
+            p.puja_benifit,
+            p.puja_significance,
+          ]
+            .filter(Boolean)
+            .join(' ');
+          return pattern.test(searchableText);
+        });
+      }
     }
 
     // 3. Price Filter
@@ -802,7 +816,7 @@ export default function DashboardScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {/* ── Filters Modal ── */}
+          {/* ── Filters Modal (Matching Screenshot 100%) ── */}
           <Modal
             visible={showFilters}
             animationType="slide"
@@ -817,58 +831,14 @@ export default function DashboardScreen({ navigation }: any) {
                     <Text style={styles.filterModalTitle}>{isBn ? 'পূজা ফিল্টার করুন' : 'Filter pujas'}</Text>
                     <Text style={styles.filterModalSubtitle}>{isBn ? 'উপলব্ধ পরিষেবাগুলি পরিমার্জন করুন' : 'Refine the available services'}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setShowFilters(false)} style={styles.filterModalCloseBtn}>
-                    <X size={20} color="#000" />
+                  <TouchableOpacity onPress={() => setShowFilters(false)} style={styles.filterModalCloseBtn} activeOpacity={0.7}>
+                    <X size={18} color="#1C1917" />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.filterModalDivider} />
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                  {/* Price Range */}
-                  <Text style={styles.filterModalSectionTitle}>{isBn ? 'মূল্য সীমা' : 'PRICE RANGE'}</Text>
-                  <View style={styles.filterModalPriceInputsRow}>
-                    <View style={styles.filterModalPriceInputBox}>
-                      <Text style={styles.filterModalPriceCurrency}>₹</Text>
-                      <TextInput
-                        style={styles.filterModalPriceTextInput}
-                        placeholder="Min"
-                        keyboardType="numeric"
-                        value={minPrice}
-                        onChangeText={(val) => {
-                          setMinPrice(val);
-                          setDisplayLimit(12);
-                        }}
-                      />
-                    </View>
-                    <Text style={styles.filterModalPriceSeparator}>-</Text>
-                    <View style={styles.filterModalPriceInputBox}>
-                      <Text style={styles.filterModalPriceCurrency}>₹</Text>
-                      <TextInput
-                        style={styles.filterModalPriceTextInput}
-                        placeholder="Max"
-                        keyboardType="numeric"
-                        value={maxPrice}
-                        onChangeText={(val) => {
-                          setMaxPrice(val);
-                          setDisplayLimit(12);
-                        }}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Interactive Visual Slider */}
-                  <PriceSlider
-                    value={maxPrice}
-                    onValueChange={(val: string) => {
-                      setMaxPrice(val);
-                      setDisplayLimit(12);
-                    }}
-                    maxLimit={15000}
-                  />
-
-                  <View style={styles.filterModalDivider} />
-
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
                   {/* Collections */}
                   <Text style={styles.filterModalSectionTitle}>{isBn ? 'সংগ্রহসমূহ' : 'COLLECTIONS'}</Text>
                   <View style={styles.filterModalCollectionsContainer}>
@@ -879,14 +849,15 @@ export default function DashboardScreen({ navigation }: any) {
                           key={tag.tag_id}
                           onPress={() => {
                             setSelectedTagId(tag.tag_id);
-                            setDisplayLimit(12);
+                            setDisplayLimit(30);
                           }}
                           style={styles.filterModalCollectionRow}
+                          activeOpacity={0.7}
                         >
                           <View style={[styles.filterModalCheckbox, isSelected && styles.filterModalCheckboxActive]}>
                             {isSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
                           </View>
-                          <Text style={styles.filterModalCollectionText}>
+                          <Text style={[styles.filterModalCollectionText, isSelected && styles.filterModalCollectionTextActive]}>
                             {isBn && tag.tag_value === 'All' ? 'All pujas' :
                               isBn && tag.tag_value === 'Featured' ? 'বৈশিষ্ট্যযুক্ত' :
                                 isBn && tag.tag_value === 'Favourite' ? 'প্রিয়' :
@@ -898,25 +869,38 @@ export default function DashboardScreen({ navigation }: any) {
                   </View>
                 </ScrollView>
 
-                {/* Footer Buttons */}
+                {/* Footer Buttons Stacked matching screenshot */}
                 <View style={styles.filterModalFooter}>
-                  <TouchableOpacity
-                    style={styles.filterModalResetBtn}
-                    onPress={() => {
-                      setMinPrice('');
-                      setMaxPrice('');
-                      setSelectedTagId(ALL_PUJA_TAG_ID);
-                    }}
-                  >
-                    <Text style={styles.filterModalResetBtnText}>{isBn ? 'রিসেট ফিল্টার' : 'Reset Filters'}</Text>
-                  </TouchableOpacity>
+                  {selectedTagId !== 1 && (
+                    <TouchableOpacity
+                      style={styles.filterModalResetBtn}
+                      onPress={() => {
+                        setSelectedTagId(1);
+                        setMinPrice('');
+                        setMaxPrice('');
+                        setDisplayLimit(30);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.filterModalResetBtnText}>{isBn ? 'রিসেট ফিল্টার' : 'Reset Filters'}</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     style={styles.filterModalApplyBtn}
                     onPress={() => setShowFilters(false)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.filterModalApplyBtnText}>
-                      {isBn ? `${finalFilteredPujas.length}টি পূজা দেখুন` : `Show ${finalFilteredPujas.length} pujas`}
-                    </Text>
+                    <RNLinearGradient
+                      colors={['#EF6C00', '#D97706']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.filterModalApplyGradient}
+                    >
+                      <Text style={styles.filterModalApplyBtnText}>
+                        {isBn ? `${finalFilteredPujas.length}টি পূজা দেখুন` : `Show ${finalFilteredPujas.length} pujas`}
+                      </Text>
+                    </RNLinearGradient>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1400,7 +1384,7 @@ export default function DashboardScreen({ navigation }: any) {
           }}
         />
 
-        {/* ── Packages Modal (Screenshot 2 Match) ── */}
+        {/* ── Packages Modal (Exact Screenshot Color Palette Match) ── */}
         {showPackagesModal && (
           <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]}>
             <View style={styles.packagesModalOverlay}>
@@ -1410,28 +1394,44 @@ export default function DashboardScreen({ navigation }: any) {
                   <Svg height="100%" width="100%">
                     <Defs>
                       <LinearGradient id="modalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <Stop offset="0%" stopColor="#FF8C00" />
-                        <Stop offset="100%" stopColor="#F59E0B" />
+                        <Stop offset="0%" stopColor="#FF9933" />
+                        <Stop offset="100%" stopColor="#E07800" />
                       </LinearGradient>
                     </Defs>
                     <Rect x="0" y="0" width="100%" height="100%" fill="url(#modalGrad)" />
                   </Svg>
                 </View>
-                <Text style={styles.packagesModalTitle} numberOfLines={1}>{selectedPujaForPackages?.puja_name || 'Puja'} packages</Text>
+
+                <Text style={styles.packagesModalTitle} numberOfLines={1}>
+                  {selectedPujaForPackages?.puja_name || 'Puja'} packages
+                </Text>
+
                 <TouchableOpacity
-                  style={styles.packagesModalCloseBtn}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: '#FFFFFF',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
                   onPress={() => setShowPackagesModal(false)}
                 >
-                  <Text style={styles.packagesModalCloseBtnText}>✕</Text>
+                  <X size={20} color="#E8700A" />
                 </TouchableOpacity>
               </View>
 
               {/* Content */}
-              <ScrollView contentContainerStyle={styles.packagesModalContent} style={{ flex: 1 }}>
+              <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }} style={{ flex: 1, backgroundColor: '#FFFDF6' }}>
 
                 {isLoadingModalPackages ? (
                   <View style={{ padding: 40, alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#F97316" />
+                    <ActivityIndicator size="large" color="#E65100" />
                     <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading packages...</Text>
                   </View>
                 ) : modalPackagesData && modalPackagesData.length > 0 ? (
@@ -1440,59 +1440,125 @@ export default function DashboardScreen({ navigation }: any) {
                     const duration = pkg.puja_duration || pkg.duration_hours || 2;
                     const panditCount = pkg.pandit_count || 1;
                     const includesSamagri = pkg.puja_include_samagri === 1 || pkg.includes_samagri === 1;
+                    const pkgId = pkg.puja_package_id || index;
+                    const isAlreadyAdded = comparePackages.some((p) => p.package_id === pkgId);
 
                     return (
-                      <View key={`pkg-${pkg.puja_package_id || index}`} style={styles.packageCard}>
-                        <View style={styles.packageCardHeader}>
-                          <Text style={styles.packageCardLabel}>PACKAGE</Text>
-                          <Text style={styles.packageCardPrice}>₹{price.toLocaleString('en-IN')}</Text>
+                      <View
+                        key={`pkg-${pkgId}`}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: 16,
+                          borderWidth: 1,
+                          borderColor: '#E5E7EB',
+                          padding: 18,
+                          marginBottom: 16,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.03,
+                          shadowRadius: 4,
+                          elevation: 1,
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#9CA3AF', letterSpacing: 1, textTransform: 'uppercase' }}>
+                            PACKAGE
+                          </Text>
+                          <Text style={{ fontSize: 20, fontWeight: '900', color: '#E65100' }}>
+                            ₹{price.toLocaleString('en-IN')}
+                          </Text>
                         </View>
-                        <Text style={styles.packageCardTitle}>{pkg.puja_package_name || 'Puja Package'}</Text>
-                        <Text style={styles.packageCardDesc}>
-                          {pkg.puja_package_description || 'Essential ceremony with the core puja materials and priest guidance included.'}
+
+                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#1C1917', marginBottom: 14 }}>
+                          {pkg.puja_package_name || 'Package'}
                         </Text>
 
-                        <View style={styles.packageFeatureList}>
-                          <View style={styles.packageFeatureItem}>
-                            <CalendarClock size={14} color="#F97316" />
-                            <Text style={styles.packageFeatureText}>{duration} hr</Text>
+                        <View style={{ gap: 10, marginBottom: 18 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <CalendarClock size={16} color="#E65100" />
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '600' }}>{duration} hr</Text>
                           </View>
-                          <View style={styles.packageFeatureItem}>
-                            <ShieldCheck size={14} color="#F97316" />
-                            <Text style={styles.packageFeatureText}>{panditCount} priest{panditCount > 1 ? 's' : ''}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <ShieldCheck size={16} color="#E65100" />
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '600' }}>
+                              {panditCount} priest{panditCount > 1 ? 's' : ''}
+                            </Text>
                           </View>
-                          <View style={styles.packageFeatureItem}>
-                            <ShieldCheck size={14} color="#F97316" />
-                            <Text style={styles.packageFeatureText}>{includesSamagri ? 'Materials included' : 'Materials extra'}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <ShieldCheck size={16} color="#E65100" />
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '600' }}>
+                              {includesSamagri ? 'Materials included' : 'Materials extra'}
+                            </Text>
                           </View>
                         </View>
 
-                        <TouchableOpacity
-                          style={[{ borderRadius: 8, overflow: 'hidden' }]}
-                          activeOpacity={0.8}
-                          onPress={() => {
-                            setShowPackagesModal(false);
-                            navigation.navigate('PujaDetails', {
-                              pujaId: selectedPujaForPackages?.puja_id,
-                              pujaData: selectedPujaForPackages,
-                            });
-                          }}
-                        >
-                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 8, overflow: 'hidden' }}>
-                            <Svg height="100%" width="100%">
-                              <Defs>
-                                <LinearGradient id={`btnGradPkg${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                  <Stop offset="0%" stopColor="#FF9933" />
-                                  <Stop offset="100%" stopColor="#E07800" />
-                                </LinearGradient>
-                              </Defs>
-                              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#btnGradPkg${index})`} />
-                            </Svg>
-                          </View>
-                          <View style={styles.packageSelectBtn}>
-                            <Text style={styles.packageSelectBtnText}>Select & schedule</Text>
-                          </View>
-                        </TouchableOpacity>
+                        {/* Action Buttons Row matching screenshot */}
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          {/* Select Button */}
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              backgroundColor: '#E8700A',
+                              paddingVertical: 12,
+                              borderRadius: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              setShowPackagesModal(false);
+                              navigation.navigate('PujaDetails', {
+                                pujaId: selectedPujaForPackages?.puja_id,
+                                pujaData: selectedPujaForPackages,
+                              });
+                            }}
+                          >
+                            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>Select</Text>
+                          </TouchableOpacity>
+
+                          {/* Compare / Added Button */}
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              paddingVertical: 12,
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: isAlreadyAdded ? '#FDBA74' : '#D1D5DB',
+                              backgroundColor: isAlreadyAdded ? '#FFF8F0' : '#FFFFFF',
+                              gap: 6,
+                            }}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                              if (isAlreadyAdded) {
+                                setComparePackages((prev) => prev.filter((p) => p.package_id !== pkgId));
+                              } else {
+                                if (comparePackages.length >= 3) {
+                                  showToast({ message: 'You can compare maximum 3 packages', type: 'error' });
+                                  return;
+                                }
+                                const newPkg: PackageComparisonItem = {
+                                  package_id: pkgId,
+                                  package_name: pkg.puja_package_name || 'Puja Package',
+                                  package_description: pkg.puja_package_description || '',
+                                  package_price: price,
+                                  pandit_count: panditCount,
+                                  package_duration_hours: duration,
+                                  includes_samagri: includesSamagri ? 1 : 0,
+                                  procedure_involved: pkg.procedure_involved || pkg.puja_package_description || '',
+                                };
+                                setComparePackages((prev) => [...prev, newPkg]);
+                              }
+                            }}
+                          >
+                            <Scale size={16} color={isAlreadyAdded ? '#C84400' : '#4B5563'} />
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: isAlreadyAdded ? '#C84400' : '#374151' }}>
+                              {isAlreadyAdded ? 'Added' : 'Compare'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     );
                   })
@@ -1502,30 +1568,138 @@ export default function DashboardScreen({ navigation }: any) {
                   </View>
                 )}
 
-                {/* Schedule Confidence Info */}
-                <View style={styles.scheduleInfoBox}>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <CalendarClock size={20} color="#F97316" />
+              {/* ── Compare Tray Card inside Modal matching screenshot ── */}
+              {comparePackages.length > 0 && (
+                <View
+                  style={{
+                    backgroundColor: '#FFFDF9',
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: '#FDBA74',
+                    padding: 12,
+                    marginBottom: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <Scale size={20} color="#E8700A" />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.scheduleInfoTitle}>Schedule with confidence</Text>
-                      <Text style={styles.scheduleInfoDesc}>
-                        Available dates and service coverage are confirmed for your address before payment.
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: '#1C1917' }}>
+                        {comparePackages.length} of 3 selected
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }} numberOfLines={1}>
+                        {comparePackages.map((p) => p.package_name).join(' • ')}
                       </Text>
                     </View>
                   </View>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        alignItems: 'center',
+                      }}
+                      onPress={() => setComparePackages([])}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Clear</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: comparePackages.length >= 2 ? '#E8700A' : '#9CA3AF',
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        alignItems: 'center',
+                      }}
+                      disabled={comparePackages.length < 2}
+                      onPress={() => setShowComparisonModal(true)}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Compare now</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              )}
 
-                {/* View Complete Details */}
-                <TouchableOpacity style={styles.viewDetailsBtn}>
-                  <Eye size={14} color="#F97316" style={{ marginRight: 6 }} />
-                  <Text style={styles.viewDetailsBtnText}>View complete puja details</Text>
-                </TouchableOpacity>
+              {/* Schedule Confidence Info Box matching screenshot */}
+              <View
+                style={{
+                  backgroundColor: '#FFFDF9',
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: '#FED7AA',
+                  padding: 12,
+                  marginBottom: 10,
+                }}
+              >
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <CalendarClock size={20} color="#E8700A" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1C1917', marginBottom: 2 }}>
+                      Schedule with confidence
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#57534E', lineHeight: 16 }}>
+                      Available dates and service coverage are confirmed for your address before payment.
+                    </Text>
+                  </View>
+                </View>
+              </View>
 
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </View>
+              {/* View Complete Details Button matching screenshot */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: '#E8700A',
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+                onPress={() => {
+                  setShowPackagesModal(false);
+                  navigation.navigate('PujaDetails', {
+                    pujaId: selectedPujaForPackages?.puja_id,
+                    pujaData: selectedPujaForPackages,
+                  });
+                }}
+              >
+                <Eye size={18} color="#E8700A" />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#E8700A' }}>
+                  View complete puja details
+                </Text>
+              </TouchableOpacity>
+
+            </ScrollView>
           </View>
-        )}
+        </View>
+      )}
+
+      <PackageComparisonModal
+        visible={showComparisonModal}
+        pujaTitle={selectedPujaForPackages?.puja_name || selectedPujaForPackages?.puja_type_name || 'Puja Services'}
+        packages={comparePackages}
+        onClose={() => {
+          setShowComparisonModal(false);
+          setComparePackages([]); // Unselect compare packages after coming back
+        }}
+        onSelectPackage={(pkg) => {
+          setShowComparisonModal(false);
+          setComparePackages([]); // Unselect compare packages after selecting
+          setShowPackagesModal(false);
+          navigation.navigate('PujaDetails', {
+            pujaId: selectedPujaForPackages?.puja_id,
+            pujaData: selectedPujaForPackages,
+          });
+        }}
+      />
 
       </View>
     </View>
@@ -2320,90 +2494,26 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterModalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF5F0',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF8F0',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FBE8E0',
+    borderColor: '#FED7AA',
   },
   filterModalDivider: {
     height: 1,
     backgroundColor: '#F3F4F6',
-    marginVertical: 20,
+    marginVertical: 16,
   },
   filterModalSectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#7C5642',
-    letterSpacing: 1,
+    fontWeight: '800',
+    color: '#854D0E',
+    letterSpacing: 0.8,
     marginBottom: 16,
-  },
-  filterModalPriceInputsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  filterModalPriceInputBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1D5C6',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    backgroundColor: '#FFFFFF',
-  },
-  filterModalPriceCurrency: {
-    fontSize: 15,
-    color: '#9CA3AF',
-    fontWeight: '700',
-    marginRight: 6,
-  },
-  filterModalPriceTextInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#334155',
-    fontWeight: '600',
-  },
-  filterModalPriceSeparator: {
-    marginHorizontal: 12,
-    fontSize: 20,
-    color: '#D1D5DB',
-    fontWeight: '600',
-  },
-  filterModalDummySliderContainer: {
-    marginTop: 24,
-  },
-  filterModalDummySliderTrack: {
-    height: 6,
-    backgroundColor: '#F4E8E1',
-    borderRadius: 3,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  filterModalDummySliderThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F97316',
-    position: 'absolute',
-    left: '45%',
-    borderWidth: 3,
-    borderColor: '#FFF5F0',
-  },
-  filterModalDummySliderLabelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  filterModalDummySliderLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '700',
   },
   filterModalCollectionsContainer: {
     gap: 16,
@@ -2416,45 +2526,52 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   filterModalCheckboxActive: {
-    backgroundColor: '#F97316',
-    borderColor: '#F97316',
+    backgroundColor: '#EF6C00',
+    borderColor: '#EF6C00',
   },
   filterModalCollectionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3F251A',
+    color: '#1C1917',
+  },
+  filterModalCollectionTextActive: {
+    color: '#EF6C00',
+    fontWeight: '700',
   },
   filterModalFooter: {
-    marginTop: 24,
+    marginTop: 16,
     gap: 12,
   },
   filterModalResetBtn: {
-    height: 52,
+    height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#F97316',
+    borderColor: '#FED7AA',
     borderStyle: 'dashed',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
   },
   filterModalResetBtnText: {
-    color: '#A78B7D',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+    color: '#854D0E',
   },
   filterModalApplyBtn: {
     height: 52,
-    borderRadius: 12,
-    backgroundColor: '#E68A00', // matches screenshot
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  filterModalApplyGradient: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

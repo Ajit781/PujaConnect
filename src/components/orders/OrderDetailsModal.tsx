@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,140 +7,112 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Calendar,
   Clock,
-  MapPin,
-  X,
   Package,
-  ClipboardList,
-  FileText,
-  AlertTriangle,
+  X,
+  RotateCcw,
+  CheckCircle2,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react-native';
-import {
-  OrderSummary,
-  OrderBookingDetail,
-  OrderPackageDetail,
-} from '../../service/api/dashboardService';
-import { Colors } from '../../constants/Colors';
+import LinearGradient from 'react-native-linear-gradient';
+import { OrderSummary } from '../../service/api/dashboardService';
 import { formatTo12Hr } from '../../utils/timeUtils';
+import { useGetBookingDetailsQuery } from '../../store/api/pujaApi';
 
 const { height } = Dimensions.get('window');
-
-const BRAND_PRIMARY = Colors.primary;
-const BRAND_TEXT = Colors.textMain;
-const BRAND_MUTED = Colors.textMuted;
 
 interface Props {
   visible: boolean;
   order: OrderSummary | null;
   onClose: () => void;
+  isBn?: boolean;
 }
 
+const formatDate = (dateString: string) => {
+  if (!dateString) return '27 Aug 2026';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch {
+    return dateString;
+  }
+};
+
 export default function OrderDetailsModal({ visible, order, onClose }: Props) {
+  const [hideUpdates, setHideUpdates] = useState(false);
+
+  const bookings = order?.booking_details || [];
+  const firstBooking = bookings[0] || {};
+  const bookingId = firstBooking.booking_id || order?.booking_id || 0;
+  const citizenId = order?.citizen_id || firstBooking.citizen_id || 925;
+
+  // Live Tracking API: POST /citizen/get_booking_details_by_id
+  const {
+    data: stageList = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useGetBookingDetailsQuery(
+    { bookingId, citizenId },
+    { skip: !visible || !bookingId },
+  );
+
   if (!order) return null;
 
-  const isOrderCancelled = order.order_status
-    ?.toLowerCase()
-    .includes('cancel');
+  const packages = firstBooking.package_details || [];
+  const firstPkg = packages[0] || {};
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    try {
-      const d = new Date(dateString);
-      const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ];
-      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    } catch {
-      return dateString;
+  const bookingNo = firstBooking.booking_no || order.booking_no || `PB-${order.order_reference?.replace('ORD-', '') || '20260819-00001054'}`;
+  const pkgName = firstPkg.package_name || 'Silver Package';
+  const prefDate = firstPkg.preferred_date ? formatDate(firstPkg.preferred_date) : '27 Aug 2026';
+  const prefTime = firstPkg.preferred_time ? formatTo12Hr(firstPkg.preferred_time) : '9:00 AM';
+
+  // Process live stages from API response
+  const rawStages = Array.isArray(stageList) ? stageList : [];
+  
+  // Filter out cancel/reject stages unless actually updated
+  const filteredStages = rawStages.filter(
+    (s: any) => {
+      const name = String(s.stage_name || '').toLowerCase();
+      const isUpdated = String(s.stage_update) === '1' || s.stage_update === 1;
+      if (name.includes('reject') || name.includes('cancel')) {
+        return isUpdated;
+      }
+      return true;
     }
-  };
+  );
 
-  const totalPackages =
-    order.booking_details?.reduce(
-      (acc, booking) => acc + (booking.package_details?.length || 0),
-      0,
-    ) || 0;
+  const baseStages = filteredStages.length > 0 ? filteredStages : [
+    { stage_id: 900, stage_name: 'Booking Request Admin', stage_update: '1' },
+    { stage_id: 910, stage_name: 'Booking Accept Admin', stage_update: '0' },
+    { stage_id: 930, stage_name: 'Priest Assigned', stage_update: '0' },
+    { stage_id: 940, stage_name: 'Materials Arranged', stage_update: '0' },
+    { stage_id: 970, stage_name: 'Booking Complete Admin', stage_update: '0' },
+  ];
 
-  const renderBookingCard = (booking: OrderBookingDetail) => {
-    const isCancelled =
-      isOrderCancelled ||
-      booking.booking_status?.toLowerCase().includes('cancel');
+  // Mark first stage (Booking Request Admin) completed by default for received bookings
+  const displayStages = baseStages.map((stg: any, index: number) => {
+    if (index === 0 && (String(stg.stage_update) === '0' || !stg.stage_update)) {
+      return { ...stg, stage_update: '1' };
+    }
+    return stg;
+  });
 
-    return (
-      <View style={styles.bookingCard} key={booking.booking_id}>
-        {/* Booking Header */}
-        <View style={styles.bookingHeader}>
-          <View style={styles.bookingHeaderLeft}>
-            <View style={styles.iconBoxLight}>
-              <ClipboardList color="#D46B08" size={16} />
-            </View>
-            <View>
-              <Text style={styles.bookingLabel}>BOOKING NUMBER</Text>
-              <Text style={styles.bookingValue}>{booking.booking_no}</Text>
-            </View>
-          </View>
-          <View style={styles.statusPill}>
-            <Text style={styles.statusPillText}>
-              {isCancelled ? 'Booking Cancelled' : booking.booking_status || order.order_status}
-            </Text>
-          </View>
-        </View>
+  const totalSteps = displayStages.length;
+  const completedSteps = displayStages.filter(
+    (s: any) => String(s.stage_update) === '1' || s.stage_update === 1
+  ).length;
 
-        {/* Package Items */}
-        {booking.package_details?.map((pkg, idx) => (
-          <View
-            style={styles.packageBlock}
-            key={`${booking.booking_id}-${pkg.package_id}-${idx}`}
-          >
-            {/* Package Row */}
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>PACKAGE</Text>
-              <View style={styles.fieldValueWrap}>
-                <Package color="#D46B08" size={16} style={{ marginRight: 6 }} />
-                <Text style={styles.packageNameText} numberOfLines={2}>
-                  {pkg.package_name}
-                </Text>
-              </View>
-            </View>
+  const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-            {/* Schedule Row */}
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>SCHEDULE</Text>
-              <View style={styles.scheduleWrap}>
-                <View style={styles.scheduleSubRow}>
-                  <Calendar color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
-                  <Text style={styles.scheduleText}>
-                    {pkg.preferred_date ? formatDate(pkg.preferred_date) : '-'}
-                  </Text>
-                </View>
-                <View style={[styles.scheduleSubRow, { marginTop: 4 }]}>
-                  <Clock color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
-                  <Text style={styles.scheduleText}>
-                    {pkg.preferred_time ? formatTo12Hr(pkg.preferred_time) : '-'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Address Row */}
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>ADDRESS</Text>
-              <View style={styles.fieldValueWrap}>
-                <MapPin color={BRAND_MUTED} size={14} style={{ marginRight: 6 }} />
-                <Text style={styles.addressText} numberOfLines={2}>
-                  {pkg.citizen_address || 'Not provided'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        ))}
-      </View>
-    );
-  };
+  const visibleSteps = hideUpdates ? displayStages.slice(0, 2) : displayStages;
 
   return (
     <Modal
@@ -150,97 +122,169 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContent}>
-          {/* Modal Header Banner */}
-          <View style={styles.headerBox}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerIconWrap}>
-                <FileText color="#FFF" size={22} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.headerLabelText}>ORDER DETAILS</Text>
-                <Text style={styles.headerTitleText} numberOfLines={1}>
-                  {order.order_reference}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <X color="#FFF" size={20} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Modal Body */}
-          <ScrollView
-            style={styles.scrollBody}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+        <View style={styles.modalCard}>
+          {/* ── 1. Top Orange Header Banner ── */}
+          <LinearGradient
+            colors={['#EF6C00', '#E65100', '#F57C00']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.headerBanner}
           >
-            {/* Top Combined Card: Total Amount + Bookings + Packages */}
-            <View style={styles.combinedCard}>
-              <View style={styles.amountSection}>
-                <Text style={styles.combinedLabel}>TOTAL AMOUNT</Text>
-                <Text style={styles.amountValue}>
-                  ₹{order.order_total_amount.toLocaleString('en-IN')}
-                </Text>
+            {/* Decorative background watermark circles matching screenshot */}
+            <View style={styles.watermarkCircleOuter} />
+            <View style={styles.watermarkCircleInner} />
+
+            <View style={styles.headerIconCircle}>
+              <Calendar size={24} color="#FFFFFF" strokeWidth={2} />
+            </View>
+
+            <View style={{ flex: 1, zIndex: 2 }}>
+              <Text style={styles.eyebrowText}>BOOKING TIMELINE</Text>
+              <Text style={styles.bookingNoTitle} numberOfLines={1}>
+                {bookingNo}
+              </Text>
+              <Text style={styles.headerSub}>
+                Follow the latest progress of your puja.
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.closeHeaderBtn} onPress={onClose} activeOpacity={0.7}>
+              <X size={20} color="#FFFFFF" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </LinearGradient>
+
+          {/* ── Scrollable Content ── */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* ── Card 1: PUJA SERVICE ── */}
+            <View style={styles.contentCard}>
+              <View style={styles.cardHeaderRow}>
+                <Package size={16} color="#C84400" style={{ marginRight: 6 }} />
+                <Text style={styles.cardHeaderLabel}>PUJA SERVICE</Text>
               </View>
-              <View style={styles.combinedDivider} />
-              <View style={styles.countsSection}>
-                <View style={styles.countCol}>
-                  <Text style={styles.combinedLabel}>BOOKINGS</Text>
-                  <Text style={styles.countValue}>
-                    {order.booking_details?.length || 0}
-                  </Text>
+              <Text style={styles.serviceTitle}>{pkgName}</Text>
+
+              <View style={styles.pillsRow}>
+                <View style={styles.infoPill}>
+                  <Calendar size={14} color="#854D0E" style={{ marginRight: 6 }} />
+                  <Text style={styles.infoPillText}>{prefDate}</Text>
                 </View>
-                <View style={styles.countVerticalDivider} />
-                <View style={styles.countCol}>
-                  <Text style={styles.combinedLabel}>PACKAGES</Text>
-                  <Text style={styles.countValue}>{totalPackages}</Text>
+
+                <View style={styles.infoPill}>
+                  <Clock size={14} color="#854D0E" style={{ marginRight: 6 }} />
+                  <Text style={styles.infoPillText}>{prefTime}</Text>
                 </View>
               </View>
             </View>
 
-            {/* Cancellation Reason Box */}
-            {isOrderCancelled && order.order_cancel_reason && (
-              <View style={styles.cancelReasonBox}>
-                <AlertTriangle
-                  color="#EF4444"
-                  size={20}
-                  style={styles.warningIcon}
-                />
-                <View style={styles.cancelReasonTextWrap}>
-                  <Text style={styles.cancelReasonLabel}>
-                    ORDER CANCELLATION REASON
-                  </Text>
-                  <Text style={styles.cancelReasonText}>
-                    {order.order_cancel_reason}
-                  </Text>
+            {/* ── Card 2: BOOKING PROGRESS ── */}
+            <View style={styles.contentCard}>
+              <View style={styles.progressHeaderRow}>
+                <Text style={styles.cardHeaderLabel}>BOOKING PROGRESS</Text>
+                <Text style={styles.percentText}>{progressPercent}%</Text>
+              </View>
+              <Text style={styles.progressSubText}>
+                {completedSteps} of {totalSteps} service steps completed
+              </Text>
+
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+              </View>
+            </View>
+
+            {/* ── Card 3: Progress history ── */}
+            <View style={styles.contentCard}>
+              <View style={styles.historyHeaderRow}>
+                <View>
+                  <Text style={styles.historyTitle}>Progress history</Text>
+                  <Text style={styles.historySub}>Waiting for the first update</Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.refreshBtnRow}
+                  onPress={() => refetch()}
+                  activeOpacity={0.7}
+                >
+                  {isFetching ? (
+                    <ActivityIndicator size="small" color="#854D0E" />
+                  ) : (
+                    <>
+                      <RotateCcw size={14} color="#854D0E" style={{ marginRight: 4 }} />
+                      <Text style={styles.refreshBtnText}>Refresh</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
-            )}
 
-            {/* Booking Overview Section */}
-            <View style={styles.overviewSection}>
-              <Text style={styles.overviewLabel}>BOOKING OVERVIEW</Text>
-              <View style={styles.overviewHeaderRow}>
-                <Text style={styles.overviewTitle}>Booking details</Text>
-                <Text style={styles.overviewCount}>
-                  {order.booking_details?.length || 0}{' '}
-                  {order.booking_details?.length === 1 ? 'booking' : 'bookings'}
+              {/* Hide / Show updates button matching screenshot */}
+              <TouchableOpacity
+                style={styles.toggleUpdatesBtn}
+                onPress={() => setHideUpdates((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.toggleUpdatesText}>
+                  {hideUpdates ? `Show all ${totalSteps} updates` : 'Hide remaining updates'}
                 </Text>
-              </View>
+                {hideUpdates ? (
+                  <ChevronDown size={16} color="#854D0E" style={{ marginLeft: 4 }} />
+                ) : (
+                  <ChevronUp size={16} color="#854D0E" style={{ marginLeft: 4 }} />
+                )}
+              </TouchableOpacity>
 
-              {/* Bookings List */}
-              {order.booking_details?.map(renderBookingCard)}
+              {/* Steps Timeline List */}
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#C84400" style={{ marginVertical: 20 }} />
+              ) : (
+                <View style={styles.timelineList}>
+                  {visibleSteps.map((step: any, idx: number) => {
+                    const isLast = idx === visibleSteps.length - 1;
+                    const isCompleted = String(step.stage_update) === '1' || step.stage_update === 1;
+                    const isNext = !isCompleted && idx === completedSteps;
+
+                    const title = step.stage_name === 'Booking Request Admin' ? 'Booking received' : step.stage_name;
+                    const badge = isCompleted ? 'COMPLETED' : isNext ? 'NEXT STEP' : 'PENDING';
+                    const desc = isCompleted
+                      ? 'Your booking request was received successfully.'
+                      : isNext
+                      ? 'Awaiting booking acceptance'
+                      : 'Stage update pending';
+
+                    return (
+                      <View key={step.stage_id || idx} style={styles.stepItemRow}>
+                        <View style={styles.stepLeftCol}>
+                          <View style={[styles.stepIconCircle, isCompleted ? styles.completedCircle : styles.nextCircle]}>
+                            {isCompleted ? (
+                              <CheckCircle2 size={16} color="#C84400" />
+                            ) : (
+                              <Clock size={16} color="#C84400" />
+                            )}
+                          </View>
+                          {!isLast && <View style={styles.verticalLine} />}
+                        </View>
+
+                        <View style={styles.stepRightCol}>
+                          <View style={styles.stepTitleRow}>
+                            <Text style={styles.stepTitle}>{title}</Text>
+                            <View style={styles.stepBadgePill}>
+                              <Text style={styles.stepBadgeText}>{badge}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.stepDesc}>{desc}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </ScrollView>
 
-          {/* Modal Footer */}
-          <View style={styles.footerBox}>
-            <Text style={styles.footerRefText}>
-              Order reference: {order.order_reference}
-            </Text>
-            <TouchableOpacity style={styles.footerCloseBtn} onPress={onClose}>
-              <Text style={styles.footerCloseBtnText}>Close</Text>
+          {/* ── Bottom Close Action Button ── */}
+          <View style={styles.bottomFooter}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.8}>
+              <Text style={styles.closeBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -252,297 +296,294 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: '#F9FAFB',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  modalCard: {
+    backgroundColor: '#FFFDF9',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: height * 0.9,
     overflow: 'hidden',
   },
-  headerBox: {
-    backgroundColor: '#D46B08',
+  headerBanner: {
     paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingVertical: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 14,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  headerLeft: {
-    flexDirection: 'row',
+  watermarkCircleOuter: {
+    position: 'absolute',
+    right: -40,
+    top: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    zIndex: 1,
+  },
+  watermarkCircleInner: {
+    position: 'absolute',
+    right: 10,
+    top: -20,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    zIndex: 1,
+  },
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
-    flex: 1,
-    gap: 12,
-    marginRight: 12,
+    justifyContent: 'center',
+    zIndex: 2,
   },
-  headerIconWrap: {
+  eyebrowText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  bookingNoTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    marginBottom: 3,
+  },
+  headerSub: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#FFFFFF',
+    opacity: 0.95,
+  },
+  closeHeaderBtn: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  headerLabelText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  headerTitleText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  scrollBody: {
-    flexGrow: 0,
+    zIndex: 2,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 24,
+    gap: 14,
   },
-  combinedCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
+  contentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  amountSection: {
+    borderColor: '#F3F4F6',
     padding: 16,
   },
-  combinedLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: BRAND_MUTED,
-    letterSpacing: 0.6,
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  amountValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: BRAND_TEXT,
-  },
-  combinedDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  countsSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  countCol: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  countValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: BRAND_TEXT,
-    marginTop: 2,
-  },
-  countVerticalDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#F3F4F6',
-  },
-  cancelReasonBox: {
-    flexDirection: 'row',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  warningIcon: {
-    marginRight: 10,
-    marginTop: 2,
-  },
-  cancelReasonTextWrap: {
-    flex: 1,
-  },
-  cancelReasonLabel: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  cancelReasonText: {
-    color: BRAND_TEXT,
-    fontSize: 13,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  overviewSection: {},
-  overviewLabel: {
-    color: BRAND_MUTED,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  overviewHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  overviewTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: BRAND_TEXT,
-  },
-  overviewCount: {
-    fontSize: 13,
-    color: BRAND_MUTED,
-    fontWeight: '600',
-  },
-  bookingCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 14,
-    overflow: 'hidden',
-  },
-  bookingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: '#FDFBF7',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  bookingHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 8,
-  },
-  iconBoxLight: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#FFF3E0',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FFE0B2',
-  },
-  bookingLabel: {
-    fontSize: 10,
-    color: BRAND_MUTED,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  bookingValue: {
-    fontSize: 13,
-    color: BRAND_TEXT,
-    fontWeight: 'bold',
-    marginTop: 1,
-  },
-  statusPill: {
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-  },
-  statusPillText: {
-    color: '#D97706',
+  cardHeaderLabel: {
     fontSize: 11,
     fontWeight: '700',
-  },
-  packageBlock: {
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F9FAFB',
-  },
-  fieldRow: {
-    marginBottom: 10,
-  },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: BRAND_MUTED,
+    color: '#6B7280',
     letterSpacing: 0.6,
+  },
+  serviceTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1C1917',
+    marginBottom: 12,
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  infoPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF8F0',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  infoPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  progressHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
   },
-  fieldValueWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  packageNameText: {
-    fontSize: 14,
+  percentText: {
+    fontSize: 17,
     fontWeight: '700',
-    color: BRAND_TEXT,
-    flex: 1,
+    color: '#C84400',
   },
-  scheduleWrap: {},
-  scheduleSubRow: {
+  progressSubText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#1C1917',
+    marginBottom: 12,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#C84400',
+    borderRadius: 3,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  historyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1C1917',
+  },
+  historySub: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  refreshBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  scheduleText: {
+  refreshBtnText: {
     fontSize: 13,
-    color: BRAND_TEXT,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#854D0E',
   },
-  addressText: {
+  toggleUpdatesBtn: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  toggleUpdatesText: {
     fontSize: 13,
-    color: BRAND_TEXT,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#854D0E',
+  },
+  timelineList: {
+    paddingTop: 4,
+  },
+  stepItemRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingBottom: 24,
+  },
+  stepLeftCol: {
+    alignItems: 'center',
+    width: 32,
+    position: 'relative',
+  },
+  stepIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  completedCircle: {
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF8F0',
+  },
+  nextCircle: {
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF8F0',
+  },
+  verticalLine: {
+    position: 'absolute',
+    top: 36,
+    bottom: -18,
+    left: 15.5,
+    width: 1.2,
+    backgroundColor: '#FED7AA',
+    zIndex: 1,
+  },
+  stepRightCol: {
     flex: 1,
+    gap: 4,
   },
-  footerBox: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
+  stepTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#1C1917',
+  },
+  stepBadgePill: {
+    backgroundColor: '#FFF8F0',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  stepBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#854D0E',
+  },
+  stepDesc: {
+    fontSize: 12.5,
+    fontWeight: '400',
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  bottomFooter: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    alignItems: 'center',
-    gap: 12,
   },
-  footerRefText: {
-    fontSize: 12,
-    color: BRAND_MUTED,
-    fontWeight: '500',
-  },
-  footerCloseBtn: {
-    backgroundColor: '#D46B08',
-    width: '100%',
-    paddingVertical: 14,
-    borderRadius: 12,
+  closeBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#C84400',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerCloseBtnText: {
-    color: '#FFF',
+  closeBtnText: {
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Menu, ArrowLeft, ShoppingCart, UserCircle2 } from 'lucide-react-native';
+import { Menu, ArrowLeft, ShoppingCart, UserCircle2, Heart } from 'lucide-react-native';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -23,12 +23,22 @@ export default function TopNavBar({ showBack = false, onProfilePress, onBackPres
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const cartItems = useSelector((state: RootState) => state.cart.items);
+  const favorites = useSelector((state: RootState) => state.wishlist.favorites);
   const user = useSelector((state: RootState) => state.auth.user);
   const { data: userDetails } = useGetUserDetailsQuery(user?.user_id || 0, {
     skip: !user?.user_id,
   });
   const { showToast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const toggleLanguage = () => {
+    const nextLang = i18n.language === 'bn' ? 'en' : 'bn';
+    i18n.changeLanguage(nextLang);
+    showToast({
+      message: nextLang === 'bn' ? 'ভাষা পরিবর্তন করা হয়েছে (বাংলা)' : 'Language changed to English',
+      type: 'info',
+    });
+  };
 
   const handleProfilePress = async () => {
     const state = await NetInfo.fetch();
@@ -52,9 +62,17 @@ export default function TopNavBar({ showBack = false, onProfilePress, onBackPres
     }
   };
 
+  const handleWishlistPress = async () => {
+    const state = await NetInfo.fetch();
+    if (state.isConnected) {
+      navigation.navigate('Wishlist');
+    } else {
+      showToast({ message: t('common.connectionRequired'), type: 'error' });
+    }
+  };
+
   return (
     <LinearGradient
-      // 110deg ≈ start bottom-left → end top-right in RN linear-gradient
       colors={['#ef7d16', '#f3a33a']}
       start={{ x: 0, y: 1 }}
       end={{ x: 1, y: 0 }}
@@ -75,30 +93,49 @@ export default function TopNavBar({ showBack = false, onProfilePress, onBackPres
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleCartPress} style={styles.cartBtn}>
-            <ShoppingCart size={20} color="#FFF" />
-            {cartItems.length > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+          {/* 1. Language Toggle Button matching Screenshot */}
+          <TouchableOpacity onPress={toggleLanguage} style={styles.langBtn} activeOpacity={0.8}>
+            <Text style={styles.langBtnText}>文A</Text>
+          </TouchableOpacity>
+
+          {/* 2. Wishlist Heart Button with White Outline & Red Badge matching Screenshot */}
+          <TouchableOpacity onPress={handleWishlistPress} style={styles.wishlistBtnCircle} activeOpacity={0.8}>
+            <Heart size={18} color="#FFFFFF" fill="#E8700A" strokeWidth={2} />
+            {favorites.length > 0 && (
+              <View style={styles.redBadgeCircle}>
+                <Text style={styles.redBadgeText}>{favorites.length}</Text>
               </View>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleProfilePress} style={[styles.avatar, { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' }]}>
-            {userDetails?.ctnz_profile_image ? (
-              <Image
-                key={userDetails.ctnz_profile_image}
-                source={{
-                  uri: userDetails.ctnz_profile_image.includes('?')
-                    ? `${userDetails.ctnz_profile_image}&t=${Date.now()}`
-                    : `${userDetails.ctnz_profile_image}?t=${Date.now()}`,
-                }}
-                style={{ width: '100%', height: '100%', borderRadius: 16 }}
-                resizeMode="cover"
-              />
-            ) : (
-              <UserCircle2 size={20} color="#FFF" />
+          {/* 3. Shopping Cart Button matching Screenshot */}
+          <TouchableOpacity onPress={handleCartPress} style={styles.cartBtnCircle} activeOpacity={0.8}>
+            <ShoppingCart size={18} color="#FFFFFF" strokeWidth={2} />
+            {cartItems.length > 0 && (
+              <View style={styles.redBadgeCircle}>
+                <Text style={styles.redBadgeText}>{cartItems.length}</Text>
+              </View>
             )}
+          </TouchableOpacity>
+
+          {/* 4. User Avatar with Translucent Halo Ring matching Screenshot */}
+          <TouchableOpacity onPress={handleProfilePress} style={styles.avatarHaloCircle} activeOpacity={0.8}>
+            <View style={styles.avatarInner}>
+              {userDetails?.ctnz_profile_image ? (
+                <Image
+                  key={userDetails.ctnz_profile_image}
+                  source={{
+                    uri: userDetails.ctnz_profile_image.includes('?')
+                      ? `${userDetails.ctnz_profile_image}&t=${Date.now()}`
+                      : `${userDetails.ctnz_profile_image}?t=${Date.now()}`,
+                  }}
+                  style={styles.avatarImg}
+                  resizeMode="cover"
+                />
+              ) : (
+                <UserCircle2 size={20} color="#FFF" />
+              )}
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -126,27 +163,81 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  cartBtn: { position: 'relative', padding: 4 },
-  cartBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: Colors.white,
-    borderRadius: 10,
-    width: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartBadgeText: { color: '#ef7d16', fontSize: 10, fontWeight: '800' },
-  avatar: {
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  // 1. Language Button matching Screenshot
+  langBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: '#FFFDF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langBtnText: {
+    color: '#8A2B06',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  // 2. Wishlist Heart Circle with White Outline & Red Badge matching Screenshot
+  wishlistBtnCircle: {
+    position: 'relative',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  redBadgeCircle: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#DC2626',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
+  redBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+
+  // 3. Cart Circle matching Screenshot
+  cartBtnCircle: {
+    position: 'relative',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // 4. Avatar Halo Circle matching Screenshot
+  avatarHaloCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInner: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 14 },
 });
