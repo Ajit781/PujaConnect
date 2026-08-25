@@ -14,14 +14,16 @@ const CustomOmLoader = ({ size = 60, color = BRAND_PRIMARY }: Props) => {
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
         duration: 1500,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
         useNativeDriver: true,
       }),
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, [rotateAnim]);
 
   const spin = rotateAnim.interpolate({

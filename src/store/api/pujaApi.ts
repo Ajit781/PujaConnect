@@ -398,6 +398,37 @@ export const pujaApi = createApi({
         skipGlobalLoader, // Passed to baseQuery
       }),
       invalidatesTags: ['Pujas'],
+    updatePaymentStatus: builder.mutation<
+      { status: number; message: string; data: any },
+      {
+        order_id?: string | number;
+        booking_id?: string | number;
+        txn_id?: string;
+        payment_status?: string;
+        ctzn_id?: number;
+        [key: string]: any;
+      }
+    >({
+      query: payload => {
+        const finalPayload = {
+          enc_data: JSON.stringify(payload),
+        };
+        console.log(
+          '🚀 --- API: updatePaymentStatus BODY ---',
+          JSON.stringify(finalPayload, null, 2),
+        );
+        return {
+          url: ENDPOINTS.updatePaymentStatus,
+          method: 'POST',
+          body: finalPayload,
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('🟢 --- API: updatePaymentStatus RESPONSE ---', response);
+        return response;
+      },
+      invalidatesTags: ['Cart'],
+    }),
       async onQueryStarted({ pujaId }, { dispatch, queryFulfilled }) {
         // Optimistically update the favorites slice (local state for heart icons)
         // action 1 = save, 5 = remove (as per user correction)
@@ -1193,6 +1224,7 @@ export const {
   useGetPujaCartSummaryQuery,
   useManagePujaCartMutation,
   useSavePujaTagMutation,
+  useUpdatePaymentStatusMutation,
   useSaveRelativeDetailsMutation,
   useDeleteRelativeDetailsMutation,
   useSaveUserProfileMutation,
@@ -1260,4 +1292,44 @@ export const uploadUserProfileImageDirectly = async (authId: number | string, fi
   console.log('=== SAVE USER PROFILE IMAGE: SERVER RESPONSE ===', JSON.stringify(json, null, 2));
   console.log('==============================================');
   return json;
+};
+
+
+export const updatePaymentStatusApi = async (payload: {
+  order_id?: string | number;
+  booking_id?: string | number;
+  txn_id?: string;
+  payment_status?: string;
+  ctzn_id?: number;
+  [key: string]: any;
+}) => {
+  const token = await getSystemToken();
+  const url = `${API_BASE_URL}${ENDPOINTS.updatePaymentStatus}`;
+  const requestBody = {
+    enc_data: JSON.stringify(payload),
+  };
+
+  console.log('====================================================');
+  console.log('🚀 [API] Calling update_payment_status_v1:', url);
+  console.log('📦 [API] Payload:', JSON.stringify(requestBody, null, 2));
+  console.log('====================================================');
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const result = await response.json();
+    console.log('🟢 [API] update_payment_status_v1 Response:', result);
+    return result;
+  } catch (error) {
+    console.error('🔴 [API] update_payment_status_v1 Error:', error);
+    throw error;
+  }
 };

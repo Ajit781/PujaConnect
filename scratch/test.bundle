@@ -2059,7 +2059,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/react.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/react.development.js");
@@ -2465,7 +2465,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function defineDeprecationWarning(methodName, info) {
       Object.defineProperty(Component.prototype, methodName, {
         get: function () {
@@ -4208,7 +4208,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
    * will remain to ensure logic does not differ in production.
    */
   var invariant = function (condition, format, a, b, c, d, e, f) {
-    if ("development" !== 'production') {
+    if (process.env.NODE_ENV !== 'production') {
       if (format === undefined) {
         throw new Error('invariant requires an error message argument');
       }
@@ -5334,7 +5334,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var reportedConfigNames = new Set();
   var hasTurboModules = global.RN$Bridgeless === true || global.__turboModuleProxy != null;
   function maybeLogUnavailableNativeModuleError(configName) {
-    if (!_NativeReactNativeFeatureFlags.default && "development" !== 'test' && !reportedConfigNames.has(configName) && hasTurboModules) {
+    if (!_NativeReactNativeFeatureFlags.default && process.env.NODE_ENV !== 'test' && !reportedConfigNames.has(configName) && hasTurboModules) {
       reportedConfigNames.add(configName);
       console.error(`Could not access feature flag '${configName}' because native module method was not available`);
     }
@@ -25965,7 +25965,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/react-jsx-runtime.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/react-jsx-runtime.development.js");
@@ -26020,7 +26020,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function getComponentNameFromType(type) {
       if (null == type) return null;
       if ("function" === typeof type) return type.$$typeof === REACT_CLIENT_REFERENCE ? null : type.displayName || type.name || null;
@@ -27843,7 +27843,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/react-is.production.min.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/react-is.development.js");
@@ -27979,7 +27979,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   'use strict';
 
-  if ("development" !== "production") {
+  if (process.env.NODE_ENV !== "production") {
     (function () {
       'use strict';
 
@@ -52413,7 +52413,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/react-refresh-runtime.production.min.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/react-refresh-runtime.development.js");
@@ -52446,7 +52446,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   'use strict';
 
-  if ("development" !== "production") {
+  if (process.env.NODE_ENV !== "production") {
     (function () {
       'use strict';
 
@@ -55025,7 +55025,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             }
           }
         };
-        if ("development" === 'test') {
+        if (process.env.NODE_ENV === 'test') {
           responderEventHandlers.onStartShouldSetResponder.testOnly_pressabilityConfig = () => this._config;
         }
         if (ReactNativeFeatureFlags.shouldPressibilityUseW3CPointerEventsForHover()) {
@@ -59683,7 +59683,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       console.warn('Animated: `useNativeDriver` was not specified. This is a required ' + 'option and must be explicitly set to `true` or `false`');
     }
     if (config.useNativeDriver === true && !NativeAnimatedModule) {
-      if ("development" !== 'test') {
+      if (process.env.NODE_ENV !== 'test') {
         if (!_warnedMissingNativeAnimated) {
           console.warn('Animated: `useNativeDriver` is not supported because the native ' + 'animated module is missing. Falling back to JS-based animation. To ' + 'resolve this, add `RCTAnimation` module to this app, or remove ' + '`useNativeDriver`. ' + 'Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md');
           _warnedMissingNativeAnimated = true;
@@ -60074,7 +60074,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     (0, _invariant.default)(this.__isNative, 'Expected node to be marked as "native"');
     var viewTag = (0, _$$_REQUIRE(_dependencyMap[18], "../../ReactNative/RendererProxy").findNodeHandle)(target.instance);
     if (viewTag == null) {
-      if ("development" === 'test') {
+      if (process.env.NODE_ENV === 'test') {
         viewTag = -1;
       } else {
         throw new Error('Unable to locate attached view in the native tree');
@@ -62785,7 +62785,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       var refEffect = (0, _react.useCallback)(instance => {
         node.setNativeView(instance);
         onUpdateRef.current = () => {
-          if ("development" === 'test') {
+          if (process.env.NODE_ENV === 'test') {
             return scheduleUpdate();
           }
           var isFabricNode = isFabricInstance(instance);
@@ -72062,7 +72062,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/scheduler.native.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/scheduler.native.development.js");
@@ -72309,7 +72309,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function performWorkUntilDeadline() {
       needsPaint = !1;
       if (isMessageLoopRunning) {
@@ -101169,7 +101169,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }
   function isTestEnv() {
     // @ts-ignore Do not use `@types/node` because it will prioritise Node types over RN types which breaks the types (ex. setTimeout) in React Native projects.
-    return hasProperty(global, 'process') && "development" === 'test';
+    return hasProperty(global, 'process') && process.env.NODE_ENV === 'test';
   }
   var _worklet_2118723093098_init_data = {
     code: "(function tagMessage_reactNativeGestureHandler_utilsTs1(msg){return\"[react-native-gesture-handler] \"+msg;})",
@@ -106114,7 +106114,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var IS_ANDROID = exports.IS_ANDROID = /* @__PURE__ */(() => _reactNative.Platform?.OS === 'android')();
   var IS_IOS = exports.IS_IOS = /* @__PURE__ */(() => _reactNative.Platform?.OS === 'ios')();
   var IS_WEB = exports.IS_WEB = _reactNative.Platform?.OS === 'web';
-  var IS_JEST = exports.IS_JEST = typeof globalThis.jest !== 'undefined' || "development" === 'test';
+  var IS_JEST = exports.IS_JEST = typeof globalThis.jest !== 'undefined' || process.env.NODE_ENV === 'test';
   /** @knipIgnore */
   var IS_WINDOWS = exports.IS_WINDOWS = _reactNative.Platform?.OS === 'windows';
   var IS_WINDOW_AVAILABLE = exports.IS_WINDOW_AVAILABLE = isWindowAvailable();
@@ -161055,7 +161055,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "../cjs/use-sync-external-store-shim/with-selector.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "../cjs/use-sync-external-store-shim/with-selector.development.js");
@@ -161133,7 +161133,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "../cjs/use-sync-external-store-shim.native.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "../cjs/use-sync-external-store-shim.native.development.js");
@@ -161216,7 +161216,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function is(x, y) {
       return x === y && (0 !== x || 1 / x === 1 / y) || x !== x && y !== y;
     }
@@ -161291,7 +161291,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function is(x, y) {
       return x === y && (0 !== x || 1 / x === 1 / y) || x !== x && y !== y;
     }
@@ -161972,7 +161972,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var mapStateToProps = initMapStateToProps(dispatch, options);
     var mapDispatchToProps = initMapDispatchToProps(dispatch, options);
     var mergeProps = initMergeProps(dispatch, options);
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       verifySubselectors(mapStateToProps, mapDispatchToProps, mergeProps);
     }
     return pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, mergeProps, dispatch, options);
@@ -162043,7 +162043,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           proxy.dependsOnOwnProps = getDependsOnOwnProps(props);
           props = proxy(stateOrDispatch, ownProps);
         }
-        if ("development" !== "production") verifyPlainObject(props, displayName, methodName);
+        if (process.env.NODE_ENV !== "production") verifyPlainObject(props, displayName, methodName);
         return props;
       };
       return proxy;
@@ -162093,7 +162093,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         } else {
           hasRunOnce = true;
           mergedProps = nextMergedProps;
-          if ("development" !== "production") verifyPlainObject(mergedProps, displayName, "mergeProps");
+          if (process.env.NODE_ENV !== "production") verifyPlainObject(mergedProps, displayName, "mergeProps");
         }
         return mergedProps;
       };
@@ -162360,7 +162360,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var realContext = contextMap.get(React.createContext);
     if (!realContext) {
       realContext = React.createContext(null);
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         realContext.displayName = "ReactRedux";
       }
       contextMap.set(React.createContext, realContext);
@@ -162449,7 +162449,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     // the context consumer to use
     context = ReactReduxContext
   } = {}) {
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       if (pure !== void 0 && !hasWarnedAboutDeprecatedPureOption) {
         hasWarnedAboutDeprecatedPureOption = true;
         warning('The `pure` option has been removed. `connect` is now always a "pure/memoized" component');
@@ -162461,7 +162461,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var initMergeProps = mergePropsFactory(mergeProps);
     var shouldHandleStateChanges = Boolean(mapStateToProps);
     var wrapWithConnect = WrappedComponent => {
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         var isValid = /* @__PURE__ */isValidElementType(WrappedComponent);
         if (!isValid) throw new Error(`You must pass a component to the function returned by connect. Instead received ${stringifyComponent(WrappedComponent)}`);
       }
@@ -162495,7 +162495,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var ContextToUse = React.useMemo(() => {
           var ResultContext = Context;
           if (propsContext == null ? void 0 : propsContext.Consumer) {
-            if ("development" !== "production") {
+            if (process.env.NODE_ENV !== "production") {
               var _isValid = /* @__PURE__ */isContextConsumer(
               // @ts-ignore
               /* @__PURE__ */
@@ -162511,7 +162511,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var contextValue = React.useContext(ContextToUse);
         var didStoreComeFromProps = Boolean(props.store) && Boolean(props.store.getState) && Boolean(props.store.dispatch);
         var didStoreComeFromContext = Boolean(contextValue) && Boolean(contextValue.store);
-        if ("development" !== "production" && !didStoreComeFromProps && !didStoreComeFromContext) {
+        if (process.env.NODE_ENV !== "production" && !didStoreComeFromProps && !didStoreComeFromContext) {
           throw new Error(`Could not find "store" in the context of "${displayName}". Either wrap the root component in a <Provider>, or pass a custom React context provider to <Provider> and the corresponding React context consumer to ${displayName} in connect options.`);
         }
         var store = didStoreComeFromProps ? props.store : contextValue.store;
@@ -162646,7 +162646,7 @@ ${latestSubscriptionCallbackError.current.stack}
         subscription,
         getServerState: serverState ? () => serverState : void 0
       };
-      if ("development" === "production") {
+      if (process.env.NODE_ENV === "production") {
         return baseContextValue;
       } else {
         var _providerProps$identi = providerProps.identityFunctionCheck,
@@ -162683,7 +162683,7 @@ ${latestSubscriptionCallbackError.current.stack}
   function createReduxContextHook(context = ReactReduxContext) {
     return function useReduxContext2() {
       var contextValue = React.useContext(context);
-      if ("development" !== "production" && !contextValue) {
+      if (process.env.NODE_ENV !== "production" && !contextValue) {
         throw new Error("could not find react-redux context value; please ensure the component is wrapped in a <Provider>");
       }
       return contextValue;
@@ -162733,7 +162733,7 @@ ${latestSubscriptionCallbackError.current.stack}
         } : equalityFnOrOptions,
         _ref$equalityFn = _ref.equalityFn,
         equalityFn = _ref$equalityFn === void 0 ? refEquality : _ref$equalityFn;
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         if (!selector) {
           throw new Error(`You must pass a selector to useSelector`);
         }
@@ -162752,7 +162752,7 @@ ${latestSubscriptionCallbackError.current.stack}
       var wrappedSelector = React.useCallback({
         [selector.name](state) {
           var selected = selector(state);
-          if ("development" !== "production") {
+          if (process.env.NODE_ENV !== "production") {
             var _ref2 = typeof equalityFnOrOptions === "function" ? {} : equalityFnOrOptions,
               _ref2$devModeChecks = _ref2.devModeChecks,
               devModeChecks = _ref2$devModeChecks === void 0 ? {} : _ref2$devModeChecks;
@@ -162818,7 +162818,7 @@ ${latestSubscriptionCallbackError.current.stack}
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/use-sync-external-store-with-selector.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/use-sync-external-store-with-selector.development.js");
@@ -162907,7 +162907,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function is(x, y) {
       return x === y && (0 !== x || 1 / x === 1 / y) || x !== x && y !== y;
     }
@@ -167755,7 +167755,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-  exports.SYSTEM_BASIC_AUTH = exports.PAYTM_CONFIG = exports.ENDPOINTS = exports.API_BASE_URL = void 0;
+  exports.VALIDATION = exports.SYSTEM_BASIC_AUTH = exports.PAYTM_CONFIG = exports.PAYMENT_API_REDIRECT_URL = exports.ENDPOINTS = exports.API_BASE_URL = void 0;
   // Hardcoded for now because Metro Bundler caching is broken on Windows for .env plugins
   var API_BASE_URL = exports.API_BASE_URL = 'http://115.187.62.16:8005/PujaConnectRestAPI/api';
   var SYSTEM_BASIC_AUTH = exports.SYSTEM_BASIC_AUTH = 'YURtaW4jVG9rZW4kR2VOYVJhVGUyNjphZG1pbkAxMjM=';
@@ -167801,8 +167801,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     getStateDetails: '/master/get_all_states',
     getStatusType: '/master/get_status_type',
     getCheckoutDetailsByOrderId: '/citizen/get_check_out_details_by_order_id',
-    getInvoiceDetails: '/citizen/get_invoice_details'
+    getInvoiceDetails: '/citizen/get_invoice_details',
+    updatePaymentStatus: '/citizen/update_payment_status_v1'
   };
+  var PAYMENT_API_REDIRECT_URL = exports.PAYMENT_API_REDIRECT_URL = 'http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1';
 
   // Paytm Merchant Credentials Config (Staging Server)
   var PAYTM_CONFIG = exports.PAYTM_CONFIG = {
@@ -167812,6 +167814,11 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     // Staging Environment
     RESTRICT_APP_INVOKE: false,
     URL_SCHEME: 'paytmgOPUVm93533483285767'
+  };
+  var VALIDATION = exports.VALIDATION = {
+    MOBILE_LENGTH: 10,
+    OTP_LENGTH: 6,
+    MOBILE_REGEX: /^[6-9]\d{9}$/
   };
 },1180,[],"src/config/apiConfig.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
@@ -172449,7 +172456,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       if (prepareAction) {
         var prepared = prepareAction(...args);
         if (!prepared) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(0) : "prepareAction did not return an object");
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(0) : "prepareAction did not return an object");
         }
         return {
           type,
@@ -172492,7 +172499,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 Make sure you're calling the action creator before dispatching, i.e. \`dispatch(${actionName}())\` instead of \`dispatch(${actionName})\`. This is necessary even if the action has no payload.`;
   }
   function createActionCreatorInvariantMiddleware(options = {}) {
-    if ("development" === "production") {
+    if (process.env.NODE_ENV === "production") {
       return () => next => action => next(action);
     }
     var _options$isActionCrea = options.isActionCreator,
@@ -172658,7 +172665,7 @@ It is disabled in production builds, so you don't need to worry about that.`);
     };
   }
   function createImmutableStateInvariantMiddleware(options = {}) {
-    if ("development" === "production") {
+    if (process.env.NODE_ENV === "production") {
       return () => next => action => next(action);
     } else {
       var stringify2 = function (obj, serializer, indent, decycler) {
@@ -172702,7 +172709,7 @@ It is disabled in production builds, so you don't need to worry about that.`);
             result = tracker.detectMutations();
             tracker = track(state);
             if (result.wasMutated) {
-              throw new Error("development" === "production" ? formatProdErrorMessage(19) : `A state mutation was detected between dispatches, in the path '${result.path || ""}'.  This may cause incorrect behavior. (https://redux.js.org/style-guide/style-guide#do-not-mutate-state)`);
+              throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(19) : `A state mutation was detected between dispatches, in the path '${result.path || ""}'.  This may cause incorrect behavior. (https://redux.js.org/style-guide/style-guide#do-not-mutate-state)`);
             }
           });
           var dispatchedAction = next(action);
@@ -172711,7 +172718,7 @@ It is disabled in production builds, so you don't need to worry about that.`);
             result = tracker.detectMutations();
             tracker = track(state);
             if (result.wasMutated) {
-              throw new Error("development" === "production" ? formatProdErrorMessage(20) : `A state mutation was detected inside a dispatch, in the path: ${result.path || ""}. Take a look at the reducer(s) handling the action ${stringify2(action)}. (https://redux.js.org/style-guide/style-guide#do-not-mutate-state)`);
+              throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(20) : `A state mutation was detected inside a dispatch, in the path: ${result.path || ""}. Take a look at the reducer(s) handling the action ${stringify2(action)}. (https://redux.js.org/style-guide/style-guide#do-not-mutate-state)`);
             }
           });
           measureUtils.warnIfExceeded();
@@ -172791,7 +172798,7 @@ It is disabled in production builds, so you don't need to worry about that.`);
     return true;
   }
   function createSerializableStateInvariantMiddleware(options = {}) {
-    if ("development" === "production") {
+    if (process.env.NODE_ENV === "production") {
       return () => next => action => next(action);
     } else {
       var _options$isSerializab = options.isSerializable,
@@ -172869,7 +172876,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         middlewareArray.push((0, _$$_REQUIRE(_dependencyMap[13], "redux-thunk").withExtraArgument)(thunk.extraArgument));
       }
     }
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       if (immutableCheck) {
         var immutableOptions = {};
         if (!isBoolean(immutableCheck)) {
@@ -172993,28 +173000,28 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     } else if ((0, _$$_REQUIRE(_dependencyMap[12], "redux").isPlainObject)(reducer)) {
       rootReducer = (0, _$$_REQUIRE(_dependencyMap[12], "redux").combineReducers)(reducer);
     } else {
-      throw new Error("development" === "production" ? formatProdErrorMessage(1) : "`reducer` is a required argument, and must be a function or an object of functions that can be passed to combineReducers");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(1) : "`reducer` is a required argument, and must be a function or an object of functions that can be passed to combineReducers");
     }
-    if ("development" !== "production" && middleware && typeof middleware !== "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(2) : "`middleware` field must be a callback");
+    if (process.env.NODE_ENV !== "production" && middleware && typeof middleware !== "function") {
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(2) : "`middleware` field must be a callback");
     }
     var finalMiddleware;
     if (typeof middleware === "function") {
       finalMiddleware = middleware(getDefaultMiddleware);
-      if ("development" !== "production" && !Array.isArray(finalMiddleware)) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(3) : "when using a middleware builder function, an array of middleware must be returned");
+      if (process.env.NODE_ENV !== "production" && !Array.isArray(finalMiddleware)) {
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(3) : "when using a middleware builder function, an array of middleware must be returned");
       }
     } else {
       finalMiddleware = getDefaultMiddleware();
     }
-    if ("development" !== "production" && finalMiddleware.some(item => typeof item !== "function")) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(4) : "each middleware provided to configureStore must be a function");
+    if (process.env.NODE_ENV !== "production" && finalMiddleware.some(item => typeof item !== "function")) {
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(4) : "each middleware provided to configureStore must be a function");
     }
-    if ("development" !== "production" && duplicateMiddlewareCheck) {
+    if (process.env.NODE_ENV !== "production" && duplicateMiddlewareCheck) {
       var middlewareReferences = /* @__PURE__ */new Set();
       finalMiddleware.forEach(middleware2 => {
         if (middlewareReferences.has(middleware2)) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(42) : "Duplicate middleware references found when creating the store. Ensure that each middleware is only included once.");
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(42) : "Duplicate middleware references found when creating the store. Ensure that each middleware is only included once.");
         }
         middlewareReferences.add(middleware2);
       });
@@ -173023,23 +173030,23 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     if (devTools) {
       finalCompose = composeWithDevTools({
         // Enable capture of stack traces for dispatched Redux actions
-        trace: "development" !== "production",
+        trace: process.env.NODE_ENV !== "production",
         ...(typeof devTools === "object" && devTools)
       });
     }
     var middlewareEnhancer = (0, _$$_REQUIRE(_dependencyMap[12], "redux").applyMiddleware)(...finalMiddleware);
     var getDefaultEnhancers = buildGetDefaultEnhancers(middlewareEnhancer);
-    if ("development" !== "production" && enhancers && typeof enhancers !== "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(5) : "`enhancers` field must be a callback");
+    if (process.env.NODE_ENV !== "production" && enhancers && typeof enhancers !== "function") {
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(5) : "`enhancers` field must be a callback");
     }
     var storeEnhancers = typeof enhancers === "function" ? enhancers(getDefaultEnhancers) : getDefaultEnhancers();
-    if ("development" !== "production" && !Array.isArray(storeEnhancers)) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(6) : "`enhancers` callback must return an array");
+    if (process.env.NODE_ENV !== "production" && !Array.isArray(storeEnhancers)) {
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(6) : "`enhancers` callback must return an array");
     }
-    if ("development" !== "production" && storeEnhancers.some(item => typeof item !== "function")) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(7) : "each enhancer provided to configureStore must be a function");
+    if (process.env.NODE_ENV !== "production" && storeEnhancers.some(item => typeof item !== "function")) {
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(7) : "each enhancer provided to configureStore must be a function");
     }
-    if ("development" !== "production" && finalMiddleware.length && !storeEnhancers.includes(middlewareEnhancer)) {
+    if (process.env.NODE_ENV !== "production" && finalMiddleware.length && !storeEnhancers.includes(middlewareEnhancer)) {
       console.error("middlewares were provided, but middleware enhancer was not included in final enhancers - make sure to call `getDefaultEnhancers`");
     }
     var composedEnhancer = finalCompose(...storeEnhancers);
@@ -173053,28 +173060,28 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     var defaultCaseReducer;
     var builder = {
       addCase(typeOrActionCreator, reducer) {
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (actionMatchers.length > 0) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(26) : "`builder.addCase` should only be called before calling `builder.addMatcher`");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(26) : "`builder.addCase` should only be called before calling `builder.addMatcher`");
           }
           if (defaultCaseReducer) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(27) : "`builder.addCase` should only be called before calling `builder.addDefaultCase`");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(27) : "`builder.addCase` should only be called before calling `builder.addDefaultCase`");
           }
         }
         var type = typeof typeOrActionCreator === "string" ? typeOrActionCreator : typeOrActionCreator.type;
         if (!type) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(28) : "`builder.addCase` cannot be called with an empty action type");
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(28) : "`builder.addCase` cannot be called with an empty action type");
         }
         if (type in actionsMap) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(29) : `\`builder.addCase\` cannot be called with two reducers for the same action type '${type}'`);
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(29) : `\`builder.addCase\` cannot be called with two reducers for the same action type '${type}'`);
         }
         actionsMap[type] = reducer;
         return builder;
       },
       addAsyncThunk(asyncThunk, reducers) {
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (defaultCaseReducer) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(43) : "`builder.addAsyncThunk` should only be called before calling `builder.addDefaultCase`");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(43) : "`builder.addAsyncThunk` should only be called before calling `builder.addDefaultCase`");
           }
         }
         if (reducers.pending) actionsMap[asyncThunk.pending.type] = reducers.pending;
@@ -173087,9 +173094,9 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         return builder;
       },
       addMatcher(matcher, reducer) {
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (defaultCaseReducer) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(30) : "`builder.addMatcher` should only be called before calling `builder.addDefaultCase`");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(30) : "`builder.addMatcher` should only be called before calling `builder.addDefaultCase`");
           }
         }
         actionMatchers.push({
@@ -173099,9 +173106,9 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         return builder;
       },
       addDefaultCase(reducer) {
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (defaultCaseReducer) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(31) : "`builder.addDefaultCase` can only be called once");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(31) : "`builder.addDefaultCase` can only be called once");
           }
         }
         defaultCaseReducer = reducer;
@@ -173117,9 +173124,9 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     return typeof x === "function";
   }
   function createReducer(initialState, mapOrBuilderCallback) {
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       if (typeof mapOrBuilderCallback === "object") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(8) : "The object notation for `createReducer` has been removed. Please use the 'builder callback' notation instead: https://redux-toolkit.js.org/api/createReducer");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(8) : "The object notation for `createReducer` has been removed. Please use the 'builder callback' notation instead: https://redux-toolkit.js.org/api/createReducer");
       }
     }
     var _executeReducerBuilde = executeReducerBuilderCallback(mapOrBuilderCallback),
@@ -173478,9 +173485,9 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         _options$reducerPath = options.reducerPath,
         reducerPath = _options$reducerPath === void 0 ? name : _options$reducerPath;
       if (!name) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(11) : "`name` is a required option for createSlice");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(11) : "`name` is a required option for createSlice");
       }
-      if (typeof process !== "undefined" && "development" === "development") {
+      if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
         if (options.initialState === void 0) {
           console.error("You must provide an `initialState` value that is not `undefined`. You may have misspelled `initialState`");
         }
@@ -173497,10 +173504,10 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         addCase(typeOrActionCreator, reducer2) {
           var type = typeof typeOrActionCreator === "string" ? typeOrActionCreator : typeOrActionCreator.type;
           if (!type) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(12) : "`context.addCase` cannot be called with an empty action type");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(12) : "`context.addCase` cannot be called with an empty action type");
           }
           if (type in context.sliceCaseReducersByType) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(13) : "`context.addCase` cannot be called with two reducers for the same action type: " + type);
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(13) : "`context.addCase` cannot be called with two reducers for the same action type: " + type);
           }
           context.sliceCaseReducersByType[type] = reducer2;
           return contextMethods;
@@ -173535,9 +173542,9 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         }
       });
       function buildReducer() {
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (typeof options.extraReducers === "object") {
-            throw new Error("development" === "production" ? formatProdErrorMessage(14) : "The object notation for `createSlice.extraReducers` has been removed. Please use the 'builder callback' notation instead: https://redux-toolkit.js.org/api/createSlice");
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(14) : "The object notation for `createSlice.extraReducers` has been removed. Please use the 'builder callback' notation instead: https://redux-toolkit.js.org/api/createSlice");
           }
         }
         var _ref7 = typeof options.extraReducers === "function" ? executeReducerBuilderCallback(options.extraReducers) : [options.extraReducers],
@@ -173585,8 +173592,8 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
           if (typeof sliceState === "undefined") {
             if (injected) {
               sliceState = getOrInsertComputed(injectedStateCache, selectSlice, getInitialState);
-            } else if ("development" !== "production") {
-              throw new Error("development" === "production" ? formatProdErrorMessage(15) : "selectSlice returned undefined for an uninjected slice reducer");
+            } else if (process.env.NODE_ENV !== "production") {
+              throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(15) : "selectSlice returned undefined for an uninjected slice reducer");
             }
           }
           return sliceState;
@@ -173644,8 +173651,8 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
       if (typeof sliceState === "undefined") {
         if (injected) {
           sliceState = getInitialState();
-        } else if ("development" !== "production") {
-          throw new Error("development" === "production" ? formatProdErrorMessage(16) : "selectState returned undefined for an uninjected slice reducer");
+        } else if (process.env.NODE_ENV !== "production") {
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(16) : "selectState returned undefined for an uninjected slice reducer");
         }
       }
       return selector(sliceState, ...args);
@@ -173694,7 +173701,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     var prepareCallback;
     if ("reducer" in maybeReducerWithPrepare) {
       if (createNotation && !isCaseReducerWithPrepareDefinition(maybeReducerWithPrepare)) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(17) : "Please use the `create.preparedReducer` notation for prepared action creators with the `create` notation.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(17) : "Please use the `create.preparedReducer` notation for prepared action creators with the `create` notation.");
       }
       caseReducer = maybeReducerWithPrepare.reducer;
       prepareCallback = maybeReducerWithPrepare.prepare;
@@ -173714,7 +173721,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     reducerName
   }, reducerDefinition, context, cAT) {
     if (!cAT) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(18) : "Cannot use `create.asyncThunk` in the built-in `createSlice`. Use `buildCreateSlice({ creators: { asyncThunk: asyncThunkCreator } })` to create a customised version of `createSlice`.");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(18) : "Cannot use `create.asyncThunk` in the built-in `createSlice`. Use `buildCreateSlice({ creators: { asyncThunk: asyncThunkCreator } })` to create a customised version of `createSlice`.");
     }
     var payloadCreator = reducerDefinition.payloadCreator,
       fulfilled = reducerDefinition.fulfilled,
@@ -173827,7 +173834,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
   // src/entities/utils.ts
   function selectIdValue(entity, selectId) {
     var key = selectId(entity);
-    if ("development" !== "production" && key === void 0) {
+    if (process.env.NODE_ENV !== "production" && key === void 0) {
       console.warn("The entity passed to the `selectId` implementation returned undefined.", "You should probably provide your own `selectId` implementation.", "The entity that was passed:", entity, "The `selectId` implementation:", selectId.toString());
     }
     return key;
@@ -174198,7 +174205,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
   // src/listenerMiddleware/utils.ts
   var assertFunction = (func, expected) => {
     if (typeof func !== "function") {
-      throw new TypeError("development" === "production" ? formatProdErrorMessage(32) : `${expected} is not a function`);
+      throw new TypeError(process.env.NODE_ENV === "production" ? formatProdErrorMessage(32) : `${expected} is not a function`);
     }
   };
   var noop2 = () => {};
@@ -174352,7 +174359,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
     } else if (matcher) {
       predicate = matcher;
     } else if (predicate) {} else {
-      throw new Error("development" === "production" ? formatProdErrorMessage(21) : "Creating or removing a listener requires one of the known fields for matching an action");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(21) : "Creating or removing a listener requires one of the known fields for matching an action");
     }
     assertFunction(effect, "options.listener");
     return {
@@ -174373,7 +174380,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
       predicate,
       pending: /* @__PURE__ */new Set(),
       unsubscribe: () => {
-        throw new Error("development" === "production" ? formatProdErrorMessage(22) : "Unsubscribe not initialized");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(22) : "Unsubscribe not initialized");
       }
     };
     return entry;
@@ -174545,7 +174552,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
       var originalState = api.getState();
       var getOriginalState = () => {
         if (originalState === INTERNAL_NIL_TOKEN) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(23) : `${alm}: getOriginalState can only be called synchronously`);
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(23) : `${alm}: getOriginalState can only be called synchronously`);
         }
         return originalState;
       };
@@ -174649,7 +174656,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
             type: nanoid()
           });
           if (typeof reducerResult === "undefined") {
-            throw new Error("development" === "production" ? formatProdErrorMessage(24) : `The slice reducer for key "${prop.toString()}" returned undefined when called for selector(). If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(24) : `The slice reducer for key "${prop.toString()}" returned undefined when called for selector(). If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
           }
           initialStateCache[prop] = reducerResult;
           return reducerResult;
@@ -174660,7 +174667,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
   }));
   var original = state => {
     if (!isStateProxy(state)) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(25) : "original must be used on state Proxy");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(25) : "original must be used on state Proxy");
     }
     return state[ORIGINAL_STATE];
   };
@@ -174680,7 +174687,7 @@ Take a look at the reducer(s) handling this action type: ${action.type}.
         reducerToInject = slice.reducer;
       var currentReducer = reducerMap[reducerPath];
       if (!config.overrideExisting && currentReducer && currentReducer !== reducerToInject) {
-        if (typeof process !== "undefined" && "development" === "development") {
+        if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
           console.error(`called \`inject\` to override already-existing reducer ${reducerPath} without specifying \`overrideExisting: true\``);
         }
         return combinedReducer;
@@ -174760,7 +174767,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var DRAFT_STATE = Symbol.for("immer-state");
 
   // src/utils/errors.ts
-  var errors = "development" !== "production" ? [
+  var errors = process.env.NODE_ENV !== "production" ? [
   // All error codes, starting by 0:
   function (plugin) {
     return `The plugin for '${plugin}' has not been loaded into Immer. To enable the plugin, import and call \`enable${plugin}()\` when initializing your application.`;
@@ -174777,7 +174784,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   // See Patches.ts for additional errors
   ] : [];
   function die(error, ...args) {
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       var e = errors[error];
       var msg = isFunction(e) ? e.apply(null, args) : e;
       throw new Error(`[Immer] ${msg}`);
@@ -175317,11 +175324,11 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     _loop();
   }
   arrayTraps.deleteProperty = function (state, prop) {
-    if ("development" !== "production" && isNaN(parseInt(prop))) die(13);
+    if (process.env.NODE_ENV !== "production" && isNaN(parseInt(prop))) die(13);
     return arrayTraps.set.call(this, state, prop, void 0);
   };
   arrayTraps.set = function (state, prop, value) {
-    if ("development" !== "production" && prop !== "length" && isNaN(parseInt(prop))) die(14);
+    if (process.env.NODE_ENV !== "production" && prop !== "length" && isNaN(parseInt(prop))) die(14);
     return objectTraps.set.call(this, state[0], prop, value, state[0]);
   };
   function peek(draft, prop) {
@@ -175577,7 +175584,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   // src/plugins/patches.ts
   function enablePatches() {
     var errorOffset = 16;
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       errors.push('Sets cannot have "replace" patches.', function (op) {
         return "Unsupported patch operation: " + op;
       }, function (path) {
@@ -177026,7 +177033,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         dependencyRecomputations++;
         var inputSelectorResults = collectInputSelectorResults(dependencies, arguments);
         lastResult = memoizedResultFunc.apply(null, inputSelectorResults);
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           var _getDevModeChecksExec = getDevModeChecksExecutionInfo(firstRun, devModeChecks),
             identityFunctionCheck = _getDevModeChecksExec.identityFunctionCheck,
             inputStabilityCheck = _getDevModeChecksExec.inputStabilityCheck;
@@ -177170,7 +177177,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }
   function kindOf(val) {
     var typeOfVal = typeof val;
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       typeOfVal = miniKindOf(val);
     }
     return typeOfVal;
@@ -177179,10 +177186,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   // src/createStore.ts
   function createStore(reducer, preloadedState, enhancer) {
     if (typeof reducer !== "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(2) : `Expected the root reducer to be a function. Instead, received: '${kindOf(reducer)}'`);
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(2) : `Expected the root reducer to be a function. Instead, received: '${kindOf(reducer)}'`);
     }
     if (typeof preloadedState === "function" && typeof enhancer === "function" || typeof enhancer === "function" && typeof arguments[3] === "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(0) : "It looks like you are passing several store enhancers to createStore(). This is not supported. Instead, compose them together to a single function. See https://redux.js.org/tutorials/fundamentals/part-4-store#creating-a-store-with-enhancers for an example.");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(0) : "It looks like you are passing several store enhancers to createStore(). This is not supported. Instead, compose them together to a single function. See https://redux.js.org/tutorials/fundamentals/part-4-store#creating-a-store-with-enhancers for an example.");
     }
     if (typeof preloadedState === "function" && typeof enhancer === "undefined") {
       enhancer = preloadedState;
@@ -177190,7 +177197,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     if (typeof enhancer !== "undefined") {
       if (typeof enhancer !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(1) : `Expected the enhancer to be a function. Instead, received: '${kindOf(enhancer)}'`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(1) : `Expected the enhancer to be a function. Instead, received: '${kindOf(enhancer)}'`);
       }
       return enhancer(createStore)(reducer, preloadedState);
     }
@@ -177210,16 +177217,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function getState() {
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(3) : "You may not call store.getState() while the reducer is executing. The reducer has already received the state as an argument. Pass it down from the top reducer instead of reading it from the store.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(3) : "You may not call store.getState() while the reducer is executing. The reducer has already received the state as an argument. Pass it down from the top reducer instead of reading it from the store.");
       }
       return currentState;
     }
     function subscribe(listener) {
       if (typeof listener !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(4) : `Expected the listener to be a function. Instead, received: '${kindOf(listener)}'`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(4) : `Expected the listener to be a function. Instead, received: '${kindOf(listener)}'`);
       }
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(5) : "You may not call store.subscribe() while the reducer is executing. If you would like to be notified after the store has been updated, subscribe from a component and invoke store.getState() in the callback to access the latest state. See https://redux.js.org/api/store#subscribelistener for more details.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(5) : "You may not call store.subscribe() while the reducer is executing. If you would like to be notified after the store has been updated, subscribe from a component and invoke store.getState() in the callback to access the latest state. See https://redux.js.org/api/store#subscribelistener for more details.");
       }
       var isSubscribed = true;
       ensureCanMutateNextListeners();
@@ -177230,7 +177237,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           return;
         }
         if (isDispatching) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(6) : "You may not unsubscribe from a store listener while the reducer is executing. See https://redux.js.org/api/store#subscribelistener for more details.");
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(6) : "You may not unsubscribe from a store listener while the reducer is executing. See https://redux.js.org/api/store#subscribelistener for more details.");
         }
         isSubscribed = false;
         ensureCanMutateNextListeners();
@@ -177240,16 +177247,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function dispatch(action) {
       if (!isPlainObject(action)) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(7) : `Actions must be plain objects. Instead, the actual type was: '${kindOf(action)}'. You may need to add middleware to your store setup to handle dispatching other values, such as 'redux-thunk' to handle dispatching functions. See https://redux.js.org/tutorials/fundamentals/part-4-store#middleware and https://redux.js.org/tutorials/fundamentals/part-6-async-logic#using-the-redux-thunk-middleware for examples.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(7) : `Actions must be plain objects. Instead, the actual type was: '${kindOf(action)}'. You may need to add middleware to your store setup to handle dispatching other values, such as 'redux-thunk' to handle dispatching functions. See https://redux.js.org/tutorials/fundamentals/part-4-store#middleware and https://redux.js.org/tutorials/fundamentals/part-6-async-logic#using-the-redux-thunk-middleware for examples.`);
       }
       if (typeof action.type === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(8) : 'Actions may not have an undefined "type" property. You may have misspelled an action type string constant.');
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(8) : 'Actions may not have an undefined "type" property. You may have misspelled an action type string constant.');
       }
       if (typeof action.type !== "string") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(17) : `Action "type" property must be a string. Instead, the actual type was: '${kindOf(action.type)}'. Value was: '${action.type}' (stringified)`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(17) : `Action "type" property must be a string. Instead, the actual type was: '${kindOf(action.type)}'. Value was: '${action.type}' (stringified)`);
       }
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(9) : "Reducers may not dispatch actions.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(9) : "Reducers may not dispatch actions.");
       }
       try {
         isDispatching = true;
@@ -177265,7 +177272,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function replaceReducer(nextReducer) {
       if (typeof nextReducer !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(10) : `Expected the nextReducer to be a function. Instead, received: '${kindOf(nextReducer)}`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(10) : `Expected the nextReducer to be a function. Instead, received: '${kindOf(nextReducer)}`);
       }
       currentReducer = nextReducer;
       dispatch({
@@ -177285,7 +177292,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
          */
         subscribe(observer) {
           if (typeof observer !== "object" || observer === null) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(11) : `Expected the observer to be an object. Instead, received: '${kindOf(observer)}'`);
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(11) : `Expected the observer to be an object. Instead, received: '${kindOf(observer)}'`);
           }
           function observeState() {
             var observerAsObserver = observer;
@@ -177356,12 +177363,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         type: actionTypes_default.INIT
       });
       if (typeof initialState === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(12) : `The slice reducer for key "${key}" returned undefined during initialization. If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(12) : `The slice reducer for key "${key}" returned undefined during initialization. If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
       }
       if (typeof reducer(void 0, {
         type: actionTypes_default.PROBE_UNKNOWN_ACTION()
       }) === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(13) : `The slice reducer for key "${key}" returned undefined when probed with a random type. Don't try to handle '${actionTypes_default.INIT}' or other actions in "redux/*" namespace. They are considered private. Instead, you must return the current state for any unknown actions, unless it is undefined, in which case you must return the initial state, regardless of the action type. The initial state may not be undefined, but can be null.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(13) : `The slice reducer for key "${key}" returned undefined when probed with a random type. Don't try to handle '${actionTypes_default.INIT}' or other actions in "redux/*" namespace. They are considered private. Instead, you must return the current state for any unknown actions, unless it is undefined, in which case you must return the initial state, regardless of the action type. The initial state may not be undefined, but can be null.`);
       }
     });
   }
@@ -177370,7 +177377,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var finalReducers = {};
     for (var i = 0; i < reducerKeys.length; i++) {
       var key = reducerKeys[i];
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         if (typeof reducers[key] === "undefined") {
           warning(`No reducer provided for key "${key}"`);
         }
@@ -177381,7 +177388,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     var finalReducerKeys = Object.keys(finalReducers);
     var unexpectedKeyCache;
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       unexpectedKeyCache = {};
     }
     var shapeAssertionError;
@@ -177394,7 +177401,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       if (shapeAssertionError) {
         throw shapeAssertionError;
       }
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         var warningMessage = getUnexpectedStateShapeWarningMessage(state, finalReducers, action, unexpectedKeyCache);
         if (warningMessage) {
           warning(warningMessage);
@@ -177409,7 +177416,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var nextStateForKey = reducer(previousStateForKey, action);
         if (typeof nextStateForKey === "undefined") {
           var actionType = action && action.type;
-          throw new Error("development" === "production" ? formatProdErrorMessage(14) : `When called with an action of type ${actionType ? `"${String(actionType)}"` : "(unknown type)"}, the slice reducer for key "${_key}" returned undefined. To ignore an action, you must explicitly return the previous state. If you want this reducer to hold no value, you can return null instead of undefined.`);
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(14) : `When called with an action of type ${actionType ? `"${String(actionType)}"` : "(unknown type)"}, the slice reducer for key "${_key}" returned undefined. To ignore an action, you must explicitly return the previous state. If you want this reducer to hold no value, you can return null instead of undefined.`);
         }
         nextState[_key] = nextStateForKey;
         hasChanged = hasChanged || nextStateForKey !== previousStateForKey;
@@ -177430,7 +177437,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return bindActionCreator(actionCreators, dispatch);
     }
     if (typeof actionCreators !== "object" || actionCreators === null) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(16) : `bindActionCreators expected an object or a function, but instead received: '${kindOf(actionCreators)}'. Did you write "import ActionCreators from" instead of "import * as ActionCreators from"?`);
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(16) : `bindActionCreators expected an object or a function, but instead received: '${kindOf(actionCreators)}'. Did you write "import ActionCreators from" instead of "import * as ActionCreators from"?`);
     }
     var boundActionCreators = {};
     for (var key in actionCreators) {
@@ -177458,7 +177465,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return createStore2 => (reducer, preloadedState) => {
       var store = createStore2(reducer, preloadedState);
       var dispatch = () => {
-        throw new Error("development" === "production" ? formatProdErrorMessage(15) : "Dispatching while constructing your middleware is not allowed. Other middleware would not be applied to this dispatch.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(15) : "Dispatching while constructing your middleware is not allowed. Other middleware would not be applied to this dispatch.");
       };
       var middlewareAPI = {
         getState: store.getState,
@@ -179094,9 +179101,9 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       var subscriptionSelectorsRef = (0, _react.useRef)(void 0);
       if (!subscriptionSelectorsRef.current) {
         var returnedValue = dispatch(api.internalActions.internal_getRTKQSubscriptions());
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           if (typeof returnedValue !== "object" || typeof (returnedValue == null ? void 0 : returnedValue.type) === "string") {
-            throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(37) : `Warning: Middleware for RTK-Query API at reducerPath "${api.reducerPath}" has not been added to the store.
+            throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(37) : `Warning: Middleware for RTK-Query API at reducerPath "${api.reducerPath}" has not been added to the store.
     You must add the middleware for RTK-Query to function correctly!`);
           }
         }
@@ -179130,7 +179137,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       usePossiblyImmediateEffect(() => {
         var _a2;
         var lastPromise = promiseRef.current;
-        if (typeof process !== "undefined" && "development" === "removeMeOnCompilation") {
+        if (typeof process !== "undefined" && process.env.NODE_ENV === "removeMeOnCompilation") {
           console.log(subscriptionRemoved);
         }
         if (stableArg === _$$_REQUIRE(_dependencyMap[2], "@reduxjs/toolkit/query").skipToken) {
@@ -179199,7 +179206,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }, [promiseRef]);
     }
     function refetchOrErrorIfUnmounted(promiseRef) {
-      if (!promiseRef.current) throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(38) : "Cannot refetch a query that has not been started yet.");
+      if (!promiseRef.current) throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(38) : "Cannot refetch a query that has not been started yet.");
       return promiseRef.current.refetch();
     }
     function buildQueryHooks(endpointName) {
@@ -179340,7 +179347,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var stableArg = useStableQueryArgs(options.skip ? _$$_REQUIRE(_dependencyMap[2], "@reduxjs/toolkit/query").skipToken : arg);
         var refetch = (0, _react.useCallback)(options2 => {
           var _a;
-          if (!promiseRef.current) throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(38) : "Cannot refetch a query that has not been started yet.");
+          if (!promiseRef.current) throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(38) : "Cannot refetch a query that has not been started yet.");
           var mergedOptions = {
             refetchCachedPages: (_a = options2 == null ? void 0 : options2.refetchCachedPages) != null ? _a : stableHookRefetchCachedPages
           };
@@ -179461,7 +179468,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       _b$unstable__sideEffe = _b.unstable__sideEffectsInRender,
       unstable__sideEffectsInRender = _b$unstable__sideEffe === void 0 ? false : _b$unstable__sideEffe,
       rest = __objRest(_b, ["batch", "hooks", "createSelector", "unstable__sideEffectsInRender"]);
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       var hookNames = ["useDispatch", "useSelector", "useStore"];
       var warned = false;
       for (var hookName of hookNames) {
@@ -179475,7 +179482,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           hooks[hookName] = rest[hookName];
         }
         if (typeof hooks[hookName] !== "function") {
-          throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(36) : `When using custom hooks for context, all ${hookNames.length} hooks need to be provided: ${hookNames.join(", ")}.
+          throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(36) : `When using custom hooks for context, all ${hookNames.length} hooks need to be provided: ${hookNames.join(", ")}.
 Hook ${hookName} was either not provided or not a function.`);
         }
       }
@@ -179558,7 +179565,7 @@ Hook ${hookName} was either not provided or not a function.`);
     var context = props.context || _$$_REQUIRE(_dependencyMap[4], "react-redux").ReactReduxContext;
     var existingContext = (0, _react.useContext)(context);
     if (existingContext) {
-      throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(35) : "Existing Redux context detected. If you already have a store set up, please use the traditional Redux setup.");
+      throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").formatProdErrorMessage)(35) : "Existing Redux context detected. If you already have a store set up, please use the traditional Redux setup.");
     }
     var _React$useState = React.useState(() => (0, _$$_REQUIRE(_dependencyMap[5], "@reduxjs/toolkit").configureStore)({
         reducer: {
@@ -180222,12 +180229,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return dispatch => filterNullishValues(getRunningMutations(dispatch));
     }
     function middlewareWarning(dispatch) {
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         if (middlewareWarning.triggered) return;
         var returnedValue = dispatch(api.internalActions.internal_getRTKQSubscriptions());
         middlewareWarning.triggered = true;
         if (typeof returnedValue !== "object" || typeof (returnedValue == null ? void 0 : returnedValue.type) === "string") {
-          throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(34) : `Warning: Middleware for RTK-Query API at reducerPath "${api.reducerPath}" has not been added to the store.
+          throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(34) : `Warning: Middleware for RTK-Query API at reducerPath "${api.reducerPath}" has not been added to the store.
 You must add the middleware for RTK-Query to function correctly!`);
         }
       }
@@ -180617,7 +180624,7 @@ You must add the middleware for RTK-Query to function correctly!`);
               } else {
                 result = yield endpointDefinition.queryFn(finalQueryArg, baseQueryApi, extraOptions, arg2 => baseQuery(arg2, baseQueryApi, extraOptions));
               }
-              if (typeof process !== "undefined" && "development" === "development") {
+              if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
                 var what = endpointDefinition.query ? "`baseQuery`" : "`queryFn`";
                 var err;
                 if (!result) {
@@ -180757,7 +180764,7 @@ You must add the middleware for RTK-Query to function correctly!`);
           } catch (e) {
             caughtError = e;
           }
-          if (typeof process !== "undefined" && "development" !== "production") {
+          if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
             console.error(`An unhandled error occurred processing a request for the endpoint "${arg.endpointName}".
 In the case of an unhandled error, no tags will be "provided" or "invalidated".`, caughtError);
           } else {
@@ -181401,7 +181408,7 @@ In the case of an unhandled error, no tags will be "provided" or "invalidated".`
     }
     function selectApiState(rootState) {
       var state = rootState[reducerPath];
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         if (!state) {
           if (selectApiState.triggered) return state;
           selectApiState.triggered = true;
@@ -181652,23 +181659,23 @@ In the case of an unhandled error, no tags will be "provided" or "invalidated".`
           var definition = _ref18[1];
           if (inject.overrideExisting !== true && endpointName in context.endpointDefinitions) {
             if (inject.overrideExisting === "throw") {
-              throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(39) : `called \`injectEndpoints\` to override already-existing endpointName ${endpointName} without specifying \`overrideExisting: true\``);
-            } else if (typeof process !== "undefined" && "development" === "development") {
+              throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(39) : `called \`injectEndpoints\` to override already-existing endpointName ${endpointName} without specifying \`overrideExisting: true\``);
+            } else if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
               console.error(`called \`injectEndpoints\` to override already-existing endpointName ${endpointName} without specifying \`overrideExisting: true\``);
             }
             continue;
           }
-          if (typeof process !== "undefined" && "development" === "development") {
+          if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
             if (isInfiniteQueryDefinition(definition)) {
               var infiniteQueryOptions = definition.infiniteQueryOptions;
               var maxPages = infiniteQueryOptions.maxPages,
                 getPreviousPageParam2 = infiniteQueryOptions.getPreviousPageParam;
               if (typeof maxPages === "number") {
                 if (maxPages < 1) {
-                  throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(40) : `maxPages for endpoint '${endpointName}' must be a number greater than 0`);
+                  throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(40) : `maxPages for endpoint '${endpointName}' must be a number greater than 0`);
                 }
                 if (typeof getPreviousPageParam2 !== "function") {
-                  throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(41) : `getPreviousPageParam for endpoint '${endpointName}' must be a function if maxPages is used`);
+                  throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(41) : `getPreviousPageParam for endpoint '${endpointName}' must be a function if maxPages is used`);
                 }
               }
             }
@@ -181691,7 +181698,7 @@ In the case of an unhandled error, no tags will be "provided" or "invalidated".`
   var _NEVER = exports._NEVER = /* @__PURE__ */Symbol();
   function fakeBaseQuery() {
     return function () {
-      throw new Error("development" === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(33) : "When using `fakeBaseQuery`, all queries & mutations must use the `queryFn` definition syntax.");
+      throw new Error(process.env.NODE_ENV === "production" ? (0, _$$_REQUIRE(_dependencyMap[9], "@reduxjs/toolkit").formatProdErrorMessage)(33) : "When using `fakeBaseQuery`, all queries & mutations must use the `queryFn` definition syntax.");
     };
   }
 
@@ -181800,7 +181807,7 @@ In the case of an unhandled error, no tags will be "provided" or "invalidated".`
       }
       var didMutate = actuallyMutateSubscriptions(internalState.currentSubscriptions, action);
       var actionShouldContinue = true;
-      if ("development" === "test" && typeof action.type === "string" && action.type === `${api.reducerPath}/getPolling`) {
+      if (process.env.NODE_ENV === "test" && typeof action.type === "string" && action.type === `${api.reducerPath}/getPolling`) {
         return [false, internalState.currentPolls];
       }
       if (didMutate) {
@@ -182081,7 +182088,7 @@ In the case of an unhandled error, no tags will be "provided" or "invalidated".`
       if (api.util.resetApiState.match(action)) {
         mwApi.dispatch(api.internalActions.middlewareRegistered(apiUid));
       }
-      if (typeof process !== "undefined" && "development" === "development") {
+      if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
         if (api.internalActions.middlewareRegistered.match(action) && action.payload === apiUid && ((_b = (_a = mwApi.getState()[reducerPath]) == null ? void 0 : _a.config) == null ? void 0 : _b.middlewareRegistered) === "conflict") {
           console.warn(`There is a mismatch between slice and middleware for the reducerPath "${reducerPath}".
 You can only have one api per reducer path, this will lead to crashes in various situations!${reducerPath === "api" ? `
@@ -182247,7 +182254,7 @@ If you have multiple apis, you *have* to specify the reducerPath option when usi
       }
       var _findLowestPollingInt2 = findLowestPollingInterval(subscriptions),
         lowestPollingInterval = _findLowestPollingInt2.lowestPollingInterval;
-      if ("development" === "test") {
+      if (process.env.NODE_ENV === "test") {
         var updateCounters = (_a = currentPolls.pollUpdateCounters) != null ? _a : currentPolls.pollUpdateCounters = {};
         (_b = updateCounters[queryCacheKey]) != null ? _b : updateCounters[queryCacheKey] = 0;
         updateCounters[queryCacheKey]++;
@@ -182496,7 +182503,7 @@ If you have multiple apis, you *have* to specify the reducerPath option when usi
       (0, _$$_REQUIRE(_dependencyMap[11], "immer").enablePatches)();
       assertCast(serializeQueryArgs);
       var assertTagType = tag => {
-        if (typeof process !== "undefined" && "development" === "development") {
+        if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
           if (!tagTypes.includes(tag.type)) {
             console.error(`Tag type '${tag.type}' was used, but not specified in \`tagTypes\`!`);
           }
@@ -182666,7 +182673,7 @@ If you have multiple apis, you *have* to specify the reducerPath option when usi
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./redux-toolkit.production.min.cjs");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./redux-toolkit.development.cjs");
@@ -184934,7 +184941,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         dependencyRecomputations++;
         var inputSelectorResults = collectInputSelectorResults(dependencies, arguments);
         lastResult = memoizedResultFunc.apply(null, inputSelectorResults);
-        if ("development" !== "production") {
+        if (process.env.NODE_ENV !== "production") {
           var _getDevModeChecksExec = getDevModeChecksExecutionInfo(firstRun, devModeChecks),
             identityFunctionCheck = _getDevModeChecksExec.identityFunctionCheck,
             inputStabilityCheck = _getDevModeChecksExec.inputStabilityCheck;
@@ -185122,7 +185129,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }
   function kindOf(val) {
     var typeOfVal = typeof val;
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       typeOfVal = miniKindOf(val);
     }
     return typeOfVal;
@@ -185131,10 +185138,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   // src/createStore.ts
   function createStore(reducer, preloadedState, enhancer) {
     if (typeof reducer !== "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(2) : `Expected the root reducer to be a function. Instead, received: '${kindOf(reducer)}'`);
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(2) : `Expected the root reducer to be a function. Instead, received: '${kindOf(reducer)}'`);
     }
     if (typeof preloadedState === "function" && typeof enhancer === "function" || typeof enhancer === "function" && typeof arguments[3] === "function") {
-      throw new Error("development" === "production" ? formatProdErrorMessage(0) : "It looks like you are passing several store enhancers to createStore(). This is not supported. Instead, compose them together to a single function. See https://redux.js.org/tutorials/fundamentals/part-4-store#creating-a-store-with-enhancers for an example.");
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(0) : "It looks like you are passing several store enhancers to createStore(). This is not supported. Instead, compose them together to a single function. See https://redux.js.org/tutorials/fundamentals/part-4-store#creating-a-store-with-enhancers for an example.");
     }
     if (typeof preloadedState === "function" && typeof enhancer === "undefined") {
       enhancer = preloadedState;
@@ -185142,7 +185149,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     if (typeof enhancer !== "undefined") {
       if (typeof enhancer !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(1) : `Expected the enhancer to be a function. Instead, received: '${kindOf(enhancer)}'`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(1) : `Expected the enhancer to be a function. Instead, received: '${kindOf(enhancer)}'`);
       }
       return enhancer(createStore)(reducer, preloadedState);
     }
@@ -185162,16 +185169,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function getState() {
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(3) : "You may not call store.getState() while the reducer is executing. The reducer has already received the state as an argument. Pass it down from the top reducer instead of reading it from the store.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(3) : "You may not call store.getState() while the reducer is executing. The reducer has already received the state as an argument. Pass it down from the top reducer instead of reading it from the store.");
       }
       return currentState;
     }
     function subscribe(listener) {
       if (typeof listener !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(4) : `Expected the listener to be a function. Instead, received: '${kindOf(listener)}'`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(4) : `Expected the listener to be a function. Instead, received: '${kindOf(listener)}'`);
       }
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(5) : "You may not call store.subscribe() while the reducer is executing. If you would like to be notified after the store has been updated, subscribe from a component and invoke store.getState() in the callback to access the latest state. See https://redux.js.org/api/store#subscribelistener for more details.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(5) : "You may not call store.subscribe() while the reducer is executing. If you would like to be notified after the store has been updated, subscribe from a component and invoke store.getState() in the callback to access the latest state. See https://redux.js.org/api/store#subscribelistener for more details.");
       }
       var isSubscribed = true;
       ensureCanMutateNextListeners();
@@ -185182,7 +185189,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           return;
         }
         if (isDispatching) {
-          throw new Error("development" === "production" ? formatProdErrorMessage(6) : "You may not unsubscribe from a store listener while the reducer is executing. See https://redux.js.org/api/store#subscribelistener for more details.");
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(6) : "You may not unsubscribe from a store listener while the reducer is executing. See https://redux.js.org/api/store#subscribelistener for more details.");
         }
         isSubscribed = false;
         ensureCanMutateNextListeners();
@@ -185192,16 +185199,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function dispatch(action) {
       if (!isPlainObject(action)) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(7) : `Actions must be plain objects. Instead, the actual type was: '${kindOf(action)}'. You may need to add middleware to your store setup to handle dispatching other values, such as 'redux-thunk' to handle dispatching functions. See https://redux.js.org/tutorials/fundamentals/part-4-store#middleware and https://redux.js.org/tutorials/fundamentals/part-6-async-logic#using-the-redux-thunk-middleware for examples.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(7) : `Actions must be plain objects. Instead, the actual type was: '${kindOf(action)}'. You may need to add middleware to your store setup to handle dispatching other values, such as 'redux-thunk' to handle dispatching functions. See https://redux.js.org/tutorials/fundamentals/part-4-store#middleware and https://redux.js.org/tutorials/fundamentals/part-6-async-logic#using-the-redux-thunk-middleware for examples.`);
       }
       if (typeof action.type === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(8) : 'Actions may not have an undefined "type" property. You may have misspelled an action type string constant.');
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(8) : 'Actions may not have an undefined "type" property. You may have misspelled an action type string constant.');
       }
       if (typeof action.type !== "string") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(17) : `Action "type" property must be a string. Instead, the actual type was: '${kindOf(action.type)}'. Value was: '${action.type}' (stringified)`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(17) : `Action "type" property must be a string. Instead, the actual type was: '${kindOf(action.type)}'. Value was: '${action.type}' (stringified)`);
       }
       if (isDispatching) {
-        throw new Error("development" === "production" ? formatProdErrorMessage(9) : "Reducers may not dispatch actions.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(9) : "Reducers may not dispatch actions.");
       }
       try {
         isDispatching = true;
@@ -185217,7 +185224,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function replaceReducer(nextReducer) {
       if (typeof nextReducer !== "function") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(10) : `Expected the nextReducer to be a function. Instead, received: '${kindOf(nextReducer)}`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(10) : `Expected the nextReducer to be a function. Instead, received: '${kindOf(nextReducer)}`);
       }
       currentReducer = nextReducer;
       dispatch({
@@ -185237,7 +185244,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
          */
         subscribe(observer) {
           if (typeof observer !== "object" || observer === null) {
-            throw new Error("development" === "production" ? formatProdErrorMessage(11) : `Expected the observer to be an object. Instead, received: '${kindOf(observer)}'`);
+            throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(11) : `Expected the observer to be an object. Instead, received: '${kindOf(observer)}'`);
           }
           function observeState() {
             var observerAsObserver = observer;
@@ -185308,12 +185315,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         type: actionTypes_default.INIT
       });
       if (typeof initialState === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(12) : `The slice reducer for key "${key}" returned undefined during initialization. If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(12) : `The slice reducer for key "${key}" returned undefined during initialization. If the state passed to the reducer is undefined, you must explicitly return the initial state. The initial state may not be undefined. If you don't want to set a value for this reducer, you can use null instead of undefined.`);
       }
       if (typeof reducer(void 0, {
         type: actionTypes_default.PROBE_UNKNOWN_ACTION()
       }) === "undefined") {
-        throw new Error("development" === "production" ? formatProdErrorMessage(13) : `The slice reducer for key "${key}" returned undefined when probed with a random type. Don't try to handle '${actionTypes_default.INIT}' or other actions in "redux/*" namespace. They are considered private. Instead, you must return the current state for any unknown actions, unless it is undefined, in which case you must return the initial state, regardless of the action type. The initial state may not be undefined, but can be null.`);
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(13) : `The slice reducer for key "${key}" returned undefined when probed with a random type. Don't try to handle '${actionTypes_default.INIT}' or other actions in "redux/*" namespace. They are considered private. Instead, you must return the current state for any unknown actions, unless it is undefined, in which case you must return the initial state, regardless of the action type. The initial state may not be undefined, but can be null.`);
       }
     });
   }
@@ -185322,7 +185329,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var finalReducers = {};
     for (var i = 0; i < reducerKeys.length; i++) {
       var key = reducerKeys[i];
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         if (typeof reducers[key] === "undefined") {
           warning(`No reducer provided for key "${key}"`);
         }
@@ -185333,7 +185340,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     var finalReducerKeys = Object.keys(finalReducers);
     var unexpectedKeyCache;
-    if ("development" !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       unexpectedKeyCache = {};
     }
     var shapeAssertionError;
@@ -185346,7 +185353,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       if (shapeAssertionError) {
         throw shapeAssertionError;
       }
-      if ("development" !== "production") {
+      if (process.env.NODE_ENV !== "production") {
         var warningMessage = getUnexpectedStateShapeWarningMessage(state, finalReducers, action, unexpectedKeyCache);
         if (warningMessage) {
           warning(warningMessage);
@@ -185361,7 +185368,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var nextStateForKey = reducer(previousStateForKey, action);
         if (typeof nextStateForKey === "undefined") {
           var actionType = action && action.type;
-          throw new Error("development" === "production" ? formatProdErrorMessage(14) : `When called with an action of type ${actionType ? `"${String(actionType)}"` : "(unknown type)"}, the slice reducer for key "${_key}" returned undefined. To ignore an action, you must explicitly return the previous state. If you want this reducer to hold no value, you can return null instead of undefined.`);
+          throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(14) : `When called with an action of type ${actionType ? `"${String(actionType)}"` : "(unknown type)"}, the slice reducer for key "${_key}" returned undefined. To ignore an action, you must explicitly return the previous state. If you want this reducer to hold no value, you can return null instead of undefined.`);
         }
         nextState[_key] = nextStateForKey;
         hasChanged = hasChanged || nextStateForKey !== previousStateForKey;
@@ -185382,7 +185389,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return bindActionCreator(actionCreators, dispatch);
     }
     if (typeof actionCreators !== "object" || actionCreators === null) {
-      throw new Error("development" === "production" ? formatProdErrorMessage(16) : `bindActionCreators expected an object or a function, but instead received: '${kindOf(actionCreators)}'. Did you write "import ActionCreators from" instead of "import * as ActionCreators from"?`);
+      throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(16) : `bindActionCreators expected an object or a function, but instead received: '${kindOf(actionCreators)}'. Did you write "import ActionCreators from" instead of "import * as ActionCreators from"?`);
     }
     var boundActionCreators = {};
     for (var key in actionCreators) {
@@ -185410,7 +185417,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return createStore2 => (reducer, preloadedState) => {
       var store = createStore2(reducer, preloadedState);
       var dispatch = () => {
-        throw new Error("development" === "production" ? formatProdErrorMessage(15) : "Dispatching while constructing your middleware is not allowed. Other middleware would not be applied to this dispatch.");
+        throw new Error(process.env.NODE_ENV === "production" ? formatProdErrorMessage(15) : "Dispatching while constructing your middleware is not allowed. Other middleware would not be applied to this dispatch.");
       };
       var middlewareAPI = {
         getState: store.getState,
@@ -188150,7 +188157,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   */
 
   function persistReducer(config, baseReducer) {
-    if ("development" !== 'production') {
+    if (process.env.NODE_ENV !== 'production') {
       if (!config) throw new Error('config is required for persistReducer');
       if (!config.key) throw new Error('key is required in persistor config');
       if (!config.storage) throw new Error("redux-persist: config.storage is required. Try using one of the provided storage engines `import storage from 'redux-persist/lib/storage'`");
@@ -188178,7 +188185,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var _sealed = false;
         var _rehydrate = function _rehydrate(payload, err) {
           // dev warning if we are already sealed
-          if ("development" !== 'production' && _sealed) console.error("redux-persist: rehydrate for \"".concat(config.key, "\" called after timeout."), payload, err); // only rehydrate if we are not already sealed
+          if (process.env.NODE_ENV !== 'production' && _sealed) console.error("redux-persist: rehydrate for \"".concat(config.key, "\" called after timeout."), payload, err); // only rehydrate if we are not already sealed
 
           if (!_sealed) {
             action.rehydrate(config.key, payload, err);
@@ -188209,7 +188216,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           migrate(restoredState, version).then(function (migratedState) {
             _rehydrate(migratedState);
           }, function (migrateErr) {
-            if ("development" !== 'production' && migrateErr) console.error('redux-persist: migration error', migrateErr);
+            if (process.env.NODE_ENV !== 'production' && migrateErr) console.error('redux-persist: migration error', migrateErr);
             _rehydrate(undefined, migrateErr);
           });
         }, function (err) {
@@ -188340,14 +188347,14 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         if (key === '_persist') return; // if reducer modifies substate, skip auto rehydration
 
         if (originalState[key] !== reducedState[key]) {
-          if ("development" !== 'production' && debug) console.log('redux-persist/stateReconciler: sub state for key `%s` modified, skipping.', key);
+          if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist/stateReconciler: sub state for key `%s` modified, skipping.', key);
           return;
         } // otherwise hard set the new value
 
         newState[key] = inboundState[key];
       });
     }
-    if ("development" !== 'production' && debug && inboundState && _typeof(inboundState) === 'object') console.log("redux-persist/stateReconciler: rehydrated keys '".concat(Object.keys(inboundState).join(', '), "'"));
+    if (process.env.NODE_ENV !== 'production' && debug && inboundState && _typeof(inboundState) === 'object') console.log("redux-persist/stateReconciler: rehydrated keys '".concat(Object.keys(inboundState).join(', '), "'"));
     return newState;
   }
 },1218,[],"node_modules/redux-persist/lib/stateReconciler/autoMergeLevel1.js");
@@ -188447,7 +188454,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     function onWriteFail(err) {
       // @TODO add fail handlers (typically storage full)
       if (writeFailHandler) writeFailHandler(err);
-      if (err && "development" !== 'production') {
+      if (err && process.env.NODE_ENV !== 'production') {
         console.error('Error storing data', err);
       }
     }
@@ -188522,7 +188529,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           });
           return state;
         } catch (err) {
-          if ("development" !== 'production' && debug) console.log("redux-persist/getStoredState: Error restoring data ".concat(serialized), err);
+          if (process.env.NODE_ENV !== 'production' && debug) console.log("redux-persist/getStoredState: Error restoring data ".concat(serialized), err);
           throw err;
         }
       }
@@ -188543,7 +188550,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return storage.removeItem(storageKey, warnIfRemoveError);
   }
   function warnIfRemoveError(err) {
-    if (err && "development" !== 'production') {
+    if (err && process.env.NODE_ENV !== 'production') {
       console.error('redux-persist/purgeStoredState: Error purging data stored state', err);
     }
   }
@@ -188642,7 +188649,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         if (key === '_persist') return; // if reducer modifies substate, skip auto rehydration
 
         if (originalState[key] !== reducedState[key]) {
-          if ("development" !== 'production' && debug) console.log('redux-persist/stateReconciler: sub state for key `%s` modified, skipping.', key);
+          if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist/stateReconciler: sub state for key `%s` modified, skipping.', key);
           return;
         }
         if (isPlainEnoughObject(reducedState[key])) {
@@ -188654,7 +188661,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         newState[key] = inboundState[key];
       });
     }
-    if ("development" !== 'production' && debug && inboundState && _typeof(inboundState) === 'object') console.log("redux-persist/stateReconciler: rehydrated keys '".concat(Object.keys(inboundState).join(', '), "'"));
+    if (process.env.NODE_ENV !== 'production' && debug && inboundState && _typeof(inboundState) === 'object') console.log("redux-persist/stateReconciler: rehydrated keys '".concat(Object.keys(inboundState).join(', '), "'"));
     return newState;
   }
   function isPlainEnoughObject(o) {
@@ -188750,7 +188757,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   };
   function persistStore(store, options, cb) {
     // help catch incorrect usage of passing PersistConfig in as PersistorOptions
-    if ("development" !== 'production') {
+    if (process.env.NODE_ENV !== 'production') {
       var optionsToTest = options || {};
       var bannedKeys = ['blacklist', 'whitelist', 'transforms', 'storage', 'keyPrefix', 'migrate'];
       bannedKeys.forEach(function (k) {
@@ -188829,16 +188836,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       debug = _ref.debug;
     return function (state, currentVersion) {
       if (!state) {
-        if ("development" !== 'production' && debug) console.log('redux-persist: no inbound state, skipping migration');
+        if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist: no inbound state, skipping migration');
         return Promise.resolve(undefined);
       }
       var inboundVersion = state._persist && state._persist.version !== undefined ? state._persist.version : _$$_REQUIRE(_dependencyMap[0], "./constants").DEFAULT_VERSION;
       if (inboundVersion === currentVersion) {
-        if ("development" !== 'production' && debug) console.log('redux-persist: versions match, noop migration');
+        if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist: versions match, noop migration');
         return Promise.resolve(state);
       }
       if (inboundVersion > currentVersion) {
-        if ("development" !== 'production') console.error('redux-persist: downgrading version is not supported');
+        if (process.env.NODE_ENV !== 'production') console.error('redux-persist: downgrading version is not supported');
         return Promise.resolve(state);
       }
       var migrationKeys = Object.keys(migrations).map(function (ver) {
@@ -188848,10 +188855,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }).sort(function (a, b) {
         return a - b;
       });
-      if ("development" !== 'production' && debug) console.log('redux-persist: migrationKeys', migrationKeys);
+      if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist: migrationKeys', migrationKeys);
       try {
         var migratedState = migrationKeys.reduce(function (state, versionKey) {
-          if ("development" !== 'production' && debug) console.log('redux-persist: running migration for versionKey', versionKey);
+          if (process.env.NODE_ENV !== 'production' && debug) console.log('redux-persist: running migration for versionKey', versionKey);
           return migrations[versionKey](state);
         }, state);
         return Promise.resolve(migratedState);
@@ -189861,7 +189868,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }, [state, isReady, emitter]);
     React.useEffect(() => {
       var hydratedState = getRootState();
-      if ("development" !== 'production') {
+      if (process.env.NODE_ENV !== 'production') {
         if (hydratedState !== undefined) {
           var serializableResult = (0, _$$_REQUIRE(_dependencyMap[16], "./checkSerializable.js").checkSerializable)(hydratedState);
           if (!serializableResult.serializable) {
@@ -189924,7 +189931,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       isFirstMountRef.current = false;
     }, [getRootState, emitter, state]);
     var defaultOnUnhandledAction = (0, _useLatestCallback.default)(action => {
-      if ("development" === 'production') {
+      if (process.env.NODE_ENV === 'production') {
         return;
       }
       var payload = action.payload;
@@ -190148,7 +190155,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var deepFreeze = object => {
     // We only freeze in development to catch issues early
     // Don't freeze in production to avoid unnecessary performance overhead
-    if ("development" === 'production') {
+    if (process.env.NODE_ENV === 'production') {
       return object;
     }
     if (Object.isFrozen(object)) {
@@ -192868,7 +192875,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   'use strict';
 
-  if ("development" === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     module.exports = _$$_REQUIRE(_dependencyMap[0], "./cjs/react-is.production.js");
   } else {
     module.exports = _$$_REQUIRE(_dependencyMap[1], "./cjs/react-is.development.js");
@@ -192998,7 +193005,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
 
   "use strict";
 
-  "production" !== "development" && function () {
+  "production" !== process.env.NODE_ENV && function () {
     function typeOf(object) {
       if ("object" === typeof object && null !== object) {
         var $$typeof = object.$$typeof;
@@ -193370,7 +193377,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       } else {
         proxy = routeWithoutState;
       }
-      if ("development" !== 'production' && proxy !== previous) {
+      if (process.env.NODE_ENV !== 'production' && proxy !== previous) {
         // FIXME: since the state is updated with mutation, the route object cannot be frozen
         // As a workaround, loop through the object and make the properties readonly
         // Only needed once per proxy - skip if we're reusing a previously-frozen one
@@ -193488,7 +193495,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     if (state == null) {
       throw Error(`Got '${String(state)}' for the navigation state. You must pass a valid state object.`);
     }
-    if ("development" !== 'production' && options) {
+    if (process.env.NODE_ENV !== 'production' && options) {
       (0, _$$_REQUIRE(_dependencyMap[1], "./validatePathConfig.js").validatePathConfig)(options);
     }
     var configs = getNormalizedConfigs(options);
@@ -194517,7 +194524,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return resources;
   }
   function prepareConfigResources(options) {
-    if ("development" !== 'production' && options) {
+    if (process.env.NODE_ENV !== 'production' && options) {
       (0, _$$_REQUIRE(_dependencyMap[4], "./validatePathConfig.js").validatePathConfig)(options);
     }
     var initialRoutes = getInitialRoutes(options);
@@ -195092,7 +195099,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         if (destroy === undefined || typeof destroy === 'function') {
           return destroy;
         }
-        if ("development" !== 'production') {
+        if (process.env.NODE_ENV !== 'production') {
           var _message = 'An effect function must not return anything besides a function, which is used for clean-up.';
           if (destroy === null) {
             _message += " You returned 'null'. If your effect does not require clean-up, return 'undefined' (or nothing).";
@@ -195211,7 +195218,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }
       throw new Error(`A navigator can only contain 'Screen', 'Group' or 'React.Fragment' as its direct children (found ${ /*#__PURE__*/React.isValidElement(child) ? `'${typeof child.type === 'string' ? child.type : child.type?.name}'${child.props != null && typeof child.props === 'object' && 'name' in child.props && child.props?.name ? ` for the screen '${child.props.name}'` : ''}` : typeof child === 'object' ? JSON.stringify(child) : `'${String(child)}'`}). To render this component in the navigator, pass it in the 'component' prop to 'Screen'.`);
     }, []);
-    if ("development" !== 'production') {
+    if (process.env.NODE_ENV !== 'production') {
       configs.forEach(config => {
         var _config$props = config.props,
           name = _config$props.name,
@@ -195258,7 +195265,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var state = params?.state;
     if (isNavigationState(state)) {
       if (state.type != null && state.type !== type) {
-        if ("development" !== 'production') {
+        if (process.env.NODE_ENV !== 'production') {
           console.error(`The state passed in the params is for a navigator of type '${state.type}', but it was passed to a navigator of type '${type}'. This can happen if the state was meant for a different navigator. The state will be discarded.`);
         }
         return undefined;
@@ -195521,7 +195528,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         routeParamList,
         routeGetIdList
       }) : null;
-      if ("development" !== 'production' && action != null && updatedState === null) {
+      if (process.env.NODE_ENV !== 'production' && action != null && updatedState === null) {
         var names = routeNames.map(name => `'${name}'`).join(', ');
         console.error(`The 'state' or 'screen' passed in the params couldn't be applied to the navigator with the screens: ${names}. This can happen if the params contain names of screens that don't exist in the navigator. The navigation specified in the params will be ignored.`);
       }
@@ -196709,7 +196716,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var withStack = callback => {
           var isStackSet = false;
           try {
-            if ("development" !== 'production' && stackRef && !stackRef.current) {
+            if (process.env.NODE_ENV !== 'production' && stackRef && !stackRef.current) {
               // Capture the stack trace for devtools
               stackRef.current = new Error().stack;
               isStackSet = true;
@@ -197441,7 +197448,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }) {
     var independent = (0, _$$_REQUIRE(_dependencyMap[2], "@react-navigation/core").useNavigationIndependentTree)();
     React.useEffect(() => {
-      if ("development" === 'production') {
+      if (process.env.NODE_ENV === 'production') {
         return undefined;
       }
       if (independent) {
@@ -199527,7 +199534,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var _jsxRuntime = _$$_REQUIRE(_dependencyMap[4], "react/jsx-runtime");
   var _jsxFileName = "D:\\Office_projects\\Disshaa\\PujaConnect\\node_modules\\react-native-safe-area-context\\src\\SafeAreaContext.tsx";
   function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function (e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (var _t in e) "default" !== _t && {}.hasOwnProperty.call(e, _t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, _t)) && (i.get || i.set) ? o(f, _t, i) : f[_t] = e[_t]); return f; })(e, t); }
-  var isDev = "development" !== 'production';
+  var isDev = process.env.NODE_ENV !== 'production';
   var SafeAreaInsetsContext = exports.SafeAreaInsetsContext = React.createContext(null);
   if (isDev) {
     SafeAreaInsetsContext.displayName = 'SafeAreaInsetsContext';
@@ -201334,9 +201341,6 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       },
       "relative": {
         "position": "relative"
-      },
-      "flex": {
-        "display": "flex"
       },
       "hidden": {
         "display": "none"
@@ -242274,7 +242278,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   exports.warnUnimplementedFilter = warnUnimplementedFilter;
 },1419,[1,1420],"node_modules/react-native-svg/src/lib/util.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
-  var DEV = "development" !== "production";
+  var DEV = process.env.NODE_ENV !== "production";
   var warnings = new Set();
   function warnOnce(condition, ...rest) {
     if (DEV && condition) {
@@ -301637,9 +301641,9 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
               bookingData = response.data || {};
             }
 
-            // Extract Paytm parameters from response
+            // Extract Paytm parameters from response (prioritize txn_number matching Web code)
             var txnToken = bookingData?.txn_token || bookingData?.txnToken;
-            var orderId = bookingData?.order_id || bookingData?.booking_id || bookingData?.order_ref || '770';
+            var orderId = String(bookingData?.txn_number || bookingData?.order_ref || bookingData?.order_id || bookingData?.booking_id || '770');
             var txnAmount = bookingData?.txn_amount || grandTotal || 21;
             console.log('🚀 [PAYTM CHECKOUT] Extracted Parameters:', {
               txnToken,
@@ -306824,17 +306828,28 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           params.forEach(p => {
             var _p$split = p.split('='),
               _p$split2 = (0, _slicedToArray2.default)(_p$split, 2),
-              key = _p$split2[0],
-              val = _p$split2[1];
+              rawKey = _p$split2[0],
+              rawVal = _p$split2[1];
+            if (!rawKey) return;
+            var key = decodeURIComponent(rawKey).toLowerCase();
+            var val = rawVal ? decodeURIComponent(rawVal) : undefined;
             if (key === 'enc_data') encData = val;
             if (key === 'status') status = val;
+            if (key === 'order_id' || key === 'orderid' || key === 'order_ref' || key === 'txn_number' || key === 'booking_id') {
+              orderId = val;
+            }
           });
         }
         if (encData) {
           try {
             var decoded = JSON.parse((0, _$$_REQUIRE(_dependencyMap[6], "base-64").decode)(encData));
             console.log('[PluralWebView] 📦 Decoded enc_data Payload:', JSON.stringify(decoded, null, 2));
-            orderId = String(decoded.order_id || decoded.txn_number || '');
+            if (!orderId) {
+              orderId = String(decoded.order_id || decoded.txn_number || decoded.order_ref || decoded.booking_id || '');
+            }
+            if (!status && decoded.status !== undefined) {
+              status = String(decoded.status);
+            }
           } catch {}
         }
         return {
@@ -306851,13 +306866,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       var lowerUrl = url.toLowerCase();
       var lowerTitle = (title || '').toLowerCase();
 
-      // Check if error message exists in params
-      var hasErrorParam = lowerUrl.includes('errormessage=') || lowerUrl.includes('error=');
+      // Check if failure or error indicators exist
+      var hasErrorParam = lowerUrl.includes('errormessage=') || lowerUrl.includes('error=') || lowerUrl.includes('status=failed') || lowerUrl.includes('status=failure') || lowerUrl.includes('txn_status=failure') || lowerUrl.includes('payment_status=failure') || lowerUrl.includes('status=cancelled') || lowerUrl.includes('respcode=2271') || lowerUrl.includes('respcode=02');
+
+      // Known callback & redirect endpoints
+      var isCallbackEndpoint = lowerUrl.includes('update_payment_status') || lowerUrl.includes('update_payment') || lowerUrl.includes('115.187.62.16') || lowerUrl.includes('payment-status') || lowerUrl.includes('payment_status') || lowerUrl.includes('payment/status') || lowerUrl.includes('paytmcallback') || lowerUrl.includes('localhost');
 
       // ✅ DETECT SUCCESS
-      var isSuccess = !hasErrorParam && (lowerTitle.includes('payment-success') || lowerTitle.includes('payment_success') || lowerTitle.includes('payment success') || lowerUrl.includes('payment-success') || lowerUrl.includes('payment_success') || lowerUrl.includes('txn_status=success') || lowerUrl.includes('payment_status=success') || lowerUrl.includes('status=success'));
+      var isSuccess = !hasErrorParam && (lowerTitle.includes('payment-success') || lowerTitle.includes('payment_success') || lowerTitle.includes('payment success') || lowerUrl.includes('payment-success') || lowerUrl.includes('payment_success') || lowerUrl.includes('txn_status=success') || lowerUrl.includes('payment_status=success') || lowerUrl.includes('status=success') || lowerUrl.includes('status=0') || lowerUrl.includes('respcode=01') || lowerUrl.includes('status=txn_success') || isCallbackEndpoint);
       if (isSuccess) {
-        console.log('[PluralWebView] ✅ SUCCESS DETECTED!');
+        console.log('[PluralWebView] ✅ SUCCESS DETECTED for URL:', url);
         if (stopNavigationOnMatch) webviewRef.current?.stopLoading();
         var _extractPluralCallbac = extractPluralCallbackData(url),
           encData = _extractPluralCallbac.encData,
@@ -306872,10 +306890,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         return true;
       }
 
-      // ❌ DETECT FAILURE / CANCELLED / LOCALHOST REDIRECT
-      var isFailure = hasErrorParam || lowerUrl.includes('payment-fail') || lowerUrl.includes('payment_fail') || lowerUrl.includes('txn_status=failure') || lowerUrl.includes('payment_status=failure') || lowerUrl.includes('status=failure') || lowerUrl.includes('status=cancelled') || lowerUrl.includes('localhost');
+      // ❌ DETECT FAILURE / CANCELLED
+      var isFailure = hasErrorParam || lowerUrl.includes('payment-fail') || lowerUrl.includes('payment_fail') || lowerUrl.includes('txn_status=failure') || lowerUrl.includes('payment_status=failure') || lowerUrl.includes('status=failure') || lowerUrl.includes('status=cancelled');
       if (isFailure) {
-        console.log('[PluralWebView] ❌ FAILURE OR LOCALHOST REDIRECT DETECTED!');
+        console.log('[PluralWebView] ❌ FAILURE DETECTED for URL:', url);
         if (stopNavigationOnMatch) webviewRef.current?.stopLoading();
 
         // Extract error message if present in URL
@@ -306885,6 +306903,11 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             var errorMsgParam = url.split('errorMessage=')[1]?.split('&')[0];
             if (errorMsgParam) {
               reason = decodeURIComponent(errorMsgParam.replace(/\+/g, ' '));
+            }
+          } else if (url.includes('error=')) {
+            var _errorMsgParam = url.split('error=')[1]?.split('&')[0];
+            if (_errorMsgParam) {
+              reason = decodeURIComponent(_errorMsgParam.replace(/\+/g, ' '));
             }
           }
         } catch (e) {}
@@ -306962,14 +306985,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           scalesPageToFit: false,
           allowsBackForwardNavigationGestures: false
 
-          // 🚀 Intercept Localhost / Payment Status redirects BEFORE WebView opens them
+          // 🚀 Intercept Callback / Status / Backend API redirects BEFORE WebView tries to open them
           ,
           onShouldStartLoadWithRequest: request => {
             var url = request.url;
+            var lowerUrl = (url || '').toLowerCase();
             console.log('[PluralWebView] 🚦 Navigation Request URL:', url);
-            if (url.includes('localhost') || url.includes('payment-status') || url.includes('payment-success') || url.includes('payment-fail')) {
+            if (lowerUrl.includes('update_payment_status') || lowerUrl.includes('update_payment') || lowerUrl.includes('115.187.62.16') || lowerUrl.includes('localhost') || lowerUrl.includes('payment-status') || lowerUrl.includes('payment_status') || lowerUrl.includes('payment-success') || lowerUrl.includes('payment_success') || lowerUrl.includes('payment-fail') || lowerUrl.includes('payment_fail') || lowerUrl.includes('paytmcallback')) {
+              console.log('[PluralWebView] 🛑 Intercepted Callback URL before load:', url);
               checkAndFireSuccess(url, '');
-              return false; // Prevent loading unreachable localhost
+              return false; // Prevent loading backend API JSON or unreachable cleartext HTTP
             }
             return true;
           },
@@ -333922,7 +333947,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       transform = _StyleSheet$flatten.transform,
       transformOrigin = _StyleSheet$flatten.transformOrigin,
       unsafeStyles = (0, _objectWithoutProperties2.default)(_StyleSheet$flatten, _excluded);
-    if ("development" !== 'production') {
+    if (process.env.NODE_ENV !== 'production') {
       warnIfHeaderStylesDefined(unsafeStyles);
     }
     var safeStyles = {
@@ -337604,7 +337629,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       ...rest
     });
   };
-  if ("development" !== 'production') {
+  if (process.env.NODE_ENV !== 'production') {
     DebugContainer = props => {
       var contentStyle = props.contentStyle,
         stackPresentation = props.stackPresentation,
@@ -347197,7 +347222,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var _Dimensions$get = _reactNative.Dimensions.get('window'),
     height = _Dimensions$get.height;
   var HEADER_HEIGHT = Math.max(height * 0.38, 270);
-  var OTP_LENGTH = _$$_REQUIRE(_dependencyMap[9], "../../config/apiConfig").VALIDATION.OTP_LENGTH;
+  var OTP_LENGTH = _$$_REQUIRE(_dependencyMap[9], "../../config/apiConfig").VALIDATION?.OTP_LENGTH || 6;
   function OtpPage({
     navigation,
     route
@@ -351847,7 +351872,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }, {
       key: "render",
       value: function render() {
-        if ("development" !== 'production') {
+        if (process.env.NODE_ENV !== 'production') {
           if (typeof this.props.children === 'function' && this.props.loading) console.error('redux-persist: PersistGate expects either a function child or loading prop, but not both. The loading prop will be ignored.');
         }
         if (typeof this.props.children === 'function') {

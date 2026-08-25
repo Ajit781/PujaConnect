@@ -106,7 +106,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
-    Animated.loop(
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1.02,
@@ -119,7 +119,9 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
 
   const { i18n, t } = useTranslation();
@@ -641,10 +643,10 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           </View>
         </View>
 
-      </ScrollView>
+      </ScrollView >
 
       {/* ── STICKY BOTTOM FOOTER ACTION BUTTON matching Screenshots 1, 2, 3, 4 ── */}
-      <View style={[styles.stickyFooter, { paddingBottom: Math.max(16, insets.bottom + 10) }]}>
+      < View style={[styles.stickyFooter, { paddingBottom: Math.max(16, insets.bottom + 10) }]} >
         <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
           <TouchableOpacity
             style={styles.footerBtn}
@@ -687,12 +689,13 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
             </View>
           </TouchableOpacity>
         </Animated.View>
-      </View>
+      </View >
 
       {/* Modals */}
-      <BookingModal
+      < BookingModal
         visible={showBookingModal}
-        onClose={() => setShowBookingModal(false)}
+        onClose={() => setShowBookingModal(false)
+        }
         puja={puja}
         selectedPackage={selectedPackage}
         isBn={isBn}
@@ -700,7 +703,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         onSelectPackage={(id) => setSelectedPackageId(id)}
       />
 
-      <PackageDetailsModal
+      < PackageDetailsModal
         visible={!!activeDetailsPkg}
         pkg={activeDetailsPkg}
         onClose={() => setActiveDetailsPkg(null)}
@@ -712,7 +715,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         }}
         isBn={isBn}
       />
-    </View>
+    </View >
   );
 }
 

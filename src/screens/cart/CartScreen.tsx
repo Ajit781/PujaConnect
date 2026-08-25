@@ -142,7 +142,8 @@ export default function CartScreen({ navigation, route }: any) {
       // Payment succeeded — show booking confirmed
       setPaymentResult(res);
       setPaymentOrderRef(res.orderId || res.encData || null);
-      setPaymentConfirmed(true);
+      setOrderSuccessRef(res.orderId || res.encData || 'SUCCESS');
+
       // Secretly clear the cart now that payment is done
       // Call the API to clear server cart, but also force clear local Redux cart
       handleClearAllCart();
@@ -175,6 +176,7 @@ export default function CartScreen({ navigation, route }: any) {
         ],
       });
     }
+    dispatch(hideLoader());
   };
 
   useEffect(() => {
@@ -334,14 +336,16 @@ export default function CartScreen({ navigation, route }: any) {
 
   useEffect(() => {
     rotateValue.setValue(0);
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.timing(rotateValue, {
         toValue: 1,
         duration: 4000,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, [rotateValue]);
 
   const spin = rotateValue.interpolate({
@@ -428,6 +432,7 @@ export default function CartScreen({ navigation, route }: any) {
 
       const payload = {
         ctzn_id: user?.auth_id || user?.user_id || 925,
+        is_mobile: true,
         puja_schedule_list: schedulesToUse.map((s: any) => ({
           package_id: s.package_id,
           ctzn_address_id: s.ctzn_address_id || topAddressId,
@@ -490,13 +495,14 @@ export default function CartScreen({ navigation, route }: any) {
             typeof txnAmount === 'number'
               ? txnAmount.toFixed(2)
               : String(txnAmount);
-          const callbackUrl = `${PAYTM_CONFIG.BASE_URL}theia/paytmCallback?ORDER_ID=${paytmOrderId}`;
+          const callbackUrl = `http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1_mobile`;
 
           console.log('====================================================');
           console.log('🚀 [PAYTM CHECKOUT] Invoking Paytm with txn_number:', paytmOrderId);
           console.log('====================================================');
 
-          dispatch(hideLoader());
+          // DO NOT hide the loader here! Keep it spinning to prevent the user from clicking the screen
+          // while waiting for Paytm to open and close.
           setShowAddressModal(false);
 
           startPaytmTransaction({
@@ -513,14 +519,30 @@ export default function CartScreen({ navigation, route }: any) {
               console.log('====================================================');
               console.log('✅ [PAYTM SDK SUCCESS RESPONSE]:', JSON.stringify(result, null, 2));
               console.log('====================================================');
-              showToast({ message: isBn ? 'পেটিএম পেমেন্ট সফল হয়েছে!' : 'Paytm Payment Successful!', type: 'success' });
+
+              if (result && result.STATUS === 'TXN_SUCCESS') {
+                showToast({ message: isBn ? 'পেটিএম পেমেন্ট সফল হয়েছে!' : 'Paytm Payment Successful!', type: 'success' });
+                handlePaymentResult({
+                  status: 'response',
+                  orderId: result.ORDERID || paytmOrderId,
+                  encData: result.TXNID || '',
+                });
+              } else {
+                handlePaymentResult({
+                  status: 'error',
+                  reason: result?.RESPMSG || 'Payment failed or cancelled',
+                });
+              }
             })
             .catch((err: any) => {
               console.log('====================================================');
               console.log('❌ [PAYTM SDK ERROR / CANCELLED RESPONSE]:', err);
               console.log('====================================================');
-              const webUrl = `${PAYTM_CONFIG.BASE_URL}theia/processTransaction?txnToken=${txnToken}`;
-              setPaymentUrl(webUrl);
+
+              handlePaymentResult({
+                status: 'error',
+                reason: err?.message || 'Payment failed or cancelled',
+              });
             });
 
           return;
@@ -1565,7 +1587,7 @@ export default function CartScreen({ navigation, route }: any) {
                 setPaymentConfirmed(false);
                 setPaymentOrderRef(null);
                 setPaymentResult(null);
-                navigation.navigate('Dashboard' as never);
+                navigation.navigate('MainTabs' as never);
               }}
             >
               <Text style={styles.confirmHomeBtnText}>

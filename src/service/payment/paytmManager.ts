@@ -56,7 +56,7 @@ export const startPaytmTransaction = async (
 
   const finalCallbackUrl =
     callbackUrl ||
-    `${PAYTM_CONFIG.BASE_URL}theia/paytmCallback?ORDER_ID=${formattedOrderId}`;
+    `http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1_mobile`;
 
   const finalUrlScheme = urlScheme || `paytm${formattedMid}`;
 

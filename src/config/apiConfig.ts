@@ -46,7 +46,11 @@ export const ENDPOINTS = {
   getStatusType: '/master/get_status_type',
   getCheckoutDetailsByOrderId: '/citizen/get_check_out_details_by_order_id',
   getInvoiceDetails: '/citizen/get_invoice_details',
+  updatePaymentStatus: '/citizen/update_payment_status_v1',
 };
+
+export const PAYMENT_API_REDIRECT_URL =
+  'http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1';
 
 // Paytm Merchant Credentials Config (Staging Server)
 export const PAYTM_CONFIG = {
@@ -55,6 +59,12 @@ export const PAYTM_CONFIG = {
   IS_STAGING: true, // Staging Environment
   RESTRICT_APP_INVOKE: false,
   URL_SCHEME: 'paytmgOPUVm93533483285767',
+};
+
+export const VALIDATION = {
+  MOBILE_LENGTH: 10,
+  OTP_LENGTH: 6,
+  MOBILE_REGEX: /^[6-9]\d{9}$/,
 };
 
 export { SYSTEM_BASIC_AUTH };

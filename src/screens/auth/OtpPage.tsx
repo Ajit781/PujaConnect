@@ -32,7 +32,7 @@ import { Colors } from '../../constants/Colors';
 
 const { height } = Dimensions.get('window');
 const HEADER_HEIGHT = Math.max(height * 0.38, 270);
-const OTP_LENGTH = VALIDATION.OTP_LENGTH;
+const OTP_LENGTH = VALIDATION?.OTP_LENGTH || 6;
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Otp'>;

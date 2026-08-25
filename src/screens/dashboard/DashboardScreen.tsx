@@ -227,30 +227,42 @@ export default function DashboardScreen({ navigation }: any) {
   const blinkAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const a1 = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim1, { toValue: -20, duration: 3000, useNativeDriver: true }),
         Animated.timing(floatAnim1, { toValue: 0, duration: 3000, useNativeDriver: true })
       ])
-    ).start();
-    Animated.loop(
+    );
+    const a2 = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim2, { toValue: 15, duration: 3500, useNativeDriver: true }),
         Animated.timing(floatAnim2, { toValue: 0, duration: 3500, useNativeDriver: true })
       ])
-    ).start();
-    Animated.loop(
+    );
+    const a3 = Animated.loop(
       Animated.sequence([
         Animated.timing(opacityAnim, { toValue: 0.55, duration: 2500, useNativeDriver: true }),
         Animated.timing(opacityAnim, { toValue: 0.35, duration: 2500, useNativeDriver: true })
       ])
-    ).start();
-    Animated.loop(
+    );
+    const a4 = Animated.loop(
       Animated.sequence([
         Animated.timing(blinkAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
         Animated.timing(blinkAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true })
       ])
-    ).start();
+    );
+    
+    a1.start();
+    a2.start();
+    a3.start();
+    a4.start();
+    
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+      a4.stop();
+    };
   }, [floatAnim1, floatAnim2, opacityAnim, blinkAnim]);
 
 

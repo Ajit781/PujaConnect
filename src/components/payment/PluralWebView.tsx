@@ -1,3 +1,4 @@
+import { updatePaymentStatusApi } from '../../store/api/pujaApi';
 import React, { useRef, useState, useEffect } from 'react';
 import {
   Animated,
@@ -33,14 +34,15 @@ const CustomPaymentLoader = () => {
 
   useEffect(() => {
     // Spinner rotation
-    Animated.loop(
+    const spinnerAnim = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
         duration: 1000,
         easing: Easing.linear,
         useNativeDriver: true,
       })
-    ).start();
+    );
+    spinnerAnim.start();
 
     // Dots bouncing
     const createDotAnim = (anim: Animated.Value, delay: number) => {
@@ -53,9 +55,20 @@ const CustomPaymentLoader = () => {
       );
     };
 
-    createDotAnim(dot1Anim, 0).start();
-    createDotAnim(dot2Anim, 200).start();
-    createDotAnim(dot3Anim, 400).start();
+    const dot1 = createDotAnim(dot1Anim, 0);
+    const dot2 = createDotAnim(dot2Anim, 200);
+    const dot3 = createDotAnim(dot3Anim, 400);
+    
+    dot1.start();
+    dot2.start();
+    dot3.start();
+    
+    return () => {
+      spinnerAnim.stop();
+      dot1.stop();
+      dot2.stop();
+      dot3.stop();
+    };
   }, [rotateAnim, dot1Anim, dot2Anim, dot3Anim]);
 
   const spin = rotateAnim.interpolate({
@@ -246,7 +259,8 @@ export const PluralWebView: React.FC<PluralWebViewProps> = ({
         lowerUrl.includes('payment_success') ||
         lowerUrl.includes('txn_status=success') ||
         lowerUrl.includes('payment_status=success') ||
-        lowerUrl.includes('status=success'));
+        lowerUrl.includes('status=success') ||
+        lowerUrl.includes('status=20'));
 
     if (isSuccess) {
       console.log('[PluralWebView] ✅ SUCCESS DETECTED!');
