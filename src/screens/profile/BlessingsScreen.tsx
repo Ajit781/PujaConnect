@@ -34,11 +34,12 @@ import {
   IndianRupee,
   RefreshCw,
 } from 'lucide-react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 
+import LinearGradient from 'react-native-linear-gradient';
 import { Colors } from '../../constants/Colors';
 import { RootState } from '../../store';
+import { IMAGE_BASE_URL } from '../../config/apiConfig';
 import {
   useGetBookingSummaryQuery,
   useGetBookingSummaryCountQuery,
@@ -49,18 +50,20 @@ import { OrderSummary } from '../../service/api/dashboardService';
 import RescheduleModal from '../../components/orders/RescheduleModal';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
+import CancelPolicyModal from '../../components/orders/CancelPolicyModal';
 import InvoiceModal from '../../components/orders/InvoiceModal';
 import TopNavBar from '../../components/common/TopNavBar';
 import NoDataFound from '../../components/common/NoDataFound';
 import { useToast } from '../../context/ToastContext';
 import { formatTo12Hr } from '../../utils/timeUtils';
 
-type BookingPeriod = 'upcoming' | 'recent' | 'month';
+type BookingPeriod = 'upcoming' | 'recent' | 'month' | 'allUpcoming';
 
 const PERIODS: { label: string; value: BookingPeriod; description: string }[] = [
   { label: 'Next 7 days', value: 'upcoming', description: 'Scheduled soon' },
   { label: 'Last 7 days', value: 'recent', description: 'Recent history' },
   { label: 'This month', value: 'month', description: 'Monthly view' },
+  { label: 'Next all upcoming', value: 'allUpcoming', description: 'All scheduled' },
 ];
 
 const toYMD = (date: Date) => {
@@ -70,12 +73,15 @@ const toYMD = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getRange = (period: BookingPeriod) => {
+const getRange = (period: BookingPeriod): { from: string; to: string | null } => {
   const today = new Date();
   if (period === 'upcoming') {
     const end = new Date(today);
     end.setDate(end.getDate() + 6);
     return { from: toYMD(today), to: toYMD(end) };
+  }
+  if (period === 'allUpcoming') {
+    return { from: toYMD(today), to: null };
   }
   if (period === 'recent') {
     const start = new Date(today);
@@ -121,8 +127,10 @@ export default function BlessingsScreen({ navigation }: any) {
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
-  const formatDisplayDate = (dateStr: string | null) => {
-    if (!dateStr) return '21-08-2026';
+  const formatDisplayDate = (dateStr: string | null, isToDate: boolean = false) => {
+    if (!dateStr) {
+      return isToDate && activePeriod === 'allUpcoming' ? 'Last Date' : 'Select Date';
+    }
     try {
       const parts = dateStr.split('-');
       if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -172,8 +180,10 @@ export default function BlessingsScreen({ navigation }: any) {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedOrderData, setSelectedOrderData] = useState<OrderSummary | null>(null);
 
+  const [cancelPolicyVisible, setCancelPolicyVisible] = useState(false);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [selectedCancelOrderId, setSelectedCancelOrderId] = useState<string>('');
+  const [selectedCancelTitle, setSelectedCancelTitle] = useState<string>('');
 
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [currentInvoiceData, setCurrentInvoiceData] = useState<any>(null);
@@ -215,6 +225,11 @@ export default function BlessingsScreen({ navigation }: any) {
     { skip: !userId },
   );
 
+  React.useEffect(() => {
+    console.log('--- API PAYLOAD: getBookingSummary ---', { userId, pageNo: currentPage, pageSize, fromDate, toDate });
+    console.log('--- API RESPONSE (rawOrders) ---', rawOrders);
+  }, [userId, currentPage, pageSize, fromDate, toDate, rawOrders]);
+
   const parsedOrders: OrderSummary[] = useMemo(() => {
     if (!rawOrders) return [];
     if (typeof rawOrders === 'string') {
@@ -250,6 +265,8 @@ export default function BlessingsScreen({ navigation }: any) {
 
   const changePeriod = (period: BookingPeriod) => {
     const range = getRange(period);
+    console.log(`--- TAB CLICKED: ${period} ---`);
+    console.log(`--- SETTING FILTER: fromDate=${range.from}, toDate=${range.to} ---`);
     setActivePeriod(period);
     setFromDate(range.from);
     setToDate(range.to);
@@ -343,7 +360,7 @@ export default function BlessingsScreen({ navigation }: any) {
         {/* Primary CTA: + Book a puja */}
         <TouchableOpacity
           style={styles.bookPujaBtn}
-          onPress={() => navigation.navigate('AllPujas')}
+          onPress={() => navigation.navigate('HomeTab')}
           activeOpacity={0.8}
         >
           <Plus size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -353,7 +370,12 @@ export default function BlessingsScreen({ navigation }: any) {
         {/* Period Tabs & Search Filter Card Box (Matching Screenshot 1) */}
         <View style={styles.filterCardBox}>
           {/* 3 Period Selector Pills */}
-          <View style={styles.periodPillsRow}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.periodPillsRow}
+            contentContainerStyle={styles.periodPillsRowContent}
+          >
             {PERIODS.map((period) => {
               const active = activePeriod === period.value;
               return (
@@ -372,7 +394,7 @@ export default function BlessingsScreen({ navigation }: any) {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           <View style={styles.filterDivider} />
 
@@ -424,7 +446,7 @@ export default function BlessingsScreen({ navigation }: any) {
                     activeOpacity={0.7}
                   >
                     <Calendar size={16} color="#854D0E" />
-                    <Text style={styles.dateInputText}>{formatDisplayDate(fromDate)}</Text>
+                    <Text style={styles.dateInputText}>{formatDisplayDate(fromDate, false)}</Text>
                     <Calendar size={16} color="#854D0E" />
                   </TouchableOpacity>
                 </View>
@@ -437,7 +459,7 @@ export default function BlessingsScreen({ navigation }: any) {
                     activeOpacity={0.7}
                   >
                     <Calendar size={16} color="#854D0E" />
-                    <Text style={styles.dateInputText}>{formatDisplayDate(toDate)}</Text>
+                    <Text style={styles.dateInputText}>{formatDisplayDate(toDate, true)}</Text>
                     <Calendar size={16} color="#854D0E" />
                   </TouchableOpacity>
                 </View>
@@ -477,8 +499,9 @@ export default function BlessingsScreen({ navigation }: any) {
             const isExpanded = expandedCards[cardId] !== undefined ? Boolean(expandedCards[cardId]) : index === 0;
 
             const bookings = item.booking_details || [];
-            const firstBooking = bookings[0] || {};
-            const packages = firstBooking.package_details || [];
+            // Use item directly if booking_details is missing, to handle flattened API response
+            const firstBooking = bookings.length > 0 ? bookings[0] : item;
+            const packages = firstBooking.package_details || item.package_details || [];
             const firstPkg = packages[0] || {};
 
             const bookingNo = firstBooking.booking_no || item.booking_no || `PB-${item.order_reference?.replace('ORD-', '') || '20260819-00001054'}`;
@@ -493,7 +516,7 @@ export default function BlessingsScreen({ navigation }: any) {
 
             const pkgName = firstPkg.package_name || 'Silver Package';
             const pujaName = firstPkg.puja_name || 'Durga Puja';
-            const pujaIcon = firstPkg.puja_icon || 'http://115.187.62.16:8005/pujaupload/PujaIcon/durga_puja_home.png';
+            const pujaIcon = firstPkg.puja_icon || `${IMAGE_BASE_URL}/pujaupload/PujaIcon/durga_puja_home.png`;
 
             const prefDate = firstPkg.preferred_date ? formatDate(firstPkg.preferred_date) : '27 Aug 2026';
             const prefTime = firstPkg.preferred_time ? formatTo12Hr(firstPkg.preferred_time) : '9:00 AM';
@@ -642,6 +665,25 @@ export default function BlessingsScreen({ navigation }: any) {
                   </TouchableOpacity>
                 </View>
 
+                {firstBooking.booking_confirmation_code ? (
+                  <View style={{
+                    alignItems: 'center',
+                    marginBottom: 16,
+                  }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#B45309', marginBottom: 4, textTransform: 'uppercase' }}>
+                      {isBn ? 'আপনার বুকিং কনফার্মেশন কোড' : 'YOUR BOOKING CONFIRMATION CODE'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#4B5563', textAlign: 'center', marginBottom: 12 }}>
+                      {isBn ? 'পূজা শেষ হওয়ার পর আমাদের পুরোহিতকে এই কোডটি দিন' : 'Give this code to our priest after completing the puja'} 👇
+                    </Text>
+                    <View style={{ backgroundColor: '#F59E0B', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4, width: '90%', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 20, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 }}>
+                        {firstBooking.booking_confirmation_code}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
                 {/* ── 6. Bottom Action Button: Track Booking ── */}
                 <View style={styles.footerWrap}>
                   <TouchableOpacity
@@ -702,7 +744,7 @@ export default function BlessingsScreen({ navigation }: any) {
                 style={[
                   styles.pageBtnText,
                   currentPage >= Math.max(1, Math.ceil((totalCount || filteredOrders.length || 1) / pageSize)) &&
-                    styles.pageBtnTextDisabled,
+                  styles.pageBtnTextDisabled,
                 ]}
               >
                 Next
@@ -742,22 +784,30 @@ export default function BlessingsScreen({ navigation }: any) {
       />
 
       {/* Date Pickers */}
-      {showFromPicker && (
-        <DateTimePicker
-          value={fromDate ? new Date(fromDate) : new Date()}
-          mode="date"
-          display="default"
-          onChange={onFromDateChange}
-        />
-      )}
-      {showToPicker && (
-        <DateTimePicker
-          value={toDate ? new Date(toDate) : new Date()}
-          mode="date"
-          display="default"
-          onChange={onToDateChange}
-        />
-      )}
+      <CustomDatePickerModal
+        visible={showFromPicker}
+        mode="date"
+        initialDate={fromDate ? new Date(fromDate.replace(/-/g, '/')) : new Date()}
+        maximumDate={toDate ? new Date(toDate.replace(/-/g, '/')) : undefined}
+        onClose={() => setShowFromPicker(false)}
+        onSelectDate={(d) => {
+          const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          setFromDate(f);
+          setShowFromPicker(false);
+        }}
+      />
+      <CustomDatePickerModal
+        visible={showToPicker}
+        mode="date"
+        initialDate={toDate ? new Date(toDate.replace(/-/g, '/')) : new Date()}
+        minimumDate={fromDate ? new Date(fromDate.replace(/-/g, '/')) : undefined}
+        onClose={() => setShowToPicker(false)}
+        onSelectDate={(d) => {
+          const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          setToDate(f);
+          setShowToPicker(false);
+        }}
+      />
     </View>
   );
 }
@@ -835,11 +885,14 @@ const styles = StyleSheet.create({
   },
   periodPillsRow: {
     flexDirection: 'row',
+  },
+  periodPillsRowContent: {
     gap: 8,
+    paddingRight: 16,
   },
   periodPill: {
-    flex: 1,
-    paddingHorizontal: 10,
+    minWidth: 110,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',

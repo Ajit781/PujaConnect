@@ -74,7 +74,8 @@ export default function CancelOrderModal({
       console.log('Cancel Booking Error: ', e);
       onClose();
       setTimeout(() => {
-        Alert.alert('Error', e?.data?.message || 'Server error occurred');
+        const errMsg = e?.data?.message || (typeof e?.data === 'string' ? e.data : null) || e?.message || 'Server error occurred';
+        Alert.alert('Error', typeof errMsg === 'object' ? JSON.stringify(errMsg) : errMsg);
       }, 500);
     }
   };
@@ -116,11 +117,12 @@ export default function CancelOrderModal({
               placeholderTextColor={Colors.placeholder}
               multiline
               numberOfLines={4}
+              maxLength={250}
               value={reason}
-              onChangeText={setReason}
+              onChangeText={(txt) => setReason(txt.replace(/[^a-zA-Z0-9\s]/g, ''))}
               textAlignVertical="top"
             />
-            <Text style={styles.charCount}>{reason.length} characters</Text>
+            <Text style={styles.charCount}>{reason.length}/250 characters</Text>
           </View>
 
           <View style={styles.footer}>

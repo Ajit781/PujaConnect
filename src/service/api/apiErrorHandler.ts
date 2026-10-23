@@ -53,6 +53,8 @@ export function handleApiBusinessError(
   url?: string,
 ): boolean {
   if (data.status === 0) return true; // All good
+  if (url && url.includes('/book_puja_v1') && data.status === 1) return true; // Booking successful uses 1
+  if (data.message && data.message.toLowerCase().includes('order has been placed')) return true; // Catch any success messages that use non-zero status
   if (isAuthEndpoint(url)) return false; // Auth endpoints like Login handle their own specific messages
 
   if (data.message) {
@@ -68,20 +70,10 @@ export function handleApiBusinessError(
 export function handleApiHttpError(status: number | undefined, url?: string) {
   if (isAuthEndpoint(url)) return; // Auth screens handle their own errors
 
-  if (status === 401) {
-    _showAlert?.({
-      title: 'Session Expired',
-      message: 'Your session has expired. Please log in again to continue.',
-      buttons: [
-        {
-          text: 'OK',
-          onPress: () => _logout?.(),
-        },
-      ],
-    });
-    return;
-  }
-
   // All other error codes — show a clean, generic production message
-  _showErrorAlert?.('We were unable to complete your request.');
+  if (!status || status === 0) {
+    _showErrorAlert?.('Network. Please check your internet connection and try again.');
+  } else if (status !== 401) {
+    _showErrorAlert?.('We were unable to complete your request.');
+  }
 }

@@ -71,9 +71,8 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
     if (httpStatus === 401) {
       if (token) {
         // Token was sent but expired or invalid
-        console.log('Detected 401 with Token - Logging out via Context');
+        console.log('Detected 401 with Token - Clearing system token to trigger auto-refresh');
         await clearSystemToken();
-        api.dispatch(logout()); // Ensure state clears locally
         handleApiHttpError(401, url);
       } else {
         console.log('Detected 401 but NO token was sent. Skipping logout.');
@@ -85,8 +84,9 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
   } else if (result.data) {
     const resData = result.data as any;
     if (resData && typeof resData.status === 'number') {
+      const reqUrl = typeof args === 'string' ? args : args?.url;
       // Show CustomAlert globally if status isn't 0
-      handleApiBusinessError(resData);
+      handleApiBusinessError(resData, reqUrl);
     }
   }
 
@@ -120,6 +120,24 @@ export const pujaApi = createApi({
         return [];
       },
       providesTags: ['Tags'],
+    }),
+    getAllPurpose: builder.query<any[], void>({
+      query: () => ({
+        url: ENDPOINTS.getAllPurpose,
+        method: 'POST',
+      }),
+      transformResponse: (response: any) => {
+        console.log('--- API: getAllPurpose RESPONSE ---', response);
+        if (response && (response.status === 0 || response.status === '0')) {
+          const data =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+          console.log('--- API: getAllPurpose PARSED DATA ---', data);
+          return Array.isArray(data) ? data : [];
+        }
+        return [];
+      },
     }),
     getTagPujas: builder.query<
       PujaType[],
@@ -191,11 +209,13 @@ export const pujaApi = createApi({
         },
       }),
       transformResponse: (response: any) => {
+        console.log('=== [API] getPujaPackages RAW RESPONSE ===', JSON.stringify(response, null, 2));
         if (response && (response.status === 0 || response.status === '0')) {
           const data =
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
+          console.log('=== [API] getPujaPackages PARSED DATA ===', JSON.stringify(data, null, 2));
           return Array.isArray(data) ? data : [];
         }
         return [];
@@ -216,11 +236,13 @@ export const pujaApi = createApi({
         },
       }),
       transformResponse: (response: any) => {
+        console.log('=== [API] getPackageMaterials RAW RESPONSE ===', JSON.stringify(response, null, 2));
         if (response && (response.status === 0 || response.status === '0')) {
           const data =
             typeof response.data === 'string'
               ? JSON.parse(response.data)
               : response.data;
+          console.log('=== [API] getPackageMaterials PARSED DATA ===', JSON.stringify(data, null, 2));
           return Array.isArray(data) ? data : [];
         }
         return [];
@@ -398,6 +420,19 @@ export const pujaApi = createApi({
         skipGlobalLoader, // Passed to baseQuery
       }),
       invalidatesTags: ['Pujas'],
+      async onQueryStarted({ pujaId }, { dispatch, queryFulfilled }) {
+        // Optimistically update the favorites slice (local state for heart icons)
+        // action 1 = save, 5 = remove (as per user correction)
+        dispatch(toggleFavorite(pujaId.toString()));
+
+        try {
+          await queryFulfilled;
+        } catch {
+          // Revert if API fails
+          dispatch(toggleFavorite(pujaId.toString()));
+        }
+      },
+    }),
     updatePaymentStatus: builder.mutation<
       { status: number; message: string; data: any },
       {
@@ -428,19 +463,6 @@ export const pujaApi = createApi({
         return response;
       },
       invalidatesTags: ['Cart'],
-    }),
-      async onQueryStarted({ pujaId }, { dispatch, queryFulfilled }) {
-        // Optimistically update the favorites slice (local state for heart icons)
-        // action 1 = save, 5 = remove (as per user correction)
-        dispatch(toggleFavorite(pujaId.toString()));
-
-        try {
-          await queryFulfilled;
-        } catch {
-          // Revert if API fails
-          dispatch(toggleFavorite(pujaId.toString()));
-        }
-      },
     }),
     getUserDetails: builder.query<any, string | number>({
       query: userId => {
@@ -775,20 +797,24 @@ export const pujaApi = createApi({
         pageSize,
         fromDate,
         toDate,
-      }) => ({
-        url: ENDPOINTS.getOrderSummary,
-        method: 'POST',
-        body: {
-          enc_data: JSON.stringify({
-            citizen_id: userId,
-            order_status: status,
-            start_date: fromDate,
-            end_date: toDate,
-            page_no: pageNo,
-            limit: pageSize,
-          }),
-        },
-      }),
+      }) => {
+        const payload = {
+          citizen_id: userId,
+          order_status: status,
+          start_date: fromDate,
+          end_date: toDate,
+          page_no: pageNo,
+          limit: pageSize,
+        };
+        console.log('📦 [API: getOrderSummary PAYLOAD]:', payload);
+        return {
+          url: ENDPOINTS.getOrderSummary,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify(payload),
+          },
+        };
+      },
       transformResponse: (response: any) => {
         console.log('--- API: getOrderSummary RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
@@ -977,6 +1003,42 @@ export const pujaApi = createApi({
       }),
       invalidatesTags: ['Orders'],
     }),
+    getPujaPolicyDetails: builder.query<{ actual_refund_amount: string; policies: any[] }, { orderId: string | number; bookingId: string | number; packageId: string | number; loginUserId: string | number }>({
+      query: ({ orderId, bookingId, packageId, loginUserId }) => {
+        const payload = {
+          order_id: Number(orderId) || 0,
+          booking_id: Number(bookingId) || 0,
+          package_id: Number(packageId) || 0,
+          login_user_id: Number(loginUserId) || 0,
+        };
+        console.log('--- API PAYLOAD (getPujaPolicyDetails) ---', JSON.stringify(payload));
+        return {
+          url: ENDPOINTS.getPujaPolicyDetails,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify(payload),
+          },
+        };
+      },
+      transformResponse: (response: any) => {
+        console.log('--- API RESPONSE (getPujaPolicyDetails) ---', JSON.stringify(response));
+        if (response && (response.status === 0 || response.status === '0') && response.data) {
+          const parsedData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+          console.log('--- API PARSED DATA (getPujaPolicyDetails) ---', JSON.stringify(parsedData));
+          // Filter for Citizen policy (user_type_id: 90)
+          const citizenPolicy = parsedData.user_type_wise_policy_list?.find((p: any) => p.user_type_id === 90);
+          return {
+            actual_refund_amount: parsedData.actual_refund_amount || '0',
+            policies: citizenPolicy?.policy_list || [],
+          };
+        }
+        return { actual_refund_amount: '0', policies: [] };
+      },
+      transformErrorResponse: (error: any) => {
+        console.log('--- API ERROR (getPujaPolicyDetails) ---', JSON.stringify(error));
+        return error;
+      },
+    }),
     getAllPujaCount: builder.query<number, { userId: number; tagId: number }>({
       query: ({ userId, tagId }) => ({
         url: ENDPOINTS.getAllPujaCount,
@@ -1009,18 +1071,22 @@ export const pujaApi = createApi({
         toDate: string | null;
       }
     >({
-      query: ({ userId, status, paymentStatus, fromDate, toDate }) => ({
-        url: ENDPOINTS.getOrderSummaryCount,
-        method: 'POST',
-        body: {
-          enc_data: JSON.stringify({
-            citizen_id: userId,
-            order_status: status,
-            start_date: fromDate,
-            end_date: toDate,
-          }),
-        },
-      }),
+      query: ({ userId, status, paymentStatus, fromDate, toDate }) => {
+        const payload = {
+          citizen_id: userId,
+          order_status: status,
+          start_date: fromDate,
+          end_date: toDate,
+        };
+        console.log('📦 [API: getOrderSummaryCount PAYLOAD]:', payload);
+        return {
+          url: ENDPOINTS.getOrderSummaryCount,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify(payload),
+          },
+        };
+      },
       transformResponse: (response: any) => {
         console.log('--- API: getOrderSummaryCount RAW RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
@@ -1030,10 +1096,10 @@ export const pujaApi = createApi({
               : response.data;
           console.log('--- API: getOrderSummaryCount PARSED DATA ---', data);
           if (Array.isArray(data) && data.length > 0) {
-            return Number(data[0].total_puja_booking_summary_qty || data[0].total_booking_count || data[0].count || data.length);
+            return Number(data[0].total_order_count || data[0].total_puja_booking_summary_qty || data[0].total_booking_count || data[0].count || data.length);
           }
           if (typeof data === 'object' && data !== null) {
-            return Number(data.total_puja_booking_summary_qty || data.total_booking_count || data.count || 0);
+            return Number(data.total_order_count || data.total_puja_booking_summary_qty || data.total_booking_count || data.count || 0);
           }
           return Number(data) || 0;
         }
@@ -1166,15 +1232,16 @@ export const pujaApi = createApi({
       },
       providesTags: ['Addresses'],
     }),
-    getCheckoutDetailsByOrderId: builder.query<any, { orderId: number; ctznId: number }>({
+    getIntiatePaymentDetailsByOrderId: builder.query<any, { orderId: number; ctznId: number }>({
       query: ({ orderId, ctznId }) => {
         const enc_data = JSON.stringify({
           order_id: orderId,
           ctzn_id: ctznId,
+          is_mobile: true,
         });
-        console.log('--- API: getCheckoutDetailsByOrderId PAYLOAD ---', { enc_data });
+        console.log('--- API: getIntiatePaymentDetailsByOrderId PAYLOAD ---', { enc_data });
         return {
-          url: ENDPOINTS.getCheckoutDetailsByOrderId,
+          url: ENDPOINTS.getIntiatePaymentDetailsByOrderId,
           method: 'POST',
           body: {
             enc_data,
@@ -1182,7 +1249,7 @@ export const pujaApi = createApi({
         };
       },
       transformResponse: (response: any) => {
-        console.log('--- API: getCheckoutDetailsByOrderId RESPONSE ---', response);
+        console.log('--- API: getIntiatePaymentDetailsByOrderId RESPONSE ---', response);
         if (response && (response.status === 0 || response.status === '0')) {
           return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
         }
@@ -1190,22 +1257,32 @@ export const pujaApi = createApi({
       },
     }),
     getInvoiceDetails: builder.query<any, { order_id: number; booking_id: number }>({
-      query: ({ order_id, booking_id }) => ({
-        url: ENDPOINTS.getInvoiceDetails,
-        method: 'POST',
-        body: {
-          enc_data: JSON.stringify({
-            order_id,
-            booking_id,
-          }),
-        },
-      }),
+      query: ({ order_id, booking_id }) => {
+        const payload = {
+          order_id,
+          booking_id,
+        };
+        console.log('--- API PAYLOAD (getInvoiceDetails) ---', JSON.stringify(payload));
+        return {
+          url: ENDPOINTS.getInvoiceDetails,
+          method: 'POST',
+          body: {
+            enc_data: JSON.stringify(payload),
+          },
+        };
+      },
       transformResponse: (response: any) => {
-        console.log('--- API: getInvoiceDetails RESPONSE ---', response);
+        console.log('--- API RAW RESPONSE (getInvoiceDetails) ---', JSON.stringify(response));
         if (response && (response.status === 0 || response.status === '0')) {
-          return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+          const parsedData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+          console.log('--- API PARSED DATA (getInvoiceDetails) ---', JSON.stringify(parsedData));
+          return parsedData;
         }
         return null;
+      },
+      transformErrorResponse: (error: any) => {
+        console.log('--- API ERROR (getInvoiceDetails) ---', JSON.stringify(error));
+        return error;
       },
     }),
   }),
@@ -1213,6 +1290,7 @@ export const pujaApi = createApi({
 
 export const {
   useGetPujaTagsQuery,
+  useGetAllPurposeQuery,
   useGetTagPujasQuery,
   useGetPujaImagesQuery,
   useGetPujaPackagesQuery,
@@ -1241,6 +1319,7 @@ export const {
   useGetBookingDetailsQuery,
   useReschedulePujaMutation,
   useCancelPujaMutation,
+  useGetPujaPolicyDetailsQuery,
   useGetAllPujaCountQuery,
   useGetOrderSummaryCountQuery,
   useGetBookingSummaryCountQuery,
@@ -1248,7 +1327,7 @@ export const {
   useGetStateDetailsQuery,
   useGetStatusTypeQuery,
   useGetAddressesCountQuery,
-  useLazyGetCheckoutDetailsByOrderIdQuery,
+  useLazyGetIntiatePaymentDetailsByOrderIdQuery,
   useLazyGetInvoiceDetailsQuery,
 } = pujaApi;
 
@@ -1310,8 +1389,8 @@ export const updatePaymentStatusApi = async (payload: {
   };
 
   console.log('====================================================');
-  console.log('🚀 [API] Calling update_payment_status_v1:', url);
-  console.log('📦 [API] Payload:', JSON.stringify(requestBody, null, 2));
+  console.log('[API] Calling update_payment_status_v1:', url);
+  console.log('[API] Payload:', JSON.stringify(requestBody, null, 2));
   console.log('====================================================');
 
   try {
@@ -1326,10 +1405,10 @@ export const updatePaymentStatusApi = async (payload: {
     });
 
     const result = await response.json();
-    console.log('🟢 [API] update_payment_status_v1 Response:', result);
+    console.log('[API] update_payment_status_v1 Response:', result);
     return result;
   } catch (error) {
-    console.error('🔴 [API] update_payment_status_v1 Error:', error);
+    console.error('[API] update_payment_status_v1 Error:', error);
     throw error;
   }
 };

@@ -13,9 +13,10 @@ import {
   Switch,
   ScrollView,
   PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Geolocation from 'react-native-geolocation-service';
+import Geolocation from '@react-native-community/geolocation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
@@ -81,6 +82,66 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
   const [deliveryInstruction, setDeliveryInstruction] = useState(editAddr?.deliveryInstruction || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Search Location
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length > 2) {
+      setIsSearchingPlaces(true);
+      const timerId = setTimeout(async () => {
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=in&limit=5`;
+          const res = await fetch(url, {
+            headers: { 'User-Agent': 'PujaConnect App / 1.0' }
+          });
+          const json = await res.json();
+          if (json && json.length > 0) {
+            setSearchResults(json.map((item: any) => ({
+              id: item.place_id.toString(),
+              description: item.display_name,
+              lat: parseFloat(item.lat),
+              lng: parseFloat(item.lon),
+            })));
+          } else {
+            setSearchResults([]);
+          }
+        } catch (error) {
+          console.log('OSM API Error', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearchingPlaces(false);
+        }
+      }, 600);
+      return () => clearTimeout(timerId);
+    } else {
+      setSearchResults([]);
+      setIsSearchingPlaces(false);
+    }
+  }, [searchQuery]);
+
+  const mapRef = React.useRef<any>(null);
+
+  const handlePlaceSelect = (place: any) => {
+    console.log('=== SEARCH FETCHED LAT LONG ===', place.lat, place.lng);
+    setLatitude(place.lat.toFixed(6));
+    setLongitude(place.lng.toFixed(6));
+    setSearchQuery(place.description);
+    setSearchResults([]);
+    mapRef.current?.animateToRegion({
+      latitude: place.lat,
+      longitude: place.lng,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }, 1000);
+    showAlert({
+      title: isBn ? 'লোকেশন পাওয়া গেছে' : 'Location Captured',
+      message: `Lat: ${place.lat.toFixed(6)}, Lng: ${place.lng.toFixed(6)}`,
+    });
+  };
+
   // Delivery Phone option: 'mine' | 'custom'
   const myPhoneNumber =
     user?.mobile ||
@@ -120,67 +181,60 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
     }
   }, [stateName, statesList]);
 
-  const handleUseMyLocation = async () => {
+  const fetchLocationSilently = async () => {
     if (Platform.OS === 'android') {
       try {
         const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: isBn ? 'অবস্থান অনুমতি' : 'Location Permission',
-            message: isBn
-              ? 'আপনার সঠিক অবস্থান পেতে এই অ্যাপটির অবস্থানের অনুমতি প্রয়োজন'
-              : 'This app needs location permission to get your precise address.',
-            buttonNeutral: isBn ? 'পরে' : 'Ask Me Later',
-            buttonNegative: isBn ? 'বাতিল' : 'Cancel',
-            buttonPositive: isBn ? 'ঠিক আছে' : 'OK',
-          },
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          showErrorAlert(
-            isBn
-              ? 'অবস্থান অনুমতি ছাড়া ঠিকানা পাওয়া সম্ভব নয়'
-              : 'Location permission is required to fetch your position.',
-          );
+          console.warn('Location permission denied silently');
           return;
         }
       } catch (err) {
-        console.warn(err);
+        console.warn('Silent Location Permission Error:', err);
+        return;
       }
     }
-    dispatch(showLoader());
     Geolocation.getCurrentPosition(
       (position: any) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+        console.log('=== SILENT GPS FETCHED LAT LONG ===', lat, lng);
         setLatitude(lat.toFixed(6));
         setLongitude(lng.toFixed(6));
-        dispatch(hideLoader());
-        showAlert({
-          title: isBn ? 'লোকেশন পাওয়া গেছে' : 'Location Captured',
-          message: `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
-        });
       },
       (error: any) => {
-        dispatch(hideLoader());
-        console.error('Location Error:', error);
-        showErrorAlert(
-          isBn
-            ? 'আপনার অবস্থান পাওয়া যায়নি। GPS চালু আছে কিনা নিশ্চিত করুন।'
-            : 'Could not get your location. Please ensure GPS is enabled.',
-        );
+        console.warn('Silent Location Error:', error);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 10000 },
     );
   };
 
+  useEffect(() => {
+    // Only fetch automatically if we don't already have latitude/longitude
+    if (!latitude && !longitude) {
+      fetchLocationSilently();
+    }
+  }, []);
+
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!addressLine1.trim())
-      errs.addressLine1 = isBn
-        ? 'ফ্ল্যাট/বাড়ি নম্বর আবশ্যক'
-        : 'Flat/house number is required';
+    if (!label.trim()) {
+      errs.label = isBn ? 'ঠিকানার লেবেল আবশ্যক' : 'Address label is required';
+    } else if (label.length > 15) {
+      errs.label = isBn ? 'সর্বোচ্চ ১৫ অক্ষর' : 'Maximum 15 characters allowed';
+    }
 
-    if (!city.trim()) errs.city = isBn ? 'শহর আবশ্যক' : 'City is required';
+    if (!stateId) {
+      errs.stateId = isBn ? 'রাজ্য নির্বাচন করুন' : 'State is required';
+    }
+
+    if (!city.trim()) {
+      errs.city = isBn ? 'শহর আবশ্যক' : 'City is required';
+    } else if (city.length > 20) {
+      errs.city = isBn ? 'সর্বোচ্চ ২০ অক্ষর' : 'Maximum 20 characters allowed';
+    }
 
     if (!pincode.trim()) {
       errs.pincode = isBn ? 'পিনকোড আবশ্যক' : 'Pincode is required';
@@ -188,6 +242,26 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
       errs.pincode = isBn
         ? 'সঠিক ৬ সংখ্যার পিনকোড দিন'
         : 'Enter a valid 6-digit pincode';
+    }
+
+    if (!addressLine1.trim()) {
+      errs.addressLine1 = isBn
+        ? 'ফ্ল্যাট/বাড়ি নম্বর আবশ্যক'
+        : 'Flat/house number is required';
+    } else if (addressLine1.length > 30) {
+      errs.addressLine1 = isBn ? 'সর্বোচ্চ ৩০ অক্ষর' : 'Maximum 30 characters allowed';
+    }
+
+    if (streetArea && streetArea.length > 30) {
+      errs.streetArea = isBn ? 'সর্বোচ্চ ৩০ অক্ষর' : 'Maximum 30 characters allowed';
+    }
+
+    if (landmark && landmark.length > 20) {
+      errs.landmark = isBn ? 'সর্বোচ্চ ২০ অক্ষর' : 'Maximum 20 characters allowed';
+    }
+
+    if (deliveryInstruction && deliveryInstruction.length > 250) {
+      errs.deliveryInstruction = isBn ? 'সর্বোচ্চ ২৫০ অক্ষর' : 'Maximum 250 characters allowed';
     }
 
     if (phoneOption === 'custom') {
@@ -332,19 +406,7 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
         >
           <View style={styles.content}>
 
-            {/* Back Button Link */}
-            <TouchableOpacity
-              style={styles.backLink}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft size={18} color="#374151" style={{ marginRight: 6 }} />
-              <Text style={styles.backLinkTxt}>
-                {isBn ? 'ঠিকানায় ফিরে যান' : 'Back to addresses'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Header Title Section */}
+{/* Header Title Section */}
             <View style={styles.headerSection}>
               <Text style={styles.categoryBadge}>{isBn ? 'ঠিকানা বই' : 'ADDRESS BOOK'}</Text>
               <Text style={styles.pageTitle}>
@@ -353,8 +415,8 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                     ? 'ঠিকানা সম্পাদনা করুন'
                     : 'Edit address'
                   : isBn
-                    ? 'নতুন ঠিকানা যোগ করুন'
-                    : 'Add a new address'}
+                    ? 'নতুন ঠিকানা addressযোগ করুন'
+                    : 'Add a new '}
               </Text>
               <Text style={styles.pageSub}>
                 {isBn
@@ -408,12 +470,25 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                   {isBn ? 'ঠিকানার লেবেল' : 'Address label'} <Text style={styles.star}>*</Text>
                 </Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, errors.label ? styles.inputErr : null]}
                   placeholder={isBn ? 'যেমন: আমার বাড়ি বা মা-বাবার বাড়ি' : 'e.g. My home or Parents\' house'}
                   placeholderTextColor="#9CA3AF"
                   value={label}
-                  onChangeText={setLabel}
+                  onChangeText={txt => {
+                    setLabel(txt);
+                    if (errors.label) setErrors(prev => ({ ...prev, label: '' }));
+                  }}
+                  maxLength={15}
                 />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.label && <Text style={styles.errTxt}>⚠ {errors.label}</Text>}
+                    {label && label.length >= 15 && !errors.label && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{label ? label.length : 0}/15</Text>
+                </View>
               </View>
 
               {/* State */}
@@ -431,8 +506,10 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                     setStateId(val);
                     const found = statesList.find(s => s.state_id === val);
                     if (found) setStateName(found.state_name);
+                    if (errors.stateId) setErrors(prev => ({ ...prev, stateId: '' }));
                   }}
                   placeholder={isBn ? 'রাজ্য নির্বাচন করুন' : 'Select state'}
+                  error={errors.stateId}
                 />
               </View>
 
@@ -450,8 +527,17 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                     setCity(txt.replace(/[^a-zA-Z\s.-]/g, ''));
                     if (errors.city) setErrors(prev => ({ ...prev, city: '' }));
                   }}
+                  maxLength={20}
                 />
-                {errors.city ? <Text style={styles.errTxt}>⚠ {errors.city}</Text> : null}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.city && <Text style={styles.errTxt}>⚠ {errors.city}</Text>}
+                    {city && city.length >= 20 && !errors.city && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{city ? city.length : 0}/20</Text>
+                </View>
               </View>
 
               {/* Pincode */}
@@ -471,7 +557,12 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                     if (errors.pincode) setErrors(prev => ({ ...prev, pincode: '' }));
                   }}
                 />
-                {errors.pincode ? <Text style={styles.errTxt}>⚠ {errors.pincode}</Text> : null}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.pincode && <Text style={styles.errTxt}>⚠ {errors.pincode}</Text>}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{pincode ? pincode.length : 0}/6</Text>
+                </View>
               </View>
 
               {/* Flat, house or building */}
@@ -480,45 +571,80 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                   {isBn ? 'ফ্ল্যাট, বাড়ি বা বিল্ডিং' : 'Flat, house or building'} <Text style={styles.star}>*</Text>
                 </Text>
                 <TextInput
-                  style={[styles.textInputMultiline, errors.addressLine1 ? styles.inputErr : null]}
+                  style={[styles.textInput, errors.addressLine1 ? styles.inputErr : null]}
                   placeholder={isBn ? 'ফ্ল্যাট / বাড়ি নম্বর এবং বিল্ডিং নাম' : 'Flat / house number and building name'}
                   placeholderTextColor="#9CA3AF"
                   value={addressLine1}
-                  multiline={true}
-                  numberOfLines={3}
                   onChangeText={txt => {
-                    setAddressLine1(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
+                    setAddressLine1(txt.replace(/[^a-zA-Z0-9\s,.#\-\/]/g, ''));
                     if (errors.addressLine1) setErrors(prev => ({ ...prev, addressLine1: '' }));
                   }}
+                  maxLength={30}
                 />
-                {errors.addressLine1 ? <Text style={styles.errTxt}>⚠ {errors.addressLine1}</Text> : null}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.addressLine1 && <Text style={styles.errTxt}>⚠ {errors.addressLine1}</Text>}
+                    {addressLine1 && addressLine1.length >= 30 && !errors.addressLine1 && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{addressLine1 ? addressLine1.length : 0}/30</Text>
+                </View>
               </View>
 
               {/* Street / area */}
               <View style={styles.fieldBlock}>
                 <Text style={styles.labelTitle}>{isBn ? 'রাস্তা / এলাকা' : 'Street / area'}</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, errors.streetArea ? styles.inputErr : null]}
                   placeholder={isBn ? 'রাস্তা, লোকালিটি বা এলাকা' : 'Street, locality or area'}
                   placeholderTextColor="#9CA3AF"
                   value={streetArea}
-                  onChangeText={txt => setStreetArea(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))}
+                  onChangeText={txt => {
+                    setStreetArea(txt.replace(/[^a-zA-Z0-9\s,.#\-\/]/g, ''));
+                    if (errors.streetArea) setErrors(prev => ({ ...prev, streetArea: '' }));
+                  }}
+                  maxLength={30}
                 />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.streetArea && <Text style={styles.errTxt}>⚠ {errors.streetArea}</Text>}
+                    {streetArea && streetArea.length >= 30 && !errors.streetArea && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{streetArea ? streetArea.length : 0}/30</Text>
+                </View>
               </View>
 
               {/* Landmark */}
               <View style={styles.fieldBlock}>
-                <Text style={styles.labelTitle}>{isBn ? 'ল্যান্ডমার্ক' : 'Landmark'}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.labelTitle}>{isBn ? 'ল্যান্ডমার্ক' : 'Landmark'}</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600' }}>{landmark ? landmark.length : 0}/20</Text>
+                </View>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, errors.landmark ? styles.inputErr : null]}
                   placeholder={isBn ? 'কাছাকাছি ল্যান্ডমার্ক' : 'Nearby landmark'}
                   placeholderTextColor="#9CA3AF"
                   value={landmark}
-                  onChangeText={txt => setLandmark(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''))}
+                  onChangeText={txt => {
+                    setLandmark(txt.replace(/[^a-zA-Z0-9\s,.#\-/]/g, ''));
+                    if (errors.landmark) setErrors(p => ({ ...p, landmark: '' }));
+                  }}
+                  maxLength={20}
                 />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.landmark && <Text style={styles.errTxt}>⚠ {errors.landmark}</Text>}
+                    {landmark && landmark.length >= 20 && !errors.landmark && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                </View>
               </View>
-
-              {/* Location Coordinates Box */}
+              {/* 
+              // Location Coordinates Box (Temporarily Disabled - Silent fetch in background)
               <View style={styles.locationBox}>
                 <View style={styles.locationHeaderRow}>
                   <View style={styles.locIconWrap}>
@@ -528,29 +654,82 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                     <Text style={styles.locTitle}>{isBn ? 'অবস্থান স্থানাঙ্ক' : 'Location coordinates'}</Text>
                     <Text style={styles.locSub}>
                       {isBn
-                        ? 'ঐচ্ছিক। পরিষেবা দল যাতে সহজে পৌঁছাতে পারে তার জন্য আপনার স্থানাঙ্ক ক্যাপচার করুন।'
-                        : 'Optional. Capture your current coordinates to help the service team find the location.'}
+                        ? 'ঐচ্ছিক। পরিষেবা দল যাতে সহজে পৌঁছাতে পারে তার জন্য আপনার স্থানাঙ্ক ক্যাপচার করুন বা খুঁজুন।'
+                        : 'Optional. Search a location or capture your current coordinates to help the service team.'}
                     </Text>
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.captureBtn}
-                  onPress={handleUseMyLocation}
-                  activeOpacity={0.8}
-                >
-                  <Navigation size={16} color={BRAND_ORANGE} style={{ marginRight: 6 }} />
-                  <Text style={styles.captureBtnTxt}>
-                    {isBn ? 'অবস্থান ক্যাপচার করুন' : 'Capture location'}
-                  </Text>
-                </TouchableOpacity>
+                // SEARCH LOCATION
+                <View style={{ marginBottom: 12 }}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={isBn ? 'এলাকা বা ল্যান্ডমার্ক খুঁজুন' : 'Search area or landmark...'}
+                    placeholderTextColor="#9CA3AF"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  {isSearchingPlaces && (
+                    <ActivityIndicator size="small" color={BRAND_ORANGE} style={{ marginTop: 8 }} />
+                  )}
+                  {searchResults.length > 0 && (
+                    <View style={styles.searchResultsContainer}>
+                      {searchResults.map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={styles.searchResultItem}
+                          onPress={() => handlePlaceSelect(item)}
+                        >
+                          <Text style={styles.searchResultText}>{item.description}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
 
-                {latitude && longitude ? (
-                  <Text style={styles.coordsCapturedTxt}>
-                    ✓ Lat: {latitude}, Lng: {longitude}
-                  </Text>
-                ) : null}
+                <View style={styles.mapContainer}>
+                  <MapView
+                    ref={mapRef}
+                    provider={PROVIDER_GOOGLE}
+                    style={styles.map}
+                    showsUserLocation={true}
+                    showsMyLocationButton={false}
+                    region={{
+                      latitude: latitude ? parseFloat(latitude) : 22.5726,
+                      longitude: longitude ? parseFloat(longitude) : 88.3639,
+                      latitudeDelta: latitude ? 0.005 : 0.5,
+                      longitudeDelta: longitude ? 0.005 : 0.5,
+                    }}
+                  >
+                    {latitude && longitude ? (
+                      <Marker
+                        coordinate={{
+                          latitude: parseFloat(latitude),
+                          longitude: parseFloat(longitude),
+                        }}
+                        title={label || type}
+                        description={addressLine1 || streetArea}
+                        pinColor={BRAND_ORANGE}
+                      />
+                    ) : null}
+                  </MapView>
+
+                  <TouchableOpacity
+                    style={styles.floatingLocateBtn}
+                    // onPress={handleUseMyLocation}
+                    activeOpacity={0.9}
+                  >
+                    <Navigation size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+
+                  {latitude && longitude ? (
+                    <Text style={[styles.coordsCapturedTxt, { textAlign: 'center', marginTop: 4, marginBottom: 8 }]}>
+                      ✓ Lat: {latitude}, Lng: {longitude}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
+              */}
 
               {/* Delivery instructions */}
               <View style={styles.fieldBlock}>
@@ -559,18 +738,27 @@ export default function AddEditAddressScreen({ navigation, route }: any) {
                   <Text style={styles.optionalTag}>{isBn ? 'ঐচ্ছিক' : 'Optional'}</Text>
                 </View>
                 <TextInput
-                  style={styles.textInputMultiline}
+                  style={[styles.textInputMultiline, errors.deliveryInstruction ? styles.inputErr : null]}
                   placeholder={isBn ? 'গেটের বিবরণ, দিকনির্দেশ বা কখন কল করবেন' : 'Gate details, directions, or when to call'}
                   placeholderTextColor="#9CA3AF"
                   value={deliveryInstruction}
                   multiline={true}
                   numberOfLines={4}
-                  maxLength={300}
-                  onChangeText={setDeliveryInstruction}
+                  maxLength={250}
+                  onChangeText={txt => {
+                    setDeliveryInstruction(txt);
+                    if (errors.deliveryInstruction) setErrors(prev => ({ ...prev, deliveryInstruction: '' }));
+                  }}
                 />
-                <Text style={styles.charCounter}>
-                  {deliveryInstruction.length} / 300 {isBn ? 'অক্ষর' : 'characters'}
-                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    {errors.deliveryInstruction && <Text style={styles.errTxt}>⚠ {errors.deliveryInstruction}</Text>}
+                    {deliveryInstruction && deliveryInstruction.length >= 250 && !errors.deliveryInstruction && (
+                      <Text style={styles.errTxt}>⚠ Maximum limit reached</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', alignSelf: 'flex-start' }}>{deliveryInstruction ? deliveryInstruction.length : 0}/250</Text>
+                </View>
               </View>
 
               {/* Delivery phone */}
@@ -787,7 +975,7 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  inputErr: { borderColor: Colors.red, backgroundColor: '#FEF2F2' },
+  inputErr: { borderColor: '#DC2626', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
   errTxt: { fontSize: 11, color: Colors.red, marginTop: 4, fontWeight: '500' },
   charCounter: { fontSize: 11, color: '#9CA3AF', textAlign: 'right', marginTop: 4 },
 
@@ -811,17 +999,22 @@ const styles = StyleSheet.create({
   },
   locTitle: { fontSize: 14, fontWeight: '800', color: '#1F2937', marginBottom: 4 },
   locSub: { fontSize: 12, color: '#6B7280', lineHeight: 17 },
-  captureBtn: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    borderRadius: 10,
-    paddingVertical: 12,
-    flexDirection: 'row',
+  floatingLocateBtn: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: BRAND_ORANGE,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
-  captureBtnTxt: { fontSize: 14, fontWeight: '800', color: BRAND_ORANGE },
   coordsCapturedTxt: { fontSize: 12, color: '#059669', fontWeight: '700', marginTop: 8, textAlign: 'center' },
 
   // Phone Selector Cards
@@ -896,4 +1089,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+
+  // Search Results
+  searchResultsContainer: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginTop: 4,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  searchResultItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  searchResultText: {
+    fontSize: 13,
+    color: '#374151',
+  },
+
+  // Map Container
+  mapContainer: {
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  map: {
+    width: '100%',
+    height: 220,
+  },
 });

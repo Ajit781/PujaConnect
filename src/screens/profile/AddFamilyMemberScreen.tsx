@@ -104,6 +104,7 @@ function Field({
   onPress,
   icon,
   editable = true,
+  maxLength,
 }: {
   label: string;
   required?: boolean;
@@ -117,6 +118,7 @@ function Field({
   onPress?: () => void;
   icon?: React.ReactNode;
   editable?: boolean;
+  maxLength?: number;
 }) {
   const hasErr = !!error;
   return (
@@ -125,12 +127,13 @@ function Field({
         {label}
         {required && <Text style={{ color: '#DC2626' }}> *</Text>}
       </Text>
-      <TouchableOpacity activeOpacity={onPress ? 0.75 : 1} onPress={onPress}>
+      <TouchableOpacity activeOpacity={onPress ? 0.75 : 1} onPress={onPress} disabled={!onPress && !editable}>
         <View
           style={[
             styles.inputWrap,
             hasErr && styles.inputWrapErr,
             !!onPress && { backgroundColor: '#FAFAFA' },
+            (!editable && !onPress) && { backgroundColor: '#F3F4F6' },
           ]}>
           {icon && <View style={{ marginRight: 8 }}>{icon}</View>}
           {prefix ? (
@@ -139,19 +142,34 @@ function Field({
             </View>
           ) : null}
           <TextInput
-            style={[styles.input, prefix && { paddingLeft: 8 }]}
+            style={[styles.input, prefix && { paddingLeft: 8 }, (!editable && !onPress) && { color: '#9CA3AF' }]}
             placeholder={placeholder}
             placeholderTextColor="#9CA3AF"
             value={value}
             onChangeText={onChange}
             keyboardType={keyboardType}
             editable={editable && !onPress}
+            maxLength={maxLength}
             pointerEvents={onPress ? 'none' : 'auto'}
           />
         </View>
       </TouchableOpacity>
-      {hasErr && <Text style={styles.errText}>⚠ {error}</Text>}
-      {hint && !hasErr && <Text style={styles.hintText}>{hint}</Text>}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <View style={{ flex: 1 }}>
+          {hasErr && <Text style={[styles.errText, { marginTop: 0 }]}>⚠ {error}</Text>}
+          {maxLength && value && value.length >= maxLength && !hasErr && (
+            <Text style={[styles.errText, { marginTop: 0 }]}>⚠ Maximum limit reached</Text>
+          )}
+          {hint && !hasErr && (!maxLength || !value || value.length < maxLength) && (
+            <Text style={[styles.hintText, { marginTop: 0 }]}>{hint}</Text>
+          )}
+        </View>
+        {maxLength && (
+          <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', textAlign: 'right' }}>
+            {value ? value.length : 0}/{maxLength}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -160,6 +178,8 @@ function Field({
 export default function AddFamilyMemberScreen({ navigation, route }: any) {
   const existingRelative = route?.params?.relative;
   const isEditMode = !!existingRelative;
+  const maxDobDate = new Date();
+  maxDobDate.setFullYear(maxDobDate.getFullYear() - 18);
 
   const insets = useSafeAreaInsets();
   const { i18n, t } = useTranslation();
@@ -173,6 +193,8 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
   const { data: gotraList = [] } = useGetGotraDetailsQuery();
 
   // Form state
+  const initialFullName = existingRelative?.fullName || `${existingRelative?.firstName || ''} ${existingRelative?.lastName || ''}`.trim();
+  const [fullName, setFullName] = useState(initialFullName);
   const [firstName, setFirstName] = useState(existingRelative?.firstName || '');
   const [lastName, setLastName] = useState(existingRelative?.lastName || '');
   const [gender, setGender] = useState<Gender>(existingRelative?.gender || 'Male');
@@ -196,12 +218,15 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
 
-    if (!firstName.trim())
-      errs.firstName = isBn ? 'প্রথম নাম আবশ্যক' : 'First name is required';
-    else if (firstName.trim().length < 2)
-      errs.firstName = isBn ? 'অন্তত ২ অক্ষর দিন' : 'At least 2 characters required';
-    else if (!isAlphaText(firstName))
-      errs.firstName = isBn ? 'শুধু অক্ষর ব্যবহার করুন' : 'Only letters allowed';
+    const nameToValidate = (fullName.trim() || `${firstName} ${lastName}`.trim()).trim();
+    if (!nameToValidate)
+      errs.fullName = isBn ? 'পুরো নাম আবশ্যক' : 'Full name is required';
+    else if (nameToValidate.length < 2)
+      errs.fullName = isBn ? 'অন্তত ২ অক্ষর দিন' : 'At least 2 characters required';
+    else if (nameToValidate.length > 25)
+      errs.fullName = isBn ? 'সর্বোচ্চ ২৫টি অক্ষর দিন' : 'Maximum 25 characters allowed';
+    else if (!isAlphaText(nameToValidate))
+      errs.fullName = isBn ? 'শুধু অক্ষর ব্যবহার করুন' : 'Only letters allowed';
 
     if (!dob.trim())
       errs.dob = isBn ? 'জন্ম তারিখ আবশ্যক' : 'Date of birth is required';
@@ -214,13 +239,17 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
 
     if (!birthPlace.trim())
       errs.birthPlace = isBn ? 'জন্মস্থান আবশ্যক' : 'Birth place is required';
+    else if (birthPlace.trim().length < 2)
+      errs.birthPlace = isBn ? 'অন্তত ২ অক্ষর দিন' : 'At least 2 characters required';
+    else if (!isAlphaText(birthPlace))
+      errs.birthPlace = isBn ? 'শুধু অক্ষর ব্যবহার করুন' : 'Only letters allowed';
 
     if (!relationTypeId)
       errs.relationType = isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Please select a relation';
 
     if (!phone.trim())
       errs.phone = isBn ? 'ফোন নম্বর আবশ্যক' : 'Phone number is required';
-    else if (!/^\d{10}$/.test(phone.trim()))
+    else if (!/^[6-9]\d{9}$/.test(phone.trim()))
       errs.phone = isBn ? 'সঠিক ১০ সংখ্যার নম্বর দিন' : 'Enter a valid 10-digit number';
 
     setErrors(errs);
@@ -242,11 +271,12 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
       const relGenderNum = gender === 'Male' ? 1 : gender === 'Female' ? 2 : 3;
       const relDbIdForApi = existingRelative?.dbId ?? 0;
 
+      const finalFullName = (fullName.trim() || `${firstName.trim()} ${lastName.trim()}`).trim();
       const payload = [
         {
           relative_auth_id: relDbIdForApi,
           main_auth_id: user?.user_id || 0,
-          full_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+          full_name: finalFullName,
           date_of_birth: formatOnlyDate(dob),
           time_of_birth: dontKnowTime ? '' : formatOnlyTime(timeOfBirth),
           place_of_birth: birthPlace.trim(),
@@ -275,8 +305,8 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
                 ? 'পরিবারের সদস্য আপডেট হয়েছে'
                 : 'Family member updated successfully'
               : isBn
-              ? 'পরিবারের সদস্য যোগ হয়েছে'
-              : 'Family member added successfully'),
+                ? 'পরিবারের সদস্য যোগ হয়েছে'
+                : 'Family member added successfully'),
           buttons: [{ text: 'OK', onPress: () => navigation.goBack() }],
         });
       } else {
@@ -306,14 +336,6 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-
-          {/* Back link */}
-          <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={16} color={BRAND_ORANGE} />
-            <Text style={styles.backText}>
-              {isBn ? 'প্রোফাইলে ফিরুন' : 'Back to profile'}
-            </Text>
-          </TouchableOpacity>
 
           {/* Page header */}
           <Text style={styles.badge}>{isBn ? 'আমার অ্যাকাউন্ট' : 'MY ACCOUNT'}</Text>
@@ -349,28 +371,22 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
 
             <View style={styles.divider} />
 
-            {/* First Name */}
+            {/* Full Name */}
             <Field
-              label={isBn ? 'প্রথম নাম' : 'FIRST NAME'}
+              label={isBn ? 'পুরো নাম' : 'FULL NAME'}
               required
-              value={firstName}
+              value={fullName}
               onChange={txt => {
-                setFirstName(txt.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, ''));
-                if (errors.firstName) setErrors(p => ({ ...p, firstName: '' }));
+                const alphaOnly = txt.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, '');
+                setFullName(alphaOnly);
+                const parts = alphaOnly.split(' ');
+                setFirstName(parts[0] || '');
+                setLastName(parts.slice(1).join(' ') || '');
+                if (errors.fullName) setErrors(p => ({ ...p, fullName: '' }));
               }}
-              placeholder={isBn ? 'প্রথম নাম লিখুন' : 'Enter first name'}
-              error={errors.firstName}
-            />
-
-            {/* Last Name */}
-            <Field
-              label={isBn ? 'শেষ নাম' : 'LAST NAME'}
-              value={lastName}
-              onChange={txt =>
-                setLastName(txt.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, ''))
-              }
-              placeholder={isBn ? 'শেষ নাম লিখুন' : 'Enter last name'}
-              error={errors.lastName}
+              placeholder={isBn ? 'পুরো নাম লিখুন' : 'Enter full name'}
+              maxLength={25}
+              error={errors.fullName}
             />
 
             {/* Gender */}
@@ -404,7 +420,7 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
               label={isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}
               required
               value={dob}
-              onChange={() => {}}
+              onChange={() => { }}
               placeholder={isBn ? 'জন্ম তারিখ বেছে নিন' : 'Select date of birth'}
               error={errors.dob}
               onPress={() => setShowDatePicker(true)}
@@ -416,7 +432,7 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
               label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
               required
               value={timeOfBirth}
-              onChange={() => {}}
+              onChange={() => { }}
               placeholder={isBn ? 'জন্ম সময় বেছে নিন' : 'Select time of birth'}
               error={dontKnowTime ? '' : errors.timeOfBirth}
               onPress={dontKnowTime ? undefined : () => setShowTimePicker(true)}
@@ -429,7 +445,6 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
               style={styles.checkRow}
               onPress={() => {
                 setDontKnowTime(v => !v);
-                if (!dontKnowTime) setTimeOfBirth('');
                 setErrors(p => ({ ...p, timeOfBirth: '' }));
               }}>
               <View style={[styles.checkbox, dontKnowTime && styles.checkboxOn]}>
@@ -461,8 +476,8 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
                   setErrors(p => ({ ...p, gotra: '' }));
                 }}
                 placeholder={isBn ? 'গোত্র নির্বাচন করুন' : 'Select gotra'}
+                error={errors.gotra}
               />
-              {errors.gotra ? <Text style={styles.errText}>⚠ {errors.gotra}</Text> : null}
             </View>
 
             {/* Birth Place */}
@@ -471,10 +486,12 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
               required
               value={birthPlace}
               onChange={txt => {
-                setBirthPlace(txt);
+                const alphaOnly = txt.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, '');
+                setBirthPlace(alphaOnly);
                 if (errors.birthPlace) setErrors(p => ({ ...p, birthPlace: '' }));
               }}
               placeholder={isBn ? 'জন্মস্থান লিখুন' : 'Enter birth place'}
+              maxLength={250}
               error={errors.birthPlace}
             />
 
@@ -492,10 +509,8 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
                   setErrors(p => ({ ...p, relationType: '' }));
                 }}
                 placeholder={isBn ? 'সম্পর্ক নির্বাচন করুন' : 'Select Relation'}
+                error={errors.relationType}
               />
-              {errors.relationType ? (
-                <Text style={styles.errText}>⚠ {errors.relationType}</Text>
-              ) : null}
             </View>
 
             {/* Phone */}
@@ -511,6 +526,7 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
               error={errors.phone}
               keyboardType="phone-pad"
               prefix="+91"
+              maxLength={10}
               hint={
                 isBn
                   ? 'পরিবারের সদস্যের ১০ সংখ্যার মোবাইল নম্বর দিন।'
@@ -558,6 +574,8 @@ export default function AddFamilyMemberScreen({ navigation, route }: any) {
       <CustomDatePickerModal
         mode="date"
         visible={showDatePicker}
+        maximumDate={maxDobDate}
+        initialDate={dob ? (function (d) { if (!d) return maxDobDate; const p = d.split('/'); return p.length === 3 ? new Date(p[2], p[1] - 1, p[0]) : maxDobDate; })(dob) : maxDobDate}
         onClose={() => setShowDatePicker(false)}
         onSelect={(date: Date) => {
           const dd = date.getDate().toString().padStart(2, '0');

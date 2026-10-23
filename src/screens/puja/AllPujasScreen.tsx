@@ -207,8 +207,8 @@ export default function AllPujasScreen({ navigation, route }: any) {
         pMinPrice === pMaxPrice
           ? `₹${pMinPrice.toLocaleString('en-IN')}`
           : `₹${pMinPrice.toLocaleString('en-IN')}-₹${pMaxPrice.toLocaleString(
-              'en-IN',
-            )}`;
+            'en-IN',
+          )}`;
       const pDuration =
         puja.duration ||
         (puja.puja_duration ? puja.puja_duration.toString() : '');
@@ -320,8 +320,8 @@ export default function AllPujasScreen({ navigation, route }: any) {
                     ? 'উপলব্ধ নেই'
                     : 'Not Available'
                   : isBn
-                  ? 'প্যাকেজ দেখুন →'
-                  : 'View packages →'}
+                    ? 'প্যাকেজ দেখুন →'
+                    : 'View packages →'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -518,12 +518,12 @@ export default function AllPujasScreen({ navigation, route }: any) {
                       {isBn && tag.tag_value === 'All'
                         ? 'সব'
                         : isBn && tag.tag_value === 'Featured'
-                        ? 'বৈশিষ্ট্যযুক্ত'
-                        : isBn && tag.tag_value === 'Favourite'
-                        ? 'প্রিয়'
-                        : isBn && tag.tag_value === 'Popular'
-                        ? 'জনপ্রিয়'
-                        : tag.tag_value}
+                          ? 'বৈশিষ্ট্যযুক্ত'
+                          : isBn && tag.tag_value === 'Favourite'
+                            ? 'প্রিয়'
+                            : isBn && tag.tag_value === 'Popular'
+                              ? 'জনপ্রিয়'
+                              : tag.tag_value}
                     </Text>
                     {selectedTagId === tag.tag_id && (
                       <Text style={styles.checkMark}>✓</Text>

@@ -140,6 +140,7 @@ export default function LoginPage({ navigation }: Props) {
   // Step 2 state
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState<string[]>(Array(VALIDATION.OTP_LENGTH).fill(''));
+  const [activeOtpIndex, setActiveOtpIndex] = useState<number>(0);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
@@ -349,14 +350,7 @@ export default function LoginPage({ navigation }: Props) {
           <View />
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {/* Translate Button */}
-            <TouchableOpacity
-              style={styles.langBtn}
-              onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'bn' : 'en')}
-            >
-              <TranslatorIcon />
-              <Text style={styles.langBtnText}>{i18n.language === 'en' ? 'বাংলা' : 'English'}</Text>
-            </TouchableOpacity>
+
 
             {/* Orange Pujora Droplet logo */}
             <View style={styles.logoBadge}>
@@ -383,7 +377,7 @@ export default function LoginPage({ navigation }: Props) {
                 <ShieldCheckIcon color="#FFF" size={20} />
               </View>
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.secureBannerTitle}>{isBn ? 'নিরাপদ পুজোর অ্যাক্সেস' : 'Secure Pujora access'}</Text>
+                <Text style={styles.secureBannerTitle}>{isBn ? 'নিরাপদ শুভমুহূর্ত অ্যাক্সেস' : 'Secure SUBHMUHURAT access'}</Text>
                 <Text style={styles.secureBannerSub}>{isBn ? 'পাসওয়ার্ড-মুক্ত ওটিপি যাচাইকরণ' : 'Password-free OTP verification'}</Text>
               </View>
             </View>
@@ -420,7 +414,7 @@ export default function LoginPage({ navigation }: Props) {
                 <>
                   <View style={styles.formBadge}>
                     <LockIcon color="#c2410c" size={12} />
-                    <Text style={styles.formBadgeText}>{isBn ? 'পুজোর অ্যাক্সেস' : 'ACCESS PUJORA'}</Text>
+                    <Text style={styles.formBadgeText}>{isBn ? 'শুভমুহূর্ত অ্যাক্সেস' : 'ACCESS SUBHMUHURAT'}</Text>
                   </View>
 
                   <Text style={styles.formTitle}>{isBn ? 'স্বাগতম' : 'Welcome'}</Text>
@@ -488,7 +482,7 @@ export default function LoginPage({ navigation }: Props) {
                 <>
                   <View style={styles.formBadge}>
                     <LockIcon color="#c2410c" size={12} />
-                    <Text style={styles.formBadgeText}>{isBn ? 'পুজোর অ্যাক্সেস' : 'ACCESS PUJORA'}</Text>
+                    <Text style={styles.formBadgeText}>{isBn ? 'শুভমুহূর্ত অ্যাক্সেস' : 'ACCESS SUBHMUHURAT'}</Text>
                   </View>
 
                   <Text style={styles.formTitle}>{isBn ? 'ওটিপি যাচাই করুন' : 'Verify OTP'}</Text>
@@ -517,11 +511,17 @@ export default function LoginPage({ navigation }: Props) {
                         <TextInput
                           key={idx}
                           ref={ref => { otpRefs.current[idx] = ref; }}
-                          style={[styles.otpBox, otp[idx] ? styles.otpBoxFilled : null]}
+                          style={[
+                            styles.otpBox, 
+                            otp[idx] ? styles.otpBoxFilled : null,
+                            activeOtpIndex === idx ? styles.otpBoxFocused : null
+                          ]}
                           placeholder=""
                           keyboardType="numeric"
                           maxLength={1}
                           value={otp[idx]}
+                          autoFocus={idx === 0}
+                          onFocus={() => setActiveOtpIndex(idx)}
                           onChangeText={text => handleOtpChange(text, idx)}
                           onKeyPress={e => handleOtpKeyPress(e, idx)}
                           textAlign="center"
@@ -541,7 +541,7 @@ export default function LoginPage({ navigation }: Props) {
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
                       <Text style={styles.primaryBtnText}>
-                        {isBn ? 'যাচাই ও অ্যাক্সেস করুন →' : 'Verify & Access Pujora →'}
+                        {isBn ? 'যাচাই ও অ্যাক্সেস করুন →' : 'Verify & Access SUBHMUHURAT →'}
                       </Text>
                     )}
                   </SvgGradientButton>
@@ -904,6 +904,16 @@ const styles = StyleSheet.create({
   otpBoxFilled: {
     borderColor: '#ea580c',
     backgroundColor: '#fff7ed',
+  },
+  otpBoxFocused: {
+    borderColor: '#ea580c',
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    elevation: 2,
+    shadowColor: '#ea580c',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 }
   },
   otpOptionsRow: {
     flexDirection: 'row',

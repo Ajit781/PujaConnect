@@ -2,7 +2,21 @@
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">115.187.62.16</domain>
+        <domain includeSubdomains="true">subhmuhurat.com</domain>
         <domain includeSubdomains="true">localhost</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+            <certificates src="@raw/godaddy_root" />
+            <certificates src="@raw/godaddy_intermediate" />
+        </trust-anchors>
     </domain-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+            <certificates src="@raw/godaddy_root" />
+            <certificates src="@raw/godaddy_intermediate" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

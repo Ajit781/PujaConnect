@@ -18,3 +18,17 @@ index 7e52db0..fb7e5d3 100644
  }
  
  dependencies {
+diff --git a/node_modules/react-native-otp-verify/android/src/main/java/com/faizal/OtpVerify/OtpVerifyModule.java b/node_modules/react-native-otp-verify/android/src/main/java/com/faizal/OtpVerify/OtpVerifyModule.java
+index 16d7779..4ae66b1 100644
+--- a/node_modules/react-native-otp-verify/android/src/main/java/com/faizal/OtpVerify/OtpVerifyModule.java
++++ b/node_modules/react-native-otp-verify/android/src/main/java/com/faizal/OtpVerify/OtpVerifyModule.java
+@@ -53,9 +53,6 @@ public class OtpVerifyModule extends ReactContextBaseJavaModule implements Lifec
+                 getReactApplicationContext().addLifecycleEventListener(this);
+         registerReceiverIfNecessary(mReceiver);
+         reactContext.addActivityEventListener(this);
+-        apiClient = new GoogleApiClient.Builder(reactContext)
+-                .addApi(Auth.GOOGLE_SIGN_IN_API)
+-                .build();
+     }
+ 
+     @Override

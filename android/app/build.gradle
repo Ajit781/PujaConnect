@@ -83,13 +83,13 @@ android {
         }
     }
 
-    namespace "com.dissha"
+    namespace "com.subhmuhurat.app"
     defaultConfig {
-        applicationId "com.dissha"
+        applicationId "com.subhmuhurat.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 11
+        versionName "1.1.0"
     }
     signingConfigs {
         debug {
@@ -97,6 +97,18 @@ android {
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+        release {
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                v1SigningEnabled true
+                v2SigningEnabled true
+            }
         }
     }
     buildTypes {
@@ -106,39 +118,25 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
 
-     splits {
+    splits {
         abi {
-            enable true
-            reset()
-            include 'armeabi-v7a', 'arm64-v8a'
-            universalApk true
+            enable false
         }
     }
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            // Get app name and version
-            def appName = "Dissha"
+            def appName = "Subhmuhurat-citizen"
             def versionName = variant.versionName
             def versionCode = variant.versionCode
             def buildType = variant.buildType.name
-
-            // Custom file name to include ABI information
-            def abiFilter = output.getFilter(com.android.build.OutputFile.ABI)
-            def newApkName = "${appName}_v${versionName}_b${versionCode}_${buildType}"
-            if (abiFilter != null) {
-                newApkName += "_${abiFilter}" // Append ABI (e.g., _armeabi-v7a or _arm64-v8a)
-            }
-            newApkName += ".apk"
-
-            // Apply the custom file name
-            outputFileName = newApkName
+            outputFileName = "${appName}_v${versionName}_b${versionCode}_${buildType}.apk"
         }
     }
 

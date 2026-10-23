@@ -68,6 +68,15 @@ export default function BookingModal({
   const [showPackageDropdown, setShowPackageDropdown] = useState(false);
   const [activeDetailsPkg, setActiveDetailsPkg] = useState<any>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [internalPackage, setInternalPackage] = useState<any>(selectedPackage);
+
+  React.useEffect(() => {
+    if (selectedPackage) {
+      setInternalPackage(selectedPackage);
+    }
+  }, [selectedPackage]);
+
+  const activePackage = internalPackage || selectedPackage;
 
   const MONTHS_EN = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -121,16 +130,16 @@ export default function BookingModal({
     (isBn ? puja.nameBn : puja.name) ||
     (isBn ? puja.titleBn : puja.titleEn);
 
-  const pPackageNameEn = selectedPackage
-    ? selectedPackage.puja_package_name
+  const pPackageNameEn = activePackage
+    ? activePackage.puja_package_name
     : 'Platinum Package';
 
-  const pPrice = selectedPackage
-    ? selectedPackage.puja_package_price
+  const pPrice = activePackage
+    ? activePackage.puja_package_price
     : puja.puja_with_samagri_amount || puja.minimum_price || puja.exactPrice || 10000;
 
-  const pPriceBn = selectedPackage
-    ? `₹${selectedPackage.puja_package_price.toLocaleString('en-IN')}`
+  const pPriceBn = activePackage
+    ? `₹${activePackage.puja_package_price.toLocaleString('en-IN')}`
     : `₹${pPrice.toLocaleString('en-IN')}`;
 
   const pImage = puja.puja_type_id || puja.puja_id ? '🛕' : puja.imagePlaceholder;
@@ -175,8 +184,8 @@ export default function BookingModal({
       const payload = {
         ctzn_id: user?.user_id || 0,
         puja_id: Number(puja.puja_type_id || puja.puja_id || puja.id || 0),
-        package_id: selectedPackage
-          ? Number(selectedPackage.puja_package_id)
+        package_id: activePackage
+          ? Number(activePackage.puja_package_id)
           : 0,
         p_preferred_date: dateForApi,
         p_preferred_time: formattedTime,
@@ -530,12 +539,13 @@ export default function BookingModal({
                               { puja_package_id: '3', puja_package_name: 'Gold Package', puja_package_price: 10000, puja_duration: 3, pandit_count: 3 },
                             ]
                           ).map((pkg: any) => {
-                            const isSelected = selectedPackage && selectedPackage.puja_package_id === pkg.puja_package_id;
+                            const isSelected = activePackage && String(activePackage.puja_package_id) === String(pkg.puja_package_id);
                             return (
                               <TouchableOpacity
                                 key={pkg.puja_package_id}
                                 style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
                                 onPress={() => {
+                                  setInternalPackage(pkg);
                                   if (onSelectPackage) onSelectPackage(pkg.puja_package_id.toString());
                                   setShowPackageDropdown(false);
                                 }}
@@ -589,7 +599,7 @@ export default function BookingModal({
                     <Text style={styles.tableLabelText}>Pandits</Text>
                   </View>
                   <Text style={styles.tableValueText}>
-                    {selectedPackage ? selectedPackage.pandit_count || 3 : '3'}
+                    {activePackage ? activePackage.pandit_count || 3 : '3'}
                   </Text>
                 </View>
 
@@ -718,8 +728,11 @@ export default function BookingModal({
         pkg={activeDetailsPkg}
         onClose={() => setActiveDetailsPkg(null)}
         onSelect={() => {
-          if (activeDetailsPkg && onSelectPackage) {
-            onSelectPackage(activeDetailsPkg.puja_package_id.toString());
+          if (activeDetailsPkg) {
+            setInternalPackage(activeDetailsPkg);
+            if (onSelectPackage) {
+              onSelectPackage(activeDetailsPkg.puja_package_id.toString());
+            }
           }
           setActiveDetailsPkg(null);
           setShowPackageDropdown(false);

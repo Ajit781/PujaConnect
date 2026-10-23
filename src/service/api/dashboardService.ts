@@ -138,14 +138,25 @@ export interface BookingDetail {
 export interface OrderPackageDetail {
   package_id: number;
   package_name: string;
+  puja_id?: number;
+  puja_name?: string;
   preferred_date: string;
   preferred_time: string;
-  citizen_address_id: number;
-  citizen_address: string;
-  citizen_city: string;
-  citizen_pin_code: string;
-  citizen_land_mark: string;
-  special_instructions: string;
+  citizen_address_id?: number;
+  citizen_address?: string;
+  citizen_city?: string;
+  citizen_pin_code?: string;
+  citizen_land_mark?: string;
+  
+  booking_address_id?: number;
+  booking_address?: string;
+  booking_street?: string;
+  booking_landmark?: string;
+  booking_city?: string;
+  booking_state_name?: string;
+  booking_pincode?: string;
+  
+  special_instructions?: string;
   package_amount: number;
   package_status_id: number;
   package_status: string;
@@ -158,6 +169,7 @@ export interface OrderBookingDetail {
   booking_status_id: number;
   booking_status: string;
   booking_cancel_reason: string;
+  booking_confirmation_code?: string;
   package_details: OrderPackageDetail[];
 }
 
@@ -170,7 +182,20 @@ export interface OrderSummary {
   order_status_id: number;
   order_status: string;
   order_cancel_reason: string;
+  refund_policy_id?: number;
+  refund_policy_display_text?: string;
+  refund_status_id?: number;
+  refund_status_name?: string;
+  refund_amount?: number;
+  globally_active_booking_count?: number;
+  globally_active_package_count?: number;
   booking_details: OrderBookingDetail[];
+  
+  // Flattened API response fields
+  booking_id?: number;
+  booking_no?: string;
+  booking_confirmation_code?: string;
+  package_details?: OrderPackageDetail[];
 }
 
 /**
@@ -263,18 +288,24 @@ export async function getPujaByTag(
   tagId: number,
   pageNo: number = 1,
   limit: number = 10,
+  purposeId: number = 0,
 ): Promise<PujaType[]> {
-  const encData = JSON.stringify({
+  const payloadObj = {
     page_no: pageNo,
     limit: limit,
     puja_tag_id: tagId,
     ctnz_id: userId,
-  });
+    purpose_id: purposeId,
+  };
+  console.log('--- API: getTagPujas PAYLOAD ---', payloadObj);
+  const encData = JSON.stringify(payloadObj);
 
   try {
     const response = await api.post(ENDPOINTS.getTagPujas, {
       enc_data: encData,
     });
+
+    console.log('--- API: getTagPujas RESPONSE ---', response.data);
 
     if (!response.data || response.data.status !== 0) {
       return [];
@@ -286,6 +317,47 @@ export async function getPujaByTag(
     return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
   } catch (error: any) {
     console.warn('[DashboardService] Could not fetch tagged pujas:', error?.message || error);
+    return [];
+  }
+}
+
+/**
+ * Fetches puja review details from the citizen API.
+ */
+export async function getPujaReviewDetails(
+  pujaId: number,
+  starCount: number = 0,
+  sortBy: number = 1,
+  pageNo: number = 1,
+  limit: number = 2
+): Promise<any> {
+  const payloadObj = {
+    puja_id: pujaId,
+    star_count: starCount,
+    sort_by: sortBy,
+    page_no: pageNo,
+    limit: limit,
+  };
+  console.log('--- API: getPujaReviewDetails PAYLOAD ---', payloadObj);
+  const encData = JSON.stringify(payloadObj);
+
+  try {
+    const response = await api.post(ENDPOINTS.getPujaReviewDetails, {
+      enc_data: encData,
+    });
+
+    console.log('--- API: getPujaReviewDetails RESPONSE ---', response.data);
+
+    if (!response.data || response.data.status !== 0) {
+      return [];
+    }
+
+    const dataStr = response.data.data;
+    if (!dataStr) return [];
+
+    return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+  } catch (error: any) {
+    console.warn('[DashboardService] Could not fetch puja review details:', error?.message || error);
     return [];
   }
 }

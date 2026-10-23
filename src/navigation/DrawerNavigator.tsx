@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import {
-  Home, ShoppingCart, User, Package, Flame, MapPin, Users, LayoutGrid, HelpCircle, LogOut, Sparkles
+  Home, ShoppingCart, User, Package, Flame, MapPin, Users, LayoutGrid, HelpCircle, LogOut, Sparkles, Shield
 } from 'lucide-react-native';
-import { View, Image, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Image, Text, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { performLogout } from '../utils/authUtils';
 import { useAlert } from '../context/AlertContext';
@@ -11,15 +11,12 @@ import { useAlert } from '../context/AlertContext';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import OrdersScreen from '../screens/profile/OrdersScreen';
 import CartScreen from '../screens/cart/CartScreen';
-import AccountScreen from '../screens/profile/AccountScreen';
 import BlessingsScreen from '../screens/profile/BlessingsScreen';
-import appLogo from '../assets/images/Logo.webp';
+import appLogo from '../assets/images/Logo.png';
 
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import UpdateProfileScreen from '../screens/profile/UpdateProfileScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
-import AddEditAddressScreen from '../screens/profile/AddEditAddressScreen';
-import AddFamilyMemberScreen from '../screens/profile/AddFamilyMemberScreen';
 
 export type DrawerParamList = {
   HomeTab: undefined;
@@ -30,19 +27,16 @@ export type DrawerParamList = {
   EditProfile: undefined;
   UpdateProfile: undefined;
   Address: { mode?: 'manage' | 'select'; onSelect?: (addressId: string) => void } | undefined;
-  AddEditAddress: { address?: any; relationType?: string; targetCtznId?: number } | undefined;
-  AddFamilyMember: { relative?: any } | undefined;
 };
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
 const DRAWER_ITEMS = [
   { id: 'HomeTab', label: 'Home', icon: Home },
-  { id: 'OrdersTab', label: 'My Orders', icon: Package },
-  { id: 'Blessings', label: 'My Blessings', icon: Sparkles },
-  { id: 'CartTab', label: 'Cart', icon: ShoppingCart },
-  { id: 'EditProfile', label: 'Edit Profile', icon: User },
   { id: 'Address', label: 'Saved Addresses', icon: MapPin },
+  { id: 'EditProfile', label: 'Edit Profile', icon: User },
+  { id: 'Blessings', label: 'My Blessings', icon: Sparkles },
+  { id: 'OrdersTab', label: 'My Orders', icon: Package },
 ];
 
 function CustomDrawerContent(props: any) {
@@ -52,7 +46,7 @@ function CustomDrawerContent(props: any) {
   const handleLogout = () => {
     showAlert({
       title: 'Confirm Logout',
-      message: 'Are you sure you want to log out of Pujora?',
+      message: 'Are you sure you want to log out of SUBHMUHURAT?',
       type: 'warning',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -133,12 +127,9 @@ export function DrawerNavigator() {
       <Drawer.Screen name="OrdersTab" component={OrdersScreen} />
       <Drawer.Screen name="Blessings" component={BlessingsScreen} />
       <Drawer.Screen name="CartTab" component={CartScreen} />
-      <Drawer.Screen name="AccountTab" component={AccountScreen} />
       <Drawer.Screen name="EditProfile" component={EditProfileScreen} />
       <Drawer.Screen name="UpdateProfile" component={UpdateProfileScreen} />
       <Drawer.Screen name="Address" component={AddressScreen} />
-      <Drawer.Screen name="AddEditAddress" component={AddEditAddressScreen} />
-      <Drawer.Screen name="AddFamilyMember" component={AddFamilyMemberScreen} />
     </Drawer.Navigator>
   );
 }

@@ -1,5 +1,5 @@
 import AllInOneSDKManager from 'paytmpayments-allinone-react-native';
-import { PAYTM_CONFIG } from '../../config/apiConfig';
+import { PAYTM_CONFIG, PAYMENT_CALLBACK_URL } from '../../config/apiConfig';
 
 export interface PaytmStartTransactionParams {
   orderId: string | number;
@@ -54,9 +54,7 @@ export const startPaytmTransaction = async (
   const formattedAmount =
     typeof amount === 'number' ? amount.toFixed(2) : String(amount);
 
-  const finalCallbackUrl =
-    callbackUrl ||
-    `http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1_mobile`;
+  const finalCallbackUrl = callbackUrl || PAYMENT_CALLBACK_URL;
 
   const finalUrlScheme = urlScheme || `paytm${formattedMid}`;
 

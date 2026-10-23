@@ -31,6 +31,7 @@ import {
   Search,
   X,
   Archive,
+  ArrowLeft,
 } from 'lucide-react-native';
 
 import InvoiceModal from '../../components/orders/InvoiceModal';
@@ -38,16 +39,18 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { PluralWebView } from '../../components/payment/PluralWebView';
 import { startPaytmTransaction } from '../../service/payment/paytmManager';
+import { PAYTM_CONFIG, PAYMENT_CALLBACK_URL } from '../../config/apiConfig';
 import {
   useGetOrderSummaryQuery,
   useGetOrderSummaryCountQuery,
   useCancelPujaMutation,
   useGetStatusTypeQuery,
-  useLazyGetCheckoutDetailsByOrderIdQuery,
+  useLazyGetIntiatePaymentDetailsByOrderIdQuery,
   useLazyGetInvoiceDetailsQuery,
 } from '../../store/api/pujaApi';
 import { OrderSummary } from '../../service/api/dashboardService';
 import OrderDetailsModal from '../../components/orders/OrderDetailsModal';
+import CancelPolicyModal from '../../components/orders/CancelPolicyModal';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import RescheduleModal from '../../components/orders/RescheduleModal';
 import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
@@ -60,10 +63,11 @@ const BRAND_TEXT = Colors.textMain;
 const BRAND_MUTED = Colors.textMuted;
 
 function getPageNumbers(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
-  if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
-  if (current >= total - 3) return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
-  return [1, '...', current - 1, current, current + 1, '...', total];
+  const maxPage = Math.max(current, total, 1);
+  if (maxPage <= 7) return Array.from({ length: maxPage }, (_, index) => index + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, '...', maxPage];
+  if (current >= maxPage - 3) return [1, '...', maxPage - 4, maxPage - 3, maxPage - 2, maxPage - 1, maxPage];
+  return [1, '...', current - 1, current, current + 1, '...', maxPage];
 }
 
 const formatDate = (isoString: string) => {
@@ -179,7 +183,7 @@ export default function OrdersScreen({ navigation }: any) {
   const [currentInvoiceData, setCurrentInvoiceData] = useState<any>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
-  const [getCheckoutDetails] = useLazyGetCheckoutDetailsByOrderIdQuery();
+  const [getCheckoutDetails] = useLazyGetIntiatePaymentDetailsByOrderIdQuery();
   const [getInvoiceDetails] = useLazyGetInvoiceDetailsQuery();
 
   const statusQueryInfo = useGetStatusTypeQuery(undefined, { refetchOnMountOrArgChange: true });
@@ -211,11 +215,23 @@ export default function OrdersScreen({ navigation }: any) {
     });
   }, [STATUS_OPTIONS]);
 
+  const [cancelPolicyDetails, setCancelPolicyDetails] = useState<{
+    orderId: string;
+    bookingId: string;
+    packageId: string;
+    title: string;
+    totalAmt?: number;
+  } | null>(null);
+
   const [cancelDetails, setCancelDetails] = useState<{
     orderId: string;
     bookingId: string;
     packageId: string;
     title: string;
+  } | null>(null);
+  const [reasonDetails, setReasonDetails] = useState<{
+    title: string;
+    reason: string;
   } | null>(null);
   const [rescheduleDetails, setRescheduleDetails] = useState<{
     bookingId: number | string;
@@ -231,7 +247,7 @@ export default function OrdersScreen({ navigation }: any) {
   >(null);
   const [pageNo, setPageNo] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 5;
 
   const { data: totalSummaryCountData, refetch: refetchCount } =
     useGetOrderSummaryCountQuery(
@@ -249,7 +265,11 @@ export default function OrdersScreen({ navigation }: any) {
     typeof totalSummaryCountData === 'number'
       ? totalSummaryCountData
       : typeof totalSummaryCountData === 'object' && totalSummaryCountData !== null
-        ? (totalSummaryCountData as any).total_puja_booking_summary_qty || (totalSummaryCountData as any).total_booking_count || 0
+        ? (totalSummaryCountData as any).total_order_count ||
+          (totalSummaryCountData as any).total_puja_booking_summary_qty ||
+          (totalSummaryCountData as any).total_booking_count ||
+          (totalSummaryCountData as any).count ||
+          0
         : Number(totalSummaryCountData) || 0;
 
   const {
@@ -306,9 +326,11 @@ export default function OrdersScreen({ navigation }: any) {
     });
   }, [orders, searchQuery]);
 
-  const realCalculatedPages = Math.ceil(totalCount / PAGE_SIZE);
-  const totalPages = realCalculatedPages > 1 ? realCalculatedPages : (filteredOrders.length > 0 ? 11 : 1);
-  const showPagination = filteredOrders.length > 0;
+  const effectiveTotalCount = searchQuery.trim()
+    ? filteredOrders.length
+    : Math.max(totalCount, (pageNo - 1) * PAGE_SIZE + (orders?.length || 0));
+  const totalPages = Math.max(1, Math.ceil(effectiveTotalCount / PAGE_SIZE));
+  const showPagination = filteredOrders.length > 0 || pageNo > 1 || totalPages > 1;
   const isPrevDisabled = pageNo <= 1;
   const isNextDisabled = pageNo >= totalPages;
 
@@ -565,11 +587,17 @@ export default function OrdersScreen({ navigation }: any) {
                 <View>
                   <Text style={styles.resultsBannerTitle}>{isBn ? 'অর্ডার ফলাফল' : 'Order results'}</Text>
                   <Text style={styles.resultsBannerSub}>
-                    {isBn ? `${filteredOrders.length}-এর মধ্যে ${totalCount} দেখাচ্ছে` : `Showing 1–${filteredOrders.length} of ${totalCount} orders`}
+                    {isBn
+                      ? filteredOrders.length > 0
+                        ? `${Math.min(filteredOrders.length, effectiveTotalCount)}-এর মধ্যে ${effectiveTotalCount} দেখাচ্ছে`
+                        : `পৃষ্ঠা ${pageNo}-তে কোনো অর্ডার নেই (মোট ${effectiveTotalCount})`
+                      : filteredOrders.length > 0
+                        ? `Showing ${(pageNo - 1) * PAGE_SIZE + 1}–${(pageNo - 1) * PAGE_SIZE + filteredOrders.length} of ${effectiveTotalCount} orders`
+                        : `No orders on Page ${pageNo} (Total ${effectiveTotalCount})`}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.pageLabel}>{isBn ? `পৃষ্ঠা ${pageNo}` : `Page ${pageNo} of ${Math.ceil(totalCount / PAGE_SIZE) || 1}`}</Text>
+              <Text style={styles.pageLabel}>{isBn ? `পৃষ্ঠা ${pageNo}` : `Page ${pageNo} of ${totalPages}`}</Text>
             </View>
           </>
         }
@@ -581,13 +609,39 @@ export default function OrdersScreen({ navigation }: any) {
               setSelectedOrderDetails(order);
             }}
             onPressCancel={(orderId) => {
-              setCancelDetails({ orderId, bookingId: '0', packageId: '0', title: item.order_reference });
+              setCancelPolicyDetails({ orderId, bookingId: '0', packageId: '0', title: item.order_reference, totalAmt: item.order_total_amount });
             }}
             onPressCancelBooking={(orderId, bookingId) => {
-              setCancelDetails({ orderId, bookingId, packageId: '0', title: 'Cancel Booking' });
+              const b = Array.isArray(item.booking_details) ? item.booking_details.find((x: any) => String(x.booking_id) === String(bookingId)) : null;
+              console.log('--- CANCEL BOOKING CLICKED ---', {
+                orderId, bookingId,
+                globally_active_booking_count: item.globally_active_booking_count,
+              });
+              if (Number(item.globally_active_booking_count) === 1 && item.order_status === "Order Payment Done") {
+                // If only 1 booking active AND payment is done, SHOW policy modal
+                setCancelPolicyDetails({ orderId, bookingId, packageId: '0', title: 'Cancel Booking', totalAmt: b?.booking_total_amount || item.order_total_amount });
+              } else {
+                // Otherwise show direct reason input modal
+                setCancelDetails({ orderId, bookingId, packageId: '0', title: 'Cancel Booking' });
+              }
             }}
             onPressCancelPackage={(orderId, bookingId, packageId) => {
-              setCancelDetails({ orderId, bookingId, packageId, title: 'Cancel Package' });
+              const b = Array.isArray(item.booking_details) ? item.booking_details.find((x: any) => String(x.booking_id) === String(bookingId)) : null;
+              const p = Array.isArray(b?.package_details) ? b.package_details.find((x: any) => String(x.package_id) === String(packageId)) : null;
+              console.log('--- CANCEL PACKAGE CLICKED ---', {
+                orderId, bookingId, packageId,
+                globally_active_package_count: item.globally_active_package_count,
+              });
+              if (Number(item.globally_active_package_count) === 1 && item.order_status === "Order Payment Done") {
+                // If only 1 package active AND payment is done, SHOW policy modal
+                setCancelPolicyDetails({ orderId, bookingId, packageId, title: 'Cancel Package', totalAmt: p?.package_amount || b?.booking_total_amount || item.order_total_amount });
+              } else {
+                // Otherwise show direct reason input modal
+                setCancelDetails({ orderId, bookingId, packageId, title: 'Cancel Package' });
+              }
+            }}
+            onPressReason={(title, reason) => {
+              setReasonDetails({ title, reason });
             }}
             onPressReschedule={(orderId, bookingId) => {
               console.log('--- RESCHEDULE CLICKED ---', orderId, bookingId);
@@ -600,43 +654,48 @@ export default function OrdersScreen({ navigation }: any) {
                 bookingId: bookingId || b.booking_id || '0',
                 orderId: orderId || item.order_id || '0',
                 bookingNo: b.booking_no || item.order_reference || 'PB-20260820',
-                currentDate: p.preferred_date || item.order_date || '',
-                currentTime: p.preferred_time || '10:00',
-                currentAddressId: p.booking_address_id || b.booking_address_id || 0,
+                currentDate: (p as any).preferred_date || (item as any).order_date || '',
+                currentTime: (p as any).preferred_time || '10:00',
+                currentAddressId: (p as any).booking_address_id || (b as any).booking_address_id || 0,
               });
             }}
             onPressPayNow={async (orderId) => {
               try {
                 showToast({ message: isBn ? 'পেমেন্ট প্রসেস হচ্ছে...' : 'Processing payment...', type: 'success' });
                 const res = await getCheckoutDetails({ orderId: parseInt(orderId), ctznId: user?.user_id || 0 }).unwrap();
-                let paymentUrl = '';
 
-                if (res.redirect_url) {
-                  try {
-                    paymentUrl = base64Decode(res.redirect_url);
-                  } catch (err) {
-                    console.error('Base64 decode failed:', err);
-                  }
-                }
+                if (res && res.txn_token) {
+                  const paytmOrderId = String(res.txn_number || res.order_ref || res.order_id || orderId);
+                  const amountStr = typeof res.txn_amount === 'number' ? res.txn_amount.toFixed(2) : String(res.txn_amount || '0.00');
+                  const callbackUrl = PAYMENT_CALLBACK_URL;
 
-                if (!paymentUrl) {
-                  const findUrl = (obj: any): string => {
-                    if (typeof obj === 'string' && obj.startsWith('http')) return obj;
-                    if (typeof obj === 'object' && obj !== null) {
-                      for (const key of Object.keys(obj)) {
-                        const val = findUrl(obj[key]);
-                        if (val) return val;
+                  console.log('====================================================');
+                  console.log('🚀 [PAYTM CHECKOUT] Invoking Paytm with txn_number:', paytmOrderId);
+                  console.log('====================================================');
+
+                  startPaytmTransaction({
+                    orderId: paytmOrderId,
+                    mid: PAYTM_CONFIG.MID,
+                    txnToken: res.txn_token,
+                    amount: amountStr,
+                    callbackUrl: callbackUrl,
+                    isStaging: PAYTM_CONFIG.IS_STAGING,
+                    restrictAppInvoke: PAYTM_CONFIG.RESTRICT_APP_INVOKE,
+                    urlScheme: PAYTM_CONFIG.URL_SCHEME,
+                  })
+                    .then((paytmResult: any) => {
+                      if (paytmResult && paytmResult.STATUS === 'TXN_SUCCESS') {
+                        showToast({ message: isBn ? 'পেটিএম পেমেন্ট সফল হয়েছে!' : 'Paytm Payment Successful!', type: 'success' });
+                        refetchBookings();
+                      } else {
+                        showToast({ message: paytmResult?.RESPMSG || 'Payment failed or cancelled', type: 'error' });
                       }
-                    }
-                    return '';
-                  };
-                  paymentUrl = findUrl(res);
-                }
-
-                if (paymentUrl) {
-                  setPaymentUrl(paymentUrl);
+                    })
+                    .catch((err: any) => {
+                      showToast({ message: err?.message || 'Payment failed or cancelled', type: 'error' });
+                    });
                 } else {
-                  showToast({ message: 'Payment URL not available right now', type: 'error' });
+                  showToast({ message: 'Payment details not available right now', type: 'error' });
                 }
               } catch (e) {
                 showToast({ message: isBn ? 'চেকআউট ডিটেইলস ফেচ করতে সমস্যা হয়েছে' : 'Failed to fetch checkout details', type: 'error' });
@@ -675,10 +734,24 @@ export default function OrdersScreen({ navigation }: any) {
         }
         ListEmptyComponent={
           !isLoading ? (
-            <NoDataFound
-              message={isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
-              containerHeight={280}
-            />
+            <View style={styles.emptyContainer}>
+              <NoDataFound
+                message={isBn ? 'কোনো অর্ডার পাওয়া যায়নি' : 'No orders found'}
+                containerHeight={pageNo > 1 ? 200 : 280}
+              />
+              {pageNo > 1 && (
+                <TouchableOpacity
+                  style={styles.backToFirstPageBtn}
+                  onPress={() => setPageNo(1)}
+                  activeOpacity={0.8}
+                >
+                  <ArrowLeft size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.backToFirstPageText}>
+                    {isBn ? '১ম পৃষ্ঠায় ফিরে যান' : 'Back to Page 1'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : null
         }
         ListFooterComponent={
@@ -739,13 +812,27 @@ export default function OrdersScreen({ navigation }: any) {
         }
       />
 
+      {cancelPolicyDetails && (
+        <CancelPolicyModal
+          visible={!!cancelPolicyDetails}
+          itemTitle={cancelPolicyDetails.title}
+          orderId={cancelPolicyDetails.orderId}
+          bookingId={cancelPolicyDetails.bookingId}
+          packageId={cancelPolicyDetails.packageId}
+          onClose={() => setCancelPolicyDetails(null)}
+          onSuccess={() => {
+            setCancelPolicyDetails(null);
+            onRefresh();
+          }}
+        />
+      )}
       {cancelDetails && (
         <CancelOrderModal
           visible={!!cancelDetails}
+          itemTitle={cancelDetails.title}
           orderId={cancelDetails.orderId}
           bookingId={cancelDetails.bookingId}
           packageId={cancelDetails.packageId}
-          itemTitle={cancelDetails.title}
           onClose={() => setCancelDetails(null)}
           onSuccess={() => {
             setCancelDetails(null);
@@ -916,6 +1003,33 @@ export default function OrdersScreen({ navigation }: any) {
           />
         )}
       </Modal>
+
+      {/* Reason Details Modal */}
+      <Modal
+        visible={!!reasonDetails}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReasonDetails(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setReasonDetails(null)} />
+          <View style={styles.reasonModalCard}>
+            <View style={styles.reasonModalHeader}>
+              <View style={styles.reasonModalIconWrap}>
+                <Archive color="#EF4444" size={24} />
+              </View>
+              <Text style={styles.reasonModalTitle}>{reasonDetails?.title || 'Cancellation Reason'}</Text>
+            </View>
+            <View style={styles.reasonModalBody}>
+              <Text style={styles.reasonModalText}>{reasonDetails?.reason || 'No reason provided.'}</Text>
+            </View>
+            <TouchableOpacity style={styles.reasonModalCloseBtn} onPress={() => setReasonDetails(null)}>
+              <Text style={styles.reasonModalCloseBtnText}>{isBn ? 'বন্ধ করুন' : 'Close'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -1583,4 +1697,91 @@ const styles = StyleSheet.create({
   checkMark: { color: BRAND_PRIMARY, fontWeight: 'bold' },
   bottomSpace: { height: 20 },
   popoverWrapper: { zIndex: 99999, elevation: 99999 },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  backToFirstPageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BRAND_PRIMARY,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    marginTop: 12,
+    shadowColor: BRAND_PRIMARY,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  backToFirstPageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reasonModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  reasonModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  reasonModalIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reasonModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    flex: 1,
+  },
+  reasonModalBody: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  reasonModalText: {
+    fontSize: 15,
+    color: '#4B5563',
+    lineHeight: 22,
+  },
+  reasonModalCloseBtn: {
+    backgroundColor: BRAND_PRIMARY,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  reasonModalCloseBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

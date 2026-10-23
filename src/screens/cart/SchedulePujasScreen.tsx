@@ -15,6 +15,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDatePickerModal from '../../components/common/CustomDatePickerModal';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { Colors } from '../../constants/Colors';
@@ -56,6 +57,12 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
   const paramAddresses = route.params?.addresses || [];
   const { cartItems = [] } = route.params || {};
 
+  useEffect(() => {
+    if (cartItems && cartItems.length > 0) {
+      console.log('=== [SchedulePujasScreen] cartItems (with Package info) ===', JSON.stringify(cartItems, null, 2));
+    }
+  }, [cartItems]);
+
   const subtotal = React.useMemo(() => {
     return cartItems.reduce((acc: number, item: any) => {
       const price = Number(item.price) || 1501;
@@ -63,11 +70,11 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
     }, 0);
   }, [cartItems]);
 
-  const platformFee = 17.8;
-  const gst = 3.2;
-  const grandTotal = subtotal + platformFee + gst;
-  const payOnlineAmount = 21;
-  const cashOnDeliveryAmount = grandTotal > 21 ? grandTotal - 21 : 0;
+  const platformFee = route.params?.platformFee || 0;
+  const gst = route.params?.gst || 0;
+  const grandTotal = route.params?.grandTotal || subtotal + platformFee + gst;
+  const payOnlineAmount = route.params?.payOnlineAmount || 0;
+  const cashOnDeliveryAmount = route.params?.cashOnDeliveryAmount || (grandTotal > payOnlineAmount ? grandTotal - payOnlineAmount : 0);
 
   const { data: serverAddressesData, refetch: refetchAddresses } = useGetAddressesQuery(
     { userId: user?.user_id || 0, pageNo: 1, pageSize: 50 },
@@ -154,6 +161,12 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
     return Array.from(uniqueMap.values());
   }, [serverAddressesData, paramAddresses]);
 
+  const getDefaultDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d;
+  };
+
   const [itemSchedules, setItemSchedules] = useState<
     Record<string, { date: Date | null; time: string | null; addressId: string | null; showInstructions: boolean; instructions: string }>
   >({});
@@ -174,15 +187,14 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
   const [preparedPayload, setPreparedPayload] = useState<ScheduleItemPayload[]>([]);
 
   useEffect(() => {
-    if (!addresses || addresses.length === 0) return;
-    const defaultAddr = addresses.find((a: any) => a.isDefault || a.is_default || a.is_default_address) || addresses[0];
+    const defaultAddr = addresses && addresses.length > 0 ? (addresses.find((a: any) => a.isDefault || a.is_default || a.is_default_address) || addresses[0]) : null;
     const defaultAddrId = defaultAddr ? (defaultAddr.id || defaultAddr.ctzn_address_id || defaultAddr.address_id)?.toString() : null;
 
     setItemSchedules(prev => {
       const updated = { ...prev };
       cartItems.forEach((item: any) => {
         const existing = updated[item.cartItemId];
-        const chosenAddrId = existing?.addressId || null;
+        const chosenAddrId = existing?.addressId || defaultAddrId;
         updated[item.cartItemId] = {
           date: existing?.date || null,
           time: existing?.time || null,
@@ -234,7 +246,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
         a.address_id?.toString() === addrId?.toString()
     );
     if (!found) return '🏠 Home — Address Selected';
-    
+
     const rawType = found.type || found.label || 'Home';
     const icon = rawType.toLowerCase().includes('home') ? '🏠' : rawType.toLowerCase().includes('office') || rawType.toLowerCase().includes('work') ? '💼' : '📍';
     const typeLabel = rawType.charAt(0).toUpperCase() + rawType.slice(1).toLowerCase();
@@ -385,17 +397,31 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
 
   const namesList = cartItems.map((i: any) => (isBn ? i.titleBn : i.titleEn)).join(', ').toUpperCase();
 
-  // DateTimePicker से संबंधित रेंडर फंक्शन (iOS के लिए सपोर्टिव मोडल के साथ)
+  // Date & Time Picker render function (Uses CustomDatePickerModal for date, DateTimePicker for time)
   const renderDatePicker = () => {
     if (!showPicker) return null;
 
-    const pickerValue = pickerMode === 'date'
-      ? (itemSchedules[pickerTarget || '']?.date || new Date())
-      : new Date();
+    const minDate = getDefaultDate();
+    minDate.setHours(0, 0, 0, 0);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // To prevent crash if pickerValue is slightly before minimumDate
-    const maxDate = new Date(2026, 5, 30); // 30 June 2026
+    if (pickerMode === 'date') {
+      const pickerValue = itemSchedules[pickerTarget || '']?.date || minDate;
+      return (
+        <CustomDatePickerModal
+          visible={showPicker}
+          mode="date"
+          initialDate={pickerValue}
+          minimumDate={minDate}
+          onClose={() => setShowPicker(false)}
+          onSelectDate={(selectedDate) => {
+            onChangePicker(null, selectedDate);
+            setShowPicker(false);
+          }}
+        />
+      );
+    }
+
+    const pickerValue = new Date();
 
     const pickerComponent = (
       <DateTimePicker
@@ -455,7 +481,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                   <View style={styles.stepCircleInactive}>
                     <ShoppingCart color="#9CA3AF" size={16} />
                   </View>
-                  <Text style={styles.stepLabelInactive}>Cart</Text>
+                  <Text style={styles.stepLabelInactive}>{isBn ? 'কার্ট' : 'Cart'}</Text>
                 </View>
                 <View style={styles.stepLineInactive} />
 
@@ -465,81 +491,207 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                       <Calendar color="#FFFFFF" size={16} />
                     </View>
                   </View>
-                  <Text style={styles.stepLabelActive}>Schedule</Text>
+                  <Text style={styles.stepLabelActive}>{isBn ? 'সময়সূচী' : 'Schedule'}</Text>
                 </View>
-                <View style={styles.stepLineInactive} />
-
-                <View style={styles.stepperNode}>
-                  <View style={styles.stepCircleInactive}>
-                    <CreditCard color="#D1D5DB" size={16} />
-                  </View>
-                  <Text style={styles.stepLabelInactive}>Payment</Text>
-                </View>
+                {payOnlineAmount > 0 && (
+                  <>
+                    <View style={styles.stepLineInactive} />
+                    <View style={styles.stepperNode}>
+                      <View style={styles.stepCircleInactive}>
+                        <CreditCard color="#D1D5DB" size={16} />
+                      </View>
+                      <Text style={styles.stepLabelInactive}>{isBn ? 'পেমেন্ট' : 'Payment'}</Text>
+                    </View>
+                  </>
+                )}
               </View>
 
               {/* Header Title Section */}
               <View style={styles.headerTitleSection}>
                 <View style={styles.headerTextWrapper}>
-                  <Text style={styles.stepCountText}>STEP 2 OF 3</Text>
-                  <Text style={styles.mainHeading}>Schedule your puja</Text>
-                  <Text style={styles.subHeading}>Choose when and where you would like the ceremony performed.</Text>
+                  <Text style={styles.stepCountText}>{isBn ? (payOnlineAmount > 0 ? '৩ এর ২ নং ধাপ' : '২ এর ২ নং ধাপ') : (payOnlineAmount > 0 ? 'STEP 2 OF 3' : 'STEP 2 OF 2')}</Text>
+                  <Text style={styles.mainHeading}>{isBn ? 'আপনার পূজা শিডিউল করুন' : 'Schedule your puja'}</Text>
+                  <Text style={styles.subHeading}>{isBn ? 'অনুষ্ঠানটি কখন এবং কোথায় করতে চান তা চয়ন করুন।' : 'Choose when and where you would like the ceremony performed.'}</Text>
                 </View>
               </View>
             </View>
-            {/* Section 1: DATE & TIME */}
-            <View style={styles.sectionDividerRow}>
-              <Calendar size={18} color="#C84400" style={{ marginRight: 8 }} />
-              <Text style={styles.sectionDividerText}>{isBn ? 'তারিখ ও সময়' : 'DATE & TIME'}</Text>
-              <View style={styles.sectionLineFull} />
-            </View>
+            {/* BOOKING PREFERENCES */}
+            {cartItems.length > 1 && (
+              <View style={{ backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 4 }}>Booking preferences</Text>
+                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 16 }}>Apply your selections to every puja</Text>
 
-            {(() => {
-              const firstId = cartItems[0]?.cartItemId;
-              const firstState = itemSchedules[firstId] || {};
-
-              return (
-                <View style={styles.sectionCardWhite}>
-                  <Text style={styles.goldLabel}>📅 {isBn ? 'শুভ তারিখ' : 'AUSPICIOUS DATE'}</Text>
-                  <TouchableOpacity
-                    style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'date' && styles.pillInputActive]}
-                    onPress={() => {
-                      setPickerTarget(firstId);
-                      setPickerMode('date');
-                      setShowPicker(true);
-                    }}>
-                    <Calendar size={20} color="#EA580C" style={{ marginRight: 12 }} />
-                    <Text style={[styles.pillInputText, !firstState.date && styles.pillInputPlaceholder]}>
-                      {firstState.date ? formatDate(firstState.date) : (isBn ? 'পছন্দের তারিখ নির্বাচন করুন' : 'Select preferred date')}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.dateAvailableHelperText}>
-                    Available from 27 Aug to 20 Nov 2026
-                  </Text>
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 8 }}>
-                    <Text style={[styles.greyLabel, !firstState.date && { opacity: 0.7 }]}>
-                      ⏱ {isBn ? 'পছন্দের সময়' : 'PREFERRED TIME'}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}>
-                      {isBn ? 'প্রথমে তারিখ নির্বাচন করুন' : 'Select a date first'}
-                    </Text>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: syncDateTime ? '#FCD34D' : '#E5E7EB', backgroundColor: syncDateTime ? '#FEF9C3' : '#FFF' }}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    const newVal = !syncDateTime;
+                    setSyncDateTime(newVal);
+                    if (newVal) {
+                      const firstId = cartItems[0]?.cartItemId;
+                      const firstState = itemSchedules[firstId] || {};
+                      setItemSchedules(prev => {
+                        const newS = { ...prev };
+                        Object.keys(newS).forEach(k => {
+                          newS[k] = { ...newS[k], date: firstState.date, time: firstState.time };
+                        });
+                        return newS;
+                      });
+                    }
+                  }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: syncDateTime ? '#D97706' : '#D1D5DB', backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    {syncDateTime && <Check size={14} color="#D97706" strokeWidth={3} />}
                   </View>
-                  <TouchableOpacity
-                    style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'time' && styles.pillInputActive, !firstState.date && styles.pillInputDisabled]}
-                    disabled={!firstState.date}
-                    onPress={() => {
-                      setPickerTarget(firstId);
-                      setPickerMode('time');
-                      setShowPicker(true);
-                    }}>
-                    <Clock size={20} color={firstState.date ? "#EA580C" : "#9CA3AF"} style={{ marginRight: 12 }} />
-                    <Text style={[styles.pillInputText, !firstState.time && styles.pillInputPlaceholder]}>
-                      {firstState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
-                    </Text>
-                  </TouchableOpacity>
+                  <Text style={{ fontSize: 15, color: syncDateTime ? '#92400E' : '#9CA3AF', fontWeight: '700' }}>
+                    {isBn ? 'সব পূজার জন্য একই তারিখ ও সময় ব্যবহার করুন' : 'Use the same date and time for all pujas'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* INDIVIDUAL PUJA DETAILS HEADER */}
+            {!syncDateTime && cartItems.length > 1 && (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Sparkles size={18} color="#F59E0B" style={{ marginRight: 8 }} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1F2937', letterSpacing: 0.5 }}>INDIVIDUAL PUJA DETAILS</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB', marginLeft: 12 }} />
                 </View>
-              );
-            })()}
+                <View style={{ backgroundColor: '#FEF9C3', padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: '#FEF08A' }}>
+                  <Text style={{ fontSize: 14, color: '#854D0E', lineHeight: 22 }}>
+                    Please provide the specific <Text style={{ fontWeight: '800' }}>date, time, and address</Text> for each individual puja below.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {syncDateTime ? (
+              <View>
+                {/* Section 1: DATE & TIME */}
+                <View style={styles.sectionDividerRow}>
+                  <Calendar size={18} color="#C84400" style={{ marginRight: 8 }} />
+                  <Text style={styles.sectionDividerText}>{isBn ? 'তারিখ ও সময়' : 'DATE & TIME'}</Text>
+                  <View style={styles.sectionLineFull} />
+                </View>
+                {(() => {
+                  const firstId = cartItems[0]?.cartItemId;
+                  const firstState = itemSchedules[firstId] || {};
+
+                  return (
+                    <View style={styles.sectionCardWhite}>
+                      <Text style={styles.goldLabel}>📅 {isBn ? 'শুভ তারিখ' : 'AUSPICIOUS DATE'}</Text>
+                      <TouchableOpacity
+                        style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'date' && styles.pillInputActive]}
+                        onPress={() => {
+                          setPickerTarget(firstId);
+                          setPickerMode('date');
+                          setShowPicker(true);
+                        }}>
+                        <Calendar size={20} color="#EA580C" style={{ marginRight: 12 }} />
+                        <Text style={[styles.pillInputText, !firstState.date && styles.pillInputPlaceholder]}>
+                          {firstState.date ? formatDate(firstState.date) : (isBn ? 'পছন্দের তারিখ নির্বাচন করুন' : 'Select preferred date')}
+                        </Text>
+                      </TouchableOpacity>
+                      <Text style={styles.dateAvailableHelperText}>
+                        Available from 14 Oct to 7 Jan 2027
+                      </Text>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 8 }}>
+                        <Text style={[styles.greyLabel, !firstState.date && { opacity: 0.7 }]}>
+                          ⏱ {isBn ? 'পছন্দের সময়' : 'PREFERRED TIME'}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}>
+                          {isBn ? 'প্রথমে তারিখ নির্বাচন করুন' : 'Select a date first'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.pillInput, showPicker && pickerTarget === firstId && pickerMode === 'time' && styles.pillInputActive, !firstState.date && styles.pillInputDisabled]}
+                        disabled={!firstState.date}
+                        onPress={() => {
+                          setPickerTarget(firstId);
+                          setPickerMode('time');
+                          setShowPicker(true);
+                        }}>
+                        <Clock size={20} color={firstState.date ? "#EA580C" : "#9CA3AF"} style={{ marginRight: 12 }} />
+                        <Text style={[styles.pillInputText, !firstState.time && styles.pillInputPlaceholder]}>
+                          {firstState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })()}
+              </View>
+            ) : (
+              cartItems.map((item: any, idx: number) => {
+                const itemId = item.cartItemId;
+                const itemState = itemSchedules[itemId] || {};
+                return (
+                  <View key={itemId} style={[styles.sectionCardWhite, idx > 0 && { marginTop: 16 }, { padding: 0, overflow: 'hidden' }]}>
+                    <View style={{ padding: 16, backgroundColor: '#FFFAF0' }}>
+                      <View style={{ flexDirection: 'row' }}>
+                        <Image source={{ uri: item.packageImage || item.imagePlaceholder || 'https://via.placeholder.com/60' }} style={{ width: 64, height: 64, borderRadius: 12, borderWidth: 1, borderColor: '#FDE68A' }} />
+                        <View style={{ flex: 1, marginLeft: 16 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '800', color: '#78350F', flex: 1 }}>{isBn ? item.titleBn : item.titleEn}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '800', color: '#EA580C', marginLeft: 8 }}>₹{(item.price || 1501).toLocaleString('en-IN')}</Text>
+                          </View>
+                          <View style={{ backgroundColor: '#FEF3C7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#B45309' }}>{(item.package_name || (item.titleEn + ' Verification Package')).toUpperCase()}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}><Users size={14} color="#D97706" /><Text style={{ fontSize: 13, color: '#D97706', marginLeft: 6, fontWeight: '600' }}>{item.pandits || 1}</Text></View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}><Clock size={14} color="#D97706" /><Text style={{ fontSize: 13, color: '#D97706', marginLeft: 6, fontWeight: '600' }}>{item.duration || '2h'}</Text></View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    <View style={{ height: 1, backgroundColor: '#FDE68A' }} />
+
+                    <View style={{ padding: 16 }}>
+                      <Text style={styles.goldLabel}>📅 {isBn ? 'শুভ তারিখ' : 'AUSPICIOUS DATE'}</Text>
+                      <TouchableOpacity
+                        style={[styles.pillInput, showPicker && pickerTarget === itemId && pickerMode === 'date' && styles.pillInputActive]}
+                        onPress={() => {
+                          setPickerTarget(itemId);
+                          setPickerMode('date');
+                          setShowPicker(true);
+                        }}>
+                        <Calendar size={20} color="#EA580C" style={{ marginRight: 12 }} />
+                        <Text style={[styles.pillInputText, !itemState.date && styles.pillInputPlaceholder]}>
+                          {itemState.date ? formatDate(itemState.date) : (isBn ? 'পছন্দের তারিখ নির্বাচন করুন' : 'Select preferred date')}
+                        </Text>
+                      </TouchableOpacity>
+                      <Text style={styles.dateAvailableHelperText}>
+                        Available from 14 Oct to 7 Jan 2027
+                      </Text>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 8 }}>
+                        <Text style={[styles.greyLabel, !itemState.date && { opacity: 0.7 }]}>
+                          ⏱ {isBn ? 'পছন্দের সময়' : 'PREFERRED TIME'}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}>
+                          {isBn ? 'প্রথমে তারিখ নির্বাচন করুন' : 'Select a date first'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.pillInput, showPicker && pickerTarget === itemId && pickerMode === 'time' && styles.pillInputActive, !itemState.date && styles.pillInputDisabled]}
+                        disabled={!itemState.date}
+                        onPress={() => {
+                          setPickerTarget(itemId);
+                          setPickerMode('time');
+                          setShowPicker(true);
+                        }}>
+                        <Clock size={20} color={itemState.date ? "#EA580C" : "#9CA3AF"} style={{ marginRight: 12 }} />
+                        <Text style={[styles.pillInputText, !itemState.time && styles.pillInputPlaceholder]}>
+                          {itemState.time || (isBn ? 'পছন্দের সময় নির্বাচন করুন' : 'Select preferred time')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
 
             {/* Section 2: PUJA LOCATION */}
             <View style={styles.sectionDividerRow}>
@@ -633,20 +785,26 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                     </TouchableOpacity>
 
                     {itemState.showInstructions && (
-                      <View style={styles.instructionInputWrapper}>
-                        <TextInput
-                          style={styles.instructionInput}
-                          placeholder="Enter special instructions..."
-                          placeholderTextColor="#9CA3AF"
-                          multiline
-                          value={itemState.instructions}
-                          onChangeText={txt => {
-                            setItemSchedules(prev => ({
-                              ...prev,
-                              [id]: { ...prev[id], instructions: txt },
-                            }));
-                          }}
-                        />
+                      <View style={{ marginTop: 8 }}>
+                        <View style={styles.instructionInputWrapper}>
+                          <TextInput
+                            style={styles.instructionInput}
+                            placeholder={isBn ? 'বিশেষ নির্দেশাবলী লিখুন...' : 'Enter special instructions...'}
+                            placeholderTextColor="#9CA3AF"
+                            multiline
+                            maxLength={250}
+                            value={itemState.instructions}
+                            onChangeText={txt => {
+                              setItemSchedules(prev => ({
+                                ...prev,
+                                [id]: { ...prev[id], instructions: txt },
+                              }));
+                            }}
+                          />
+                        </View>
+                        <Text style={styles.instructionCharCount}>
+                          {(itemState.instructions?.length || 0)}/250 characters
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -704,7 +862,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                         <View style={{ flex: 1, marginLeft: 12 }}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Text style={styles.selectedPujaName}>{isBn ? item.titleBn : item.titleEn}</Text>
-                            <Text style={styles.selectedPujaPrice}>₹{item.price?.toLocaleString('en-IN') || '1,501'}</Text>
+                            <Text style={styles.selectedPujaPrice}>₹{item.price?.toLocaleString('en-IN')}</Text>
                           </View>
                           <Text style={styles.selectedPujaPkgName}>{item.package_name || (item.titleEn + ' Verification Package')}</Text>
                           <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
@@ -744,12 +902,12 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                   <View style={styles.dualPaymentContainer}>
                     <View style={styles.payNowBoxBlue}>
                       <Text style={styles.payNowTitleBlue}>💳 PAY NOW</Text>
-                      <Text style={styles.payNowAmountBlue}>₹{payOnlineAmount || 21}</Text>
+                      <Text style={styles.payNowAmountBlue}>₹{payOnlineAmount.toLocaleString('en-IN')}</Text>
                       <Text style={styles.payNowSubBlue}>Secure booking payment</Text>
                     </View>
                     <View style={styles.duringServiceBoxGreen}>
                       <Text style={styles.duringServiceTitleGreen}>🏠 DURING SERVICE</Text>
-                      <Text style={styles.duringServiceAmountGreen}>₹{cashOnDeliveryAmount?.toLocaleString('en-IN') || '1,501'}</Text>
+                      <Text style={styles.duringServiceAmountGreen}>₹{cashOnDeliveryAmount.toLocaleString('en-IN')}</Text>
                       <Text style={styles.duringServiceSubGreen}>Remaining balance</Text>
                     </View>
                   </View>
@@ -791,10 +949,10 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                 <ShieldCheck size={20} color="#FFFFFF" />
                 <View style={{ marginLeft: 8 }}>
                   <Text style={styles.footerBtnTitleActive}>
-                    {isBn ? 'পেমেন্টে এগিয়ে যান' : 'Continue to Payment'}
+                    {isBn ? (payOnlineAmount > 0 ? 'পেমেন্টে এগিয়ে যান' : 'অর্ডার চালিয়ে যান') : (payOnlineAmount > 0 ? 'Continue to Payment' : 'Continue Order')}
                   </Text>
                   <Text style={styles.footerBtnSubActive}>
-                    ₹{payOnlineAmount || 21} now · ₹{cashOnDeliveryAmount?.toLocaleString('en-IN')} later
+                    ₹{payOnlineAmount.toLocaleString('en-IN')} now · ₹{cashOnDeliveryAmount.toLocaleString('en-IN')} later
                   </Text>
                 </View>
               </View>
@@ -806,7 +964,7 @@ export default function SchedulePujasScreen({ navigation, route }: any) {
                 <Shield size={20} color="#9CA3AF" />
                 <View style={{ marginLeft: 8 }}>
                   <Text style={styles.footerBtnTitleDisabled}>
-                    {isBn ? 'পেমেন্টে এগিয়ে যান' : 'Continue to Payment'}
+                    {isBn ? (payOnlineAmount > 0 ? 'পেমেন্টে এগিয়ে যান' : 'অর্ডার চালিয়ে যান') : (payOnlineAmount > 0 ? 'Continue to Payment' : 'Continue Order')}
                   </Text>
                   <Text style={styles.footerBtnSubDisabled}>
                     {isBn ? 'প্রয়োজনীয় তারিখ এবং সময় নির্বাচন করুন' : 'Select the required date and time'}
@@ -1186,6 +1344,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#3B2416',
     textAlignVertical: 'top',
+  },
+  instructionCharCount: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    alignSelf: 'flex-end',
+    marginTop: 4,
   },
   addressSection: {
     marginTop: 8,

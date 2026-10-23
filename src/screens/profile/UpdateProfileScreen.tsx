@@ -47,8 +47,8 @@ const BRAND_MUTED = Colors.textMuted;
 const ERROR_COLOR = Colors.red;
 type Gender = 'Male' | 'Female' | 'Others';
 interface RelativeProfile {
-  id: string;          // relative_auth_id (UI identifier)
-  dbId?: number;       // relative_id (actual DB row ID — used for update API)
+  id: string;  // relative_auth_id (UI identifier)
+  dbId?: number;// relative_id (actual DB row ID — used for update API)
   relationType: string;
   relationTypeId?: number;
   firstName: string;
@@ -62,6 +62,7 @@ interface RelativeProfile {
   contact?: string;    // Contact/Mobile number
 }
 interface ProfileErrors {
+  fullName?: string;
   firstName?: string;
   lastName?: string;
   dob?: string;
@@ -95,6 +96,7 @@ const Field = React.memo(function Field({
   icon,
   autoCapitalize = 'words',
   autoComplete,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -106,27 +108,16 @@ const Field = React.memo(function Field({
   multiline?: boolean;
   onPress?: () => void;
   editable?: boolean;
+  maxLength?: number;
   icon?: React.ReactNode;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoComplete?: any;
 }) {
   const hasErr = !!error;
   const isPressable = !!onPress;
-  const isEditable = editable ?? !isPressable;
+  const isEditable = !isPressable && (editable ?? true);
 
-  const [localVal, setLocalVal] = useState(value || '');
   const isFocusedRef = useRef(false);
-
-  useEffect(() => {
-    if (!isFocusedRef.current && value !== localVal) {
-      setLocalVal(value || '');
-    }
-  }, [value]);
-
-  const handleChangeText = (text: string) => {
-    setLocalVal(text);
-    onChange(text);
-  };
 
   const inputContent = (
     <View
@@ -136,7 +127,7 @@ const Field = React.memo(function Field({
         borderWidth: 1,
         borderColor: hasErr ? '#DC2626' : '#E5E7EB',
         borderRadius: 12,
-        backgroundColor: isPressable ? '#F9FAFB' : '#FFF',
+        backgroundColor: (!isEditable && !isPressable) ? '#F3F4F6' : (isPressable ? '#F9FAFB' : '#FFF'),
         paddingHorizontal: 12,
         height: multiline ? 100 : 48,
       }, multiline && { alignItems: 'flex-start', paddingTop: 12 }]}>
@@ -145,14 +136,14 @@ const Field = React.memo(function Field({
         style={{
           flex: 1,
           fontSize: 14,
-          color: '#1F2937',
+          color: (!isEditable && !isPressable) ? '#9CA3AF' : '#1F2937',
           height: '100%',
           paddingVertical: 0,
         }}
         placeholder={placeholder}
         placeholderTextColor="#64748B"
-        value={localVal}
-        onChangeText={handleChangeText}
+        value={value || ''}
+        onChangeText={onChange}
         onFocus={() => { isFocusedRef.current = true; }}
         onBlur={() => { isFocusedRef.current = false; }}
         keyboardType={keyboardType}
@@ -160,6 +151,8 @@ const Field = React.memo(function Field({
         numberOfLines={multiline ? 4 : 1}
         textAlignVertical={multiline ? 'top' : 'center'}
         editable={isEditable}
+        pointerEvents={isPressable ? 'none' : 'auto'}
+        maxLength={maxLength}
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
         autoCorrect={true}
@@ -174,12 +167,26 @@ const Field = React.memo(function Field({
       </Text>
       {isPressable ? (
         <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-          {inputContent}
+          <View pointerEvents="none">
+            {inputContent}
+          </View>
         </TouchableOpacity>
       ) : (
         inputContent
       )}
-      {hasErr && <Text style={{ color: '#DC2626', fontSize: 12, marginTop: 4 }}>⚠ {error}</Text>}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <View style={{ flex: 1 }}>
+          {hasErr && <Text style={{ color: '#DC2626', fontSize: 12 }}>⚠ {error}</Text>}
+          {maxLength && value && value.length >= maxLength && !hasErr && (
+            <Text style={{ color: '#DC2626', fontSize: 12 }}>⚠ Maximum limit reached</Text>
+          )}
+        </View>
+        {maxLength && (
+          <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '600', textAlign: 'right' }}>
+            {value ? value.length : 0}/{maxLength}
+          </Text>
+        )}
+      </View>
     </View>
   );
 });
@@ -226,16 +233,34 @@ export default function UpdateProfileScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
+  const maxDobDate = new Date();
+  maxDobDate.setFullYear(maxDobDate.getFullYear() - 18);
+
+  const getInitialDobDate = () => {
+    const targetDob = pickerTarget === 'profile' ? dob : relDob;
+    if (targetDob) {
+      const p = targetDob.split('/');
+      if (p.length === 3) {
+        const parsed = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+        if (!isNaN(parsed.getTime())) {
+          return parsed > maxDobDate ? maxDobDate : parsed;
+        }
+      }
+    }
+    return maxDobDate;
+  };
   const { showToast } = useToast();
   const { showAlert, showErrorAlert } = useAlert();
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
   const [refreshing, setRefreshing] = useState(false);
   // ── Profile form ──────────────────────────────────────────────────────────
+  const [fullName, setFullName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [dob, setDob] = useState('');
   const [timeOfBirth, setTimeOfBirth] = useState('');
+  const [dontKnowTime, setDontKnowTime] = useState(false);
   const [gender, setGender] = useState<Gender>('Male');
   const [birthPlace, setBirthPlace] = useState('');
   const [gotra, setGotra] = useState('');         // display name
@@ -248,6 +273,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
   }, [user?.user_id]);
   const [profileImageFile, setProfileImageFile] = useState<any>(null);
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
   // ── Modals / Pickers State ──────────────────────────────────────────────────
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -276,8 +302,10 @@ export default function UpdateProfileScreen({ navigation }: any) {
       if (userDetailsRaw.ctnz_profile_image) {
         // Add a cache-buster timestamp to ensure the latest image is always shown
         const timestamp = new Date().getTime();
+        setImageLoadError(false);
+        const baseUri = userDetailsRaw.ctnz_profile_image.split('?')[0];
         setProfileImageUri(
-          `${userDetailsRaw.ctnz_profile_image}?t=${timestamp}`,
+          `${baseUri}?t=${timestamp}`,
         );
       }
     }
@@ -286,8 +314,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
   React.useEffect(() => {
     if (userDetailsRaw) {
       // Parse main profile
-      const fullName = userDetailsRaw.ctnz_full_name || '';
-      const nameParts = fullName.split(' ');
+      const rawFullName = userDetailsRaw.ctnz_full_name || '';
+      setFullName(rawFullName);
+      const nameParts = rawFullName.split(' ');
       setFirstName(nameParts[0] || '');
       setLastName(nameParts.slice(1).join(' ') || '');
       // Robust Gender mapping (handles ctnz_gender_id and ctnz_gender_name)
@@ -485,32 +514,38 @@ export default function UpdateProfileScreen({ navigation }: any) {
   // ── Profile validation ────────────────────────────────────────────────────
   const validateProfile = (): boolean => {
     const errs: ProfileErrors = {};
-    // First Name
-    if (!firstName.trim())
-      errs.firstName = isBn ? 'প্রথম নাম আবশ্যক' : 'First name is required';
-    else if (firstName.trim().length < 2)
-      errs.firstName = isBn
+    // Full Name
+    const nameToValidate = (fullName.trim() || `${firstName} ${lastName}`.trim()).trim();
+    if (!nameToValidate)
+      errs.fullName = isBn ? 'পুরো নাম আবশ্যক' : 'Full name is required';
+    else if (nameToValidate.length < 2)
+      errs.fullName = isBn
         ? 'অন্তত ২টি অক্ষর আবশ্যক'
         : 'At least 2 characters required';
-    else if (!isAlphaText(firstName))
-      errs.firstName = isBn
+    else if (nameToValidate.length > 25)
+      errs.fullName = isBn
+        ? 'সর্বোচ্চ ২৫টি অক্ষর অনুমোদিত'
+        : 'Maximum 25 characters allowed';
+    else if (!isAlphaText(nameToValidate))
+      errs.fullName = isBn
         ? 'শুধুমাত্র অক্ষর ব্যবহার করুন'
         : 'Only letters allowed';
-    // Last Name
-    if (!lastName.trim())
-      errs.lastName = isBn ? 'শেষ নাম আবশ্যক' : 'Last name is required';
-    else if (lastName.trim().length < 2)
-      errs.lastName = isBn
-        ? 'অন্তত ২টি অক্ষর আবশ্যক'
-        : 'At least 2 characters required';
-    else if (!isAlphaText(lastName))
-      errs.lastName = isBn
-        ? 'শুধুমাত্র অক্ষর ব্যবহার করুন'
-        : 'Only letters allowed';
-    // Date of Birth - Optional
-    // Time of Birth - Optional
-    // Birth Place - Optional
-    // Gotra - Optional
+    // Date of Birth
+    if (!dob.trim())
+      errs.dob = isBn ? 'জন্ম তারিখ আবশ্যক' : 'Date of birth is required';
+    // Time of Birth
+    if (!dontKnowTime && !timeOfBirth.trim())
+      errs.timeOfBirth = isBn ? 'জন্ম সময় আবশ্যক' : 'Time of birth is required';
+    // Birth Place
+    if (!birthPlace.trim())
+      errs.birthPlace = isBn ? 'জন্মস্থান আবশ্যক' : 'Birth place is required';
+    else if (birthPlace.trim().length < 2)
+      errs.birthPlace = isBn ? 'অন্তত ২ অক্ষর দিন' : 'At least 2 characters required';
+    else if (!isAlphaText(birthPlace))
+      errs.birthPlace = isBn ? 'শুধুমাত্র অক্ষর ব্যবহার করুন' : 'Only letters allowed';
+    // Gotra
+    if (!gotraId)
+      errs.gotra = isBn ? 'গোত্র নির্বাচন করুন' : 'Please select a gotra';
     // Address field has been removed from UI, so skipping validation here.
     setProfileErrors(errs);
     return Object.keys(errs).length === 0;
@@ -525,14 +560,21 @@ export default function UpdateProfileScreen({ navigation }: any) {
     }
     if (result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
-      // 5MB Validation (5 * 1024 * 1024 bytes)
-      const MAX_SIZE = 5 * 1024 * 1024;
-      if (asset.fileSize && asset.fileSize > MAX_SIZE) {
+      // 200KB Validation (200 * 1024 bytes)
+      const MAX_SIZE = 200 * 1024;
+      let actualSize = asset.fileSize;
+      if (!actualSize && asset.uri) {
+        try {
+          const stat = await RNFS.stat(asset.uri);
+          actualSize = stat.size;
+        } catch (_) { }
+      }
+      if (actualSize && actualSize > MAX_SIZE) {
         showAlert({
           title: isBn ? 'সতর্কতা' : 'Warning',
           message: isBn
-            ? 'ছবির আকার ৫এমবি-র বেশি হওয়া উচিত নয়'
-            : 'Image size should not exceed 5MB',
+            ? 'ছবির আকার ২০০ কেবি-র বেশি হওয়া উচিত নয়'
+            : 'Image size should not exceed 200 KB',
           buttons: [{ text: 'OK' }],
         });
         return;
@@ -573,7 +615,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
         file: profileImageFile,
       }).unwrap();
       console.log('=== DIRECT UPLOAD PHOTO RESULT ===', res);
-      if (res?.status === 0 || res?.status === '0') {
+      if (String(res?.status) === '0') {
         await refetchUserDetails();
         showToast({
           message: isBn ? 'প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে' : 'Profile photo updated successfully',
@@ -601,9 +643,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
     try {
       const result = await launchCamera({
         mediaType: 'photo',
-        quality: 0.4,
-        maxWidth: 450,
-        maxHeight: 450,
+        quality: 0.3,
+        maxWidth: 400,
+        maxHeight: 400,
         cameraType: 'back',
         includeBase64: false,
         saveToPhotos: false,
@@ -614,7 +656,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
       if (result.errorCode) {
         showErrorAlert(
           result.errorMessage ||
-            (isBn ? 'ক্যামেরা খোলা সম্ভব হয়নি' : 'Could not open camera. Please try again.'),
+          (isBn ? 'ক্যামেরা খোলা সম্ভব হয়নি' : 'Could not open camera. Please try again.'),
         );
         return;
       }
@@ -628,9 +670,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.4,
-        maxWidth: 450,
-        maxHeight: 450,
+        quality: 0.3,
+        maxWidth: 400,
+        maxHeight: 400,
         includeBase64: false,
         includeExtra: false,
       });
@@ -695,13 +737,14 @@ export default function UpdateProfileScreen({ navigation }: any) {
       dispatch(showLoader());
       // Gender → numeric: 1=Male, 2=Female, 3=Others
       const genderNum = gender === 'Male' ? 1 : gender === 'Female' ? 2 : 3;
+      const finalFullName = (fullName.trim() || `${firstName} ${lastName}`.trim()).trim();
       const payload = {
         auth_id: user?.user_id || 0,
-        full_name: `${firstName} ${lastName}`.trim(),
+        full_name: finalFullName,
         gotra: gotraId ?? gotra, // send ID if available, else fallback to name
         gender: genderNum,
         dob: formatOnlyDate(dob),
-        tob: formatOnlyTime(timeOfBirth),
+        tob: dontKnowTime ? '' : formatOnlyTime(timeOfBirth),
         birthplace: birthPlace,
         entry_user_id: user?.user_id || 0,
         ctz_address: address,
@@ -751,18 +794,20 @@ export default function UpdateProfileScreen({ navigation }: any) {
           console.log('=== SAVE USER PROFILE IMAGE ERROR ===', JSON.stringify(imgErr, null, 2));
         }
       }
-      if (result.status === 0) {
+      if (String(result.status) === '0') {
         await refetchUserDetails();
-        showAlert({
-          title: isBn ? 'সফল' : 'Success',
-          message: isBn ? 'সফলভাবে সম্পাদনা করা হয়েছে' : 'Edit successfully',
-          buttons: [{
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('EditProfile');
-            }
-          }],
+        showToast({
+          message: isBn ? 'সফলভাবে সম্পাদনা করা হয়েছে' : 'Profile updated successfully',
+          type: 'success',
         });
+        setTimeout(() => {
+          navigation.navigate('EditProfile');
+        }, 300);
+      } else {
+        showErrorAlert(
+          result?.message ||
+          (isBn ? 'প্রোফাইল আপডেট করতে সমস্যা হয়েছে' : 'Failed to update profile. Please try again.'),
+        );
       }
     } catch (err: any) {
       showErrorAlert(
@@ -803,7 +848,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
     setRelGotraId(rel.gotraId ?? null);
     setRelContact(rel.contact || '');
     setRelErrors({});
-    setShowAddRelative(true);
+    navigation.navigate('AddFamilyMember', { relative: rel });
   };
   const handleDeleteRelative = (id: string) => {
     showAlert({
@@ -1022,24 +1067,12 @@ export default function UpdateProfileScreen({ navigation }: any) {
           if (navigation.canGoBack()) {
             navigation.goBack();
           } else {
-            navigation.navigate('MainTabs');
+            navigation.navigate('MainTabs' as any, { screen: 'HomeTab' });
           }
         }}
       />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Back button */}
-        <TouchableOpacity
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('MainTabs');
-            }
-          }}
-          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16 }}>
-          <ArrowLeft size={20} color="#4B5563" />
-          <Text style={{ marginLeft: 8, fontSize: 15, color: '#4B5563', fontWeight: '700' }}>{isBn ? 'প্রোফাইলে ফিরে যান' : 'Back to profile'}</Text>
-        </TouchableOpacity>
+
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
           <Text style={{ fontSize: 12, fontWeight: '800', color: '#D97706', marginBottom: 8, letterSpacing: 1 }}>
             {isBn ? 'আমার অ্যাকাউন্ট' : 'MY ACCOUNT'}
@@ -1055,8 +1088,17 @@ export default function UpdateProfileScreen({ navigation }: any) {
         <View style={{ margin: 16, backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <TouchableOpacity onPress={handleAvatarPress} style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 4, borderColor: '#FDF7F1', overflow: 'hidden' }}>
-              {profileImageUri ? (
-                <Image source={{ uri: profileImageUri }} style={{ width: '100%', height: '100%', borderRadius: 36 }} resizeMode="cover" />
+              {profileImageUri && !imageLoadError ? (
+                <Image
+                  key={profileImageUri}
+                  source={{ uri: profileImageUri }}
+                  style={{ width: '100%', height: '100%', borderRadius: 36 }}
+                  resizeMode="cover"
+                  onError={() => {
+                    console.log('UpdateProfile: error loading avatar');
+                    setImageLoadError(true);
+                  }}
+                />
               ) : (
                 <View style={{ width: '100%', height: '100%', borderRadius: 36, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' }}>
                   <User size={32} color="#FFF" />
@@ -1066,7 +1108,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, color: '#374151', marginBottom: 4, fontWeight: '700' }}>{isBn ? 'প্রোফাইল ছবি' : 'Profile photo'}</Text>
               <Text style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 18, marginBottom: 12 }}>
-                {isBn ? '৫ এমবি পর্যন্ত একটি জেপিজি, পিএনজি বা ওয়েবপি ছবি ব্যবহার করুন।' : 'Use a JPG, PNG or WebP image up to 5 MB.'}
+                {isBn ? '২০০ কেবি পর্যন্ত একটি জেপিজি, পিএনজি বা ওয়েবপি ছবি ব্যবহার করুন।' : 'Use a JPG, PNG or WebP image up to 200 KB.'}
               </Text>
               <View style={{ gap: 8 }}>
                 <TouchableOpacity
@@ -1123,30 +1165,22 @@ export default function UpdateProfileScreen({ navigation }: any) {
           </View>
           <View style={{ padding: 16 }}>
             <Field
-              label={isBn ? 'প্রথম নাম' : 'FIRST NAME'}
+              label={isBn ? 'পুরো নাম' : 'FULL NAME'}
               required
-              value={firstName}
+              value={fullName}
               onChange={v => {
-                setFirstName(v);
-                if (profileErrors.firstName) setProfileErrors(p => ({ ...p, firstName: undefined }));
+                const alphaOnly = v.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, '');
+                setFullName(alphaOnly);
+                const parts = alphaOnly.split(' ');
+                setFirstName(parts[0] || '');
+                setLastName(parts.slice(1).join(' ') || '');
+                if (profileErrors.fullName) setProfileErrors(p => ({ ...p, fullName: undefined }));
               }}
-              placeholder={isBn ? 'আপনার প্রথম নাম লিখুন' : 'Enter first name'}
-              error={profileErrors.firstName}
+              placeholder={isBn ? 'আপনার পুরো নাম লিখুন' : 'Enter full name'}
+              error={profileErrors.fullName}
               autoCapitalize="words"
-              autoComplete="name-given"
-            />
-            <View style={{ height: 16 }} />
-            <Field
-              label={isBn ? 'শেষ নাম' : 'LAST NAME'}
-              value={lastName}
-              onChange={v => {
-                setLastName(v);
-                if (profileErrors.lastName) setProfileErrors(p => ({ ...p, lastName: undefined }));
-              }}
-              placeholder={isBn ? 'আপনার শেষ নাম লিখুন' : 'Enter last name'}
-              error={profileErrors.lastName}
-              autoCapitalize="words"
-              autoComplete="name-family"
+              autoComplete="name"
+              maxLength={25}
             />
             <View style={{ height: 16 }} />
             <Text style={styles.fieldLabel}>{isBn ? 'লিঙ্গ' : 'GENDER'} <Text style={{ color: '#DC2626' }}>*</Text></Text>
@@ -1178,19 +1212,23 @@ export default function UpdateProfileScreen({ navigation }: any) {
             <View style={{ height: 16 }} />
             <Field
               label={isBn ? 'জন্ম সময়' : 'TIME OF BIRTH'}
+              required={!dontKnowTime}
               value={timeOfBirth}
               onChange={() => { }}
-              onPress={() => {
+              onPress={dontKnowTime ? undefined : () => {
                 setPickerTarget('profile');
                 setShowTimePicker(true);
               }}
+              editable={!dontKnowTime}
               placeholder={isBn ? 'জন্ম সময় নির্বাচন করুন' : 'Select time of birth'}
               error={profileErrors.timeOfBirth}
-              icon={<Clock size={20} color="#9CA3AF" />}
+              icon={<Clock size={20} color={dontKnowTime ? "#D1D5DB" : "#9CA3AF"} />}
             />
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginTop: -8, marginBottom: 16 }}>
-              <View style={{ marginTop: 14, width: 20, height: 20, borderRadius: 4, backgroundColor: '#D97706', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
-                <Check size={14} color="#FFF" />
+            <TouchableOpacity
+              onPress={() => setDontKnowTime(!dontKnowTime)}
+              style={{ flexDirection: 'row', alignItems: 'center', marginTop: -8, marginBottom: 16 }}>
+              <View style={{ marginTop: 14, width: 20, height: 20, borderRadius: 4, backgroundColor: dontKnowTime ? '#D97706' : '#FFF', borderWidth: dontKnowTime ? 0 : 1, borderColor: '#D1D5DB', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                {dontKnowTime && <Check size={14} color="#FFF" />}
               </View>
               <Text style={{ marginTop: 14, fontSize: 14, color: '#4B5563', fontWeight: '700' }}>{isBn ? 'আমি জন্ম সময় জানি না' : "I don't know the birth time"}</Text>
             </TouchableOpacity>
@@ -1217,11 +1255,13 @@ export default function UpdateProfileScreen({ navigation }: any) {
               required
               value={birthPlace}
               onChange={v => {
-                setBirthPlace(v);
+                const alphaOnly = v.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, '');
+                setBirthPlace(alphaOnly);
                 if (profileErrors.birthPlace) setProfileErrors(p => ({ ...p, birthPlace: undefined }));
               }}
               placeholder={isBn ? 'আপনার জন্মস্থান লিখুন' : 'Enter birth place (e.g. Kolkata)'}
               error={profileErrors.birthPlace}
+              maxLength={250}
               autoCapitalize="words"
             />
             <View style={{ height: 16 }} />
@@ -1239,7 +1279,11 @@ export default function UpdateProfileScreen({ navigation }: any) {
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={() => {
-                navigation.navigate('MainTabs');
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('MainTabs' as any, { screen: 'HomeTab' });
+                }
               }} style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#FFF', alignItems: 'center' }}>
                 <Text style={{ fontSize: 16, color: '#4B5563', fontWeight: '800' }}>{isBn ? 'বাতিল' : 'Cancel'}</Text>
               </TouchableOpacity>
@@ -1269,6 +1313,8 @@ export default function UpdateProfileScreen({ navigation }: any) {
         mode="date"
         onSelect={handleDateSelect}
         onClose={() => setShowDatePicker(false)}
+        maximumDate={maxDobDate}
+        initialDate={getInitialDobDate()}
       />
       <CustomTimePickerModal
         visible={showTimePicker}

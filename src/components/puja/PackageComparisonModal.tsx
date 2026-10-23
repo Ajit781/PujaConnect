@@ -119,12 +119,13 @@ export default function PackageComparisonModal({
                       <Text style={styles.labelTitle}>Duration & Pandit count</Text>
                     </View>
                     {packages.map((pkg) => {
-                      const duration = pkg.package_duration_hours || pkg.duration_hours || 2;
-                      const count = pkg.pandit_count || 1;
+                      const duration = pkg.package_duration_hours || pkg.duration_hours;
+                      const count = pkg.pandit_count;
                       return (
                         <View key={`duration-${pkg.package_id}`} style={styles.dataCol}>
-                          <Text style={styles.specText}>{duration} hr</Text>
-                          <Text style={styles.specText}>{count} priest{count > 1 ? 's' : ''}</Text>
+                          {duration ? <Text style={styles.specText}>{duration} hr</Text> : null}
+                          {count ? <Text style={styles.specText}>{count} priest{count > 1 ? 's' : ''}</Text> : null}
+                          {!duration && !count ? <Text style={styles.specText}>-</Text> : null}
                         </View>
                       );
                     })}
@@ -156,7 +157,7 @@ export default function PackageComparisonModal({
                         : 'Kumkum, Turmeric Powder, Camphor, Incense';
                       return (
                         <View key={`samagri-${pkg.package_id}`} style={styles.dataCol}>
-                          <Text style={styles.statusText}>{isIncluded ? 'Included' : 'Not Included'}</Text>
+                          <Text style={styles.statusText}>{isIncluded ? 'Included' : 'Excluded'}</Text>
                           {isIncluded && (
                             <Text style={styles.materialsSubText} numberOfLines={2}>
                               <Text style={{ fontWeight: '500' }}>Materials:</Text> {materialsList}

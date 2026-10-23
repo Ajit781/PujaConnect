@@ -225,7 +225,8 @@ export default function RescheduleModal({
       console.log('==============================================');
       console.error('--- reschedulePuja MUTATION ERROR ---', err);
       console.log('==============================================');
-      showToast({ message: err?.data?.message || err?.message || 'Failed to reschedule puja. Please try again.', type: 'error' });
+      const errMsg = err?.data?.message || (typeof err?.data === 'string' ? err.data : null) || err?.message || 'Failed to reschedule puja. Please try again.';
+      showToast({ message: typeof errMsg === 'object' ? JSON.stringify(errMsg) : errMsg, type: 'error' });
     }
   };
 
@@ -506,13 +507,10 @@ export default function RescheduleModal({
       {/* Date Picker Modal */}
       <CustomDatePickerModal
         visible={showDatePicker}
+        mode="date"
         onClose={() => setShowDatePicker(false)}
-        initialDate={selectedDate ? new Date(selectedDate) : new Date()}
-        onSelect={(d) => {
-          const formatted = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          setSelectedDate(formatted);
-          setShowDatePicker(false);
-        }}
+        initialDate={selectedDate ? new Date(selectedDate.replace(/-/g, '/')) : new Date()}
+        minimumDate={new Date()}
         onSelectDate={(d) => {
           const formatted = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           setSelectedDate(formatted);

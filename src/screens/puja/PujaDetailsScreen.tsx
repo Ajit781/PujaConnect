@@ -25,7 +25,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Clock,
   Users,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Gift,
@@ -34,6 +33,8 @@ import {
   Star,
   ArrowLeft,
   Check,
+  CheckCircle2,
+  Info,
 } from 'lucide-react-native';
 import BookingModal from '../../components/booking/BookingModal';
 import PackageDetailsModal from '../../components/booking/PackageDetailsModal';
@@ -49,6 +50,7 @@ import {
   useGetPujaFullDetailsQuery,
 } from '../../store/api/pujaApi';
 import TopNavBar from '../../components/common/TopNavBar';
+import { getPujaReviewDetails } from '../../service/api/dashboardService';
 
 if (
   Platform.OS === 'android' &&
@@ -78,12 +80,12 @@ const AccordionItem = ({
         activeOpacity={0.7}
       >
         <View style={{ flex: 1 }}>
-          {subtitle && <Text style={styles.accordionSubtitle}>{subtitle}</Text>}
+          {Boolean(subtitle) && <Text style={styles.accordionSubtitle}>{subtitle}</Text>}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[styles.accordionTitle, subtitle && { color: '#C84400' }]}>
               {title}
             </Text>
-            {badgeCount !== null && (
+            {badgeCount !== null && badgeCount !== undefined && (
               <View style={styles.badgeCircle}>
                 <Text style={styles.badgeText}>{badgeCount}</Text>
               </View>
@@ -127,14 +129,21 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const { i18n, t } = useTranslation();
   const isBn = i18n.language === 'bn';
   const { showToast } = useToast();
-  const { pujaId, pujaData } = route.params;
+  const { pujaId, pujaData, selectedPackageId: routePkgId, packageId: routePackageId, selectedPackage: routePkg } = route.params || {};
+  const initialPackageId = routePkgId || routePackageId || routePkg?.puja_package_id || routePkg?.package_id || null;
   const [refreshing, setRefreshing] = useState(false);
 
   const puja = pujaData || {};
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
+    initialPackageId ? initialPackageId.toString() : null,
+  );
   const [activeDetailsPkg, setActiveDetailsPkg] = useState<any>(null);
+  const [visibleMaterialsCount, setVisibleMaterialsCount] = useState(10);
+
+  const [reviewData, setReviewData] = useState<any>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
 
   // RTK Query Hooks
   const {
@@ -170,6 +179,12 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
+    if (packagesData && packagesData.length > 0) {
+      console.log('=== [PujaDetailsScreen] packagesData response ===', JSON.stringify(packagesData, null, 2));
+    }
+  }, [packagesData]);
+
+  useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
     return () => {
@@ -177,6 +192,17 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    setIsLoadingReviews(true);
+    getPujaReviewDetails(pujaId).then(res => {
+      setReviewData(res);
+      setIsLoadingReviews(false);
+    }).catch(err => {
+      console.warn('--- Puja Review Details Error ---', err);
+      setIsLoadingReviews(false);
+    });
+  }, [pujaId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -194,12 +220,40 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
     }
   }, [refetchImages, refetchPackages, refetchMaterials, refetchFullDetails]);
 
+  // Listen for changes in route params
+  useEffect(() => {
+    const passedPkgId =
+      route.params?.selectedPackageId ||
+      route.params?.packageId ||
+      route.params?.selectedPackage?.puja_package_id ||
+      route.params?.selectedPackage?.package_id;
+    if (passedPkgId) {
+      setSelectedPackageId(passedPkgId.toString());
+    }
+  }, [route.params?.selectedPackageId, route.params?.packageId, route.params?.selectedPackage]);
+
   // Auto-select first package when loaded
   useEffect(() => {
     if (packagesData.length > 0 && !selectedPackageId) {
-      setSelectedPackageId(packagesData[0].puja_package_id.toString());
+      const passedPkgId = route.params?.selectedPackageId || route.params?.packageId;
+      if (passedPkgId) {
+        setSelectedPackageId(passedPkgId.toString());
+      } else {
+        setSelectedPackageId(packagesData[0].puja_package_id.toString());
+      }
     }
   }, [packagesData, selectedPackageId]);
+
+  useEffect(() => {
+    setVisibleMaterialsCount(10);
+  }, [selectedPackageId]);
+
+  const currentSelectedPackage = (packagesData || []).find(
+    (p: any) => p.puja_package_id?.toString() === selectedPackageId?.toString()
+  ) || packagesData?.[0];
+  const isCurrentPkgSamagriIncluded = currentSelectedPackage
+    ? (currentSelectedPackage.puja_include_samagri === 1 || currentSelectedPackage.includes_samagri === 1)
+    : true;
 
   const rating =
     fullDetails?.puja_rating ||
@@ -242,7 +296,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
   const significance = parseAsBullets(fullDetails?.puja_significance);
 
   const selectedPackage = packagesData.find(
-    (pkg: any) => pkg.puja_package_id.toString() === selectedPackageId,
+    (pkg: any) => String(pkg.puja_package_id) === String(selectedPackageId),
   );
 
   const IMAGES =
@@ -370,7 +424,11 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
 
           {/* Meta Links Row matching Screenshot 1 */}
           <View style={styles.linksRow}>
-            <Text style={styles.linkText}>No reviews yet</Text>
+            <Text style={styles.linkText}>
+              {reviewData && reviewData.total_review_count > 0
+                ? `⭐ ${reviewData.average_star_rating} (${reviewData.total_review_count} ${isBn ? 'রিভিউ' : 'reviews'})`
+                : (isBn ? 'কোনো রিভিউ নেই' : 'No reviews yet')}
+            </Text>
             <View style={styles.linkDivider} />
             <Text style={styles.linkTextActive}>Certified pandits</Text>
             <View style={styles.linkDivider} />
@@ -389,146 +447,205 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         </View>
 
         {/* ── SELECT A PACKAGE Grid Box matching Screenshot 2 ── */}
-        <View style={styles.packagesContainer}>
-          <View style={styles.packagesCardOuter}>
-            <View style={styles.packagesHeader}>
-              <Text style={styles.packagesHeaderTitle}>SELECT A PACKAGE</Text>
-              <Text style={styles.packagesHeaderCount}>
-                {packagesData.length > 0 ? `${packagesData.length} options` : '3 options'}
-              </Text>
-            </View>
-
-            {isLoadingPackages ? (
-              <ActivityIndicator color="#E8700A" style={{ marginVertical: 30 }} />
-            ) : isErrorPackages ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>Failed to load packages</Text>
-                <TouchableOpacity style={styles.retryBtn} onPress={() => refetchPackages()}>
-                  <Text style={styles.retryBtnText}>Try Again</Text>
-                </TouchableOpacity>
+        {packagesData && packagesData.length > 0 && (
+          <View style={styles.packagesContainer}>
+            <View style={styles.packagesCardOuter}>
+              <View style={styles.packagesHeader}>
+                <Text style={styles.packagesHeaderTitle}>SELECT A PACKAGE</Text>
+                <Text style={styles.packagesHeaderCount}>
+                  {packagesData.length > 0 ? `${packagesData.length} options` : '3 options'}
+                </Text>
               </View>
-            ) : (
-              <View style={styles.packagesGrid}>
-                {(packagesData.length > 0
-                  ? packagesData
-                  : [
-                    {
-                      puja_package_id: '1',
-                      puja_package_name: 'Platinum Package',
-                      puja_package_price: 10000,
-                      puja_duration: '2',
-                      puja_count: 3,
-                    },
-                    {
-                      puja_package_id: '2',
-                      puja_package_name: 'Silver Package',
-                      puja_package_price: 10000,
-                      puja_duration: '2',
-                      puja_count: 3,
-                    },
-                    {
-                      puja_package_id: '3',
-                      puja_package_name: 'Gold Package',
-                      puja_package_price: 10000,
-                      puja_duration: '3',
-                      puja_count: 3,
-                    },
-                  ]
-                ).map((pkg: any) => {
-                  const pkgId = pkg.puja_package_id.toString();
-                  const isSelected = selectedPackageId === pkgId;
-                  return (
-                    <TouchableOpacity
-                      key={pkgId}
-                      activeOpacity={0.9}
-                      style={[
-                        styles.newPackageCard,
-                        isSelected && styles.newPackageCardSelected,
-                      ]}
-                      onPress={() => setSelectedPackageId(pkgId)}
-                    >
-                      {isSelected && (
-                        <View style={styles.selectedCheckCircle}>
-                          <Check size={12} color="#E8700A" strokeWidth={3} />
-                        </View>
-                      )}
 
-                      <Text
-                        style={[
-                          styles.newPackageTitle,
-                          isSelected && styles.newPackageTitleSelected,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {pkg.puja_package_name}
-                      </Text>
-
-                      <Text style={styles.newPackagePrice}>
-                        ₹{pkg.puja_package_price.toLocaleString('en-IN')}
-                      </Text>
-
-                      <View style={styles.newPackageMetaRow}>
-                        <Clock size={13} color="#C84400" />
-                        <Text style={styles.newPackageMetaText}>
-                          {pkg.puja_duration || pkg.duration || 2} hours
-                        </Text>
-                        <Users size={13} color="#C84400" style={{ marginLeft: 4 }} />
-                        <Text style={styles.newPackageMetaText}>
-                          {pkg.puja_count || pkg.pandit_count || 3} pandits
-                        </Text>
-                      </View>
-
-                      <View style={[styles.newPackageMetaRow, { marginTop: 4 }]}>
-                        <Gift size={13} color="#315B50" />
-                        <Text style={styles.materialsIncludedText}>Materials included</Text>
-                      </View>
-
+              {isLoadingPackages ? (
+                <ActivityIndicator color="#E8700A" style={{ marginVertical: 30 }} />
+              ) : isErrorPackages ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>Failed to load packages</Text>
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => refetchPackages()}>
+                    <Text style={styles.retryBtnText}>Try Again</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.packagesGrid}>
+                  {packagesData.map((pkg: any) => {
+                    const pkgId = pkg.puja_package_id.toString();
+                    const isSelected = String(selectedPackageId) === String(pkgId);
+                    return (
                       <TouchableOpacity
-                        style={styles.moreDetailsBtn}
-                        onPress={() => setActiveDetailsPkg(pkg)}
+                        key={pkgId}
+                        activeOpacity={0.9}
+                        style={[
+                          styles.newPackageCard,
+                          isSelected && styles.newPackageCardSelected,
+                        ]}
+                        onPress={() => setSelectedPackageId(pkgId)}
                       >
-                        <Text style={styles.moreDetailsText}>More details</Text>
+                        {isSelected && (
+                          <View style={styles.selectedCheckCircle}>
+                            <Check size={12} color="#E8700A" strokeWidth={3} />
+                          </View>
+                        )}
+
+                        <Text
+                          style={[
+                            styles.newPackageTitle,
+                            isSelected && styles.newPackageTitleSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {pkg.puja_package_name}
+                        </Text>
+
+                        <Text style={styles.newPackagePrice}>
+                          ₹{pkg.puja_package_price.toLocaleString('en-IN')}
+                        </Text>
+
+                        {(pkg.puja_duration || pkg.duration || pkg.puja_count || pkg.pandit_count) ? (
+                          <View style={styles.newPackageMetaRow}>
+                            {(pkg.puja_duration || pkg.duration) ? (
+                              <>
+                                <Clock size={13} color="#C84400" />
+                                <Text style={styles.newPackageMetaText}>
+                                  {pkg.puja_duration || pkg.duration} hours
+                                </Text>
+                              </>
+                            ) : null}
+                            {(pkg.puja_count || pkg.pandit_count) ? (
+                              <>
+                                <Users size={13} color="#C84400" style={{ marginLeft: (pkg.puja_duration || pkg.duration) ? 4 : 0 }} />
+                                <Text style={styles.newPackageMetaText}>
+                                  {pkg.puja_count || pkg.pandit_count} pandits
+                                </Text>
+                              </>
+                            ) : null}
+                          </View>
+                        ) : null}
+
+                        {(() => {
+                          const isIncluded = pkg.puja_include_samagri === 1 || pkg.includes_samagri === 1;
+                          return (
+                            <View style={[styles.newPackageMetaRow, { marginTop: 4 }]}>
+                              <Gift size={13} color="#315B50" />
+                              <Text style={styles.materialsIncludedText}>
+                                {isIncluded ? 'Materials Included' : 'Materials Not Included'}
+                              </Text>
+                            </View>
+                          );
+                        })()}
+
+                        <TouchableOpacity
+                          style={styles.moreDetailsBtn}
+                          onPress={() => setActiveDetailsPkg(pkg)}
+                        >
+                          <Text style={styles.moreDetailsText}>More details</Text>
+                        </TouchableOpacity>
                       </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* ── ACCORDION SECTIONS matching Screenshot 3 ── */}
         <View style={styles.accordionsWrapper}>
           {/* 1. Package Materials Accordion */}
           <AccordionItem
-            subtitle="INCLUDED WITH PACKAGE"
             title="Package materials"
             defaultOpen={true}
-            badgeCount={materialsData.length > 0 ? materialsData.length : 2}
+            badgeCount={materialsData?.length || 0}
           >
             <View style={styles.matList}>
+              {/* Materials Arrangement Notice */}
+              <View
+                style={[
+                  styles.matNoticeBanner,
+                  !isCurrentPkgSamagriIncluded
+                    ? styles.matNoticeAmber
+                    : styles.matNoticeGreen,
+                ]}
+              >
+                <Info
+                  size={16}
+                  color={!isCurrentPkgSamagriIncluded ? '#D97706' : '#059669'}
+                />
+                <Text
+                  style={[
+                    styles.matNoticeText,
+                    !isCurrentPkgSamagriIncluded
+                      ? { color: '#92400E' }
+                      : { color: '#065F46' },
+                  ]}
+                >
+                  {!isCurrentPkgSamagriIncluded
+                    ? (isBn
+                        ? 'এই সামগ্রীগুলি আপনাকে নিজে সংগ্রহ করার জন্য অনুরোধ করা হচ্ছে'
+                        : 'You are requested to arrange these materials yourself')
+                    : (isBn
+                        ? 'এই প্যাকেজের সাথে সমস্ত প্রয়োজনীয় সামগ্রী সরবরাহ করা হবে'
+                        : 'All required puja materials will be arranged and provided with this package')}
+                </Text>
+              </View>
+
               {isLoadingMaterials ? (
                 <ActivityIndicator color="#E8700A" />
-              ) : (materialsData.length > 0 ? materialsData : [
-                { material_name: 'Kumkum', quantity: 1, unit: 'GRAM', category: 'Puja Materials' },
-                { material_name: 'Turmeric Powder', quantity: 1, unit: 'GRAM', category: 'Puja Materials' },
-              ]).map((mat: any, idx: number) => (
-                <View key={idx} style={styles.materialCardItem}>
-                  <View style={styles.matNumberBox}>
-                    <Text style={styles.matNumberText}>0{idx + 1}</Text>
-                  </View>
-                  <View style={styles.matContentBox}>
-                    <Text style={styles.matNameText}>{mat.material_name}</Text>
-                    <Text style={styles.matMetaText}>
-                      {mat.quantity} {mat.unit || 'GRAM'} · {mat.category || 'Puja Materials'}
-                    </Text>
-                  </View>
-                  <View style={styles.matIncludedBadge}>
-                    <CheckCircle2 size={14} color="#059669" />
-                    <Text style={styles.matIncludedText}>Included</Text>
-                  </View>
+              ) : materialsData && materialsData.length > 0 ? (
+                <>
+                  {materialsData.slice(0, visibleMaterialsCount).map((mat: any, idx: number) => {
+                    const numStr = String(idx + 1).padStart(2, '0');
+                    return (
+                      <View key={idx} style={styles.materialCardItem}>
+                        <View style={styles.matNumberBox}>
+                          <Text style={styles.matNumberText}>{numStr}</Text>
+                        </View>
+                        <View style={styles.matContentBox}>
+                          <Text style={styles.matNameText}>{mat.material_name}</Text>
+                          <Text style={styles.matMetaText}>
+                            {mat.quantity} {mat.unit || 'GRAM'} · {mat.category || 'Puja Materials'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  {materialsData.length > visibleMaterialsCount && (
+                    <TouchableOpacity
+                      style={styles.viewMoreMaterialsBtn}
+                      activeOpacity={0.8}
+                      onPress={() => setVisibleMaterialsCount((prev) => prev + 10)}
+                    >
+                      <Text style={styles.viewMoreMaterialsText}>
+                        {isBn
+                          ? `আরও দেখুন (+১০, ${materialsData.length - visibleMaterialsCount} বাকি)`
+                          : `View More (+10, ${materialsData.length - visibleMaterialsCount} remaining)`}
+                      </Text>
+                      <ChevronDown size={16} color="#E8700A" />
+                    </TouchableOpacity>
+                  )}
+
+                  {visibleMaterialsCount > 10 && (
+                    <TouchableOpacity
+                      style={[
+                        styles.viewMoreMaterialsBtn,
+                        { marginTop: 8, backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => setVisibleMaterialsCount(10)}
+                    >
+                      <Text style={[styles.viewMoreMaterialsText, { color: '#4B5563' }]}>
+                        {isBn ? 'কম দেখুন' : 'Show Less'}
+                      </Text>
+                      <ChevronUp size={16} color="#4B5563" />
+                    </TouchableOpacity>
+                  )}
+                </>
+              ) : (
+                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                  <Text style={{ color: '#6B7280', fontSize: 13 }}>No materials listed for this package.</Text>
                 </View>
-              ))}
+              )}
             </View>
           </AccordionItem>
 
@@ -574,6 +691,7 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
         </View>
 
         {/* ── CUSTOMER REVIEWS SECTION matching Screenshot 4 ── */}
+
         <View style={styles.reviewsSectionWrapper}>
           <View style={styles.reviewsHeaderRow}>
             <View style={styles.starIconBox}>
@@ -588,108 +706,142 @@ export default function PujaDetailsScreen({ route, navigation }: any) {
           {/* Rating Summary Card matching Screenshot 4 */}
           <View style={styles.ratingSummaryCard}>
             <Text style={styles.ratingCardTitle}>Customer Reviews</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6 }}>
-              <View style={{ flexDirection: 'row', gap: 2 }}>
-                {[1, 2, 3, 4].map((s) => (
-                  <Star key={s} size={16} color="#E8700A" fill="#E8700A" />
-                ))}
-                <Star size={16} color="#E8700A" fill="rgba(232,112,10,0.3)" />
-              </View>
-              <Text style={styles.ratingScoreText}>{rating} out of 5</Text>
-            </View>
-            <Text style={styles.globalRatingsText}>2 global ratings</Text>
-
-            {/* Rating Bars matching Screenshot 4 */}
-            <View style={styles.ratingBarsContainer}>
-              {[
-                { star: '5 star', percent: 50 },
-                { star: '4 star', percent: 50 },
-                { star: '3 star', percent: 0 },
-                { star: '2 star', percent: 0 },
-                { star: '1 star', percent: 0 },
-              ].map((item, idx) => (
-                <View key={idx} style={styles.ratingBarRow}>
-                  <Text style={styles.starLabelText}>{item.star}</Text>
-                  <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { width: `${item.percent}%` }]} />
+            {isLoadingReviews ? (
+              <ActivityIndicator color="#E8700A" style={{ marginVertical: 20 }} />
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6 }}>
+                  <View style={{ flexDirection: 'row', gap: 2 }}>
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} size={16} color="#E8700A" fill={s <= (reviewData?.average_star_rating || 0) ? "#E8700A" : "#D1D5DB"} />
+                    ))}
                   </View>
-                  <Text style={styles.percentText}>{item.percent}%</Text>
+                  <Text style={styles.ratingScoreText}>{reviewData?.average_star_rating || 0} out of 5</Text>
+                </View>
+                <Text style={styles.globalRatingsText}>{reviewData?.total_review_count || 0} global ratings</Text>
+
+                {/* Rating Bars matching Screenshot 4 */}
+                <View style={styles.ratingBarsContainer}>
+                  {[
+                    { star: '5 star', value: 5, percent: reviewData?.total_review_star_5_percentage || 0 },
+                    { star: '4 star', value: 4, percent: reviewData?.total_review_star_4_percentage || 0 },
+                    { star: '3 star', value: 3, percent: reviewData?.total_review_star_3_percentage || 0 },
+                    { star: '2 star', value: 2, percent: reviewData?.total_review_star_2_percentage || 0 },
+                    { star: '1 star', value: 1, percent: reviewData?.total_review_star_1_percentage || 0 },
+                  ].map((item, idx) => (
+                    <TouchableOpacity key={idx} style={styles.ratingBarRow} activeOpacity={0.7} onPress={() => navigation.navigate('AllReviews', { pujaId: pujaId.toString(), initialStarFilter: item.value })}>
+                      <Text style={styles.starLabelText}>{item.star}</Text>
+                      <View style={styles.barTrack}>
+                        <View style={[styles.barFill, { width: `${item.percent}%` }]} />
+                      </View>
+                      <Text style={styles.percentText}>{item.percent}%</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Review Item Cards */}
+          {isLoadingReviews ? null : reviewData?.review_details && reviewData.review_details.length > 0 ? (
+            <>
+              {reviewData.review_details.map((review: any, index: number) => (
+                <View key={index} style={[styles.reviewItemCard, { marginBottom: 12 }]}>
+                  <View style={styles.reviewItemHeader}>
+                    <View style={styles.avatarCircle}>
+                      <Text style={styles.avatarLetter}>{(review?.customer_name || review?.citizen_name || review?.user_name || 'U')[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reviewerName}>{review?.customer_name || review?.citizen_name || review?.user_name || 'User'}</Text>
+                      <Text style={styles.reviewDate}>{review?.review_date || review?.created_at || ''}</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 4, marginVertical: 10 }}>
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} size={14} color={s <= (review?.review_star_count || review?.star_count || review?.rating || 5) ? "#E8700A" : "#D1D5DB"} fill={s <= (review?.review_star_count || review?.star_count || review?.rating || 5) ? "#E8700A" : "#D1D5DB"} />
+                    ))}
+                  </View>
+
+                  <Text style={styles.reviewCommentText}>
+                    {review?.review_remarks || review?.review_desc || review?.review_text || review?.comment || ''}
+                  </Text>
                 </View>
               ))}
-            </View>
-          </View>
 
-          {/* Sample Review Item Card matching Screenshot 4 */}
-          <View style={styles.reviewItemCard}>
-            <View style={styles.reviewItemHeader}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarLetter}>K</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reviewerName}>Koushani Banerjee</Text>
-                <Text style={styles.reviewDate}>20 Aug 2026</Text>
-              </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 2, marginVertical: 6 }}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} size={14} color="#E8700A" fill="#E8700A" />
-              ))}
-            </View>
-
-            <Text style={styles.reviewCommentText}>
-              The pandit ji arrived on time with all authentic samagri. The entire puja was conducted with deep Vedic devotion. Highly satisfied!
-            </Text>
-          </View>
+              <TouchableOpacity
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#E8700A',
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginTop: 4,
+                  backgroundColor: '#FFFFFF',
+                }}
+                onPress={() => navigation.navigate('AllReviews', { pujaId: pujaId.toString() })}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#E8700A' }}>
+                  Show all {reviewData?.total_review_count || reviewData.review_details.length} reviews
+                </Text>
+                <ChevronRight size={18} color="#E8700A" />
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
 
       </ScrollView >
 
       {/* ── STICKY BOTTOM FOOTER ACTION BUTTON matching Screenshots 1, 2, 3, 4 ── */}
-      < View style={[styles.stickyFooter, { paddingBottom: Math.max(16, insets.bottom + 10) }]} >
-        <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
-          <TouchableOpacity
-            style={styles.footerBtn}
-            activeOpacity={0.9}
-            onPress={() => {
-              NetInfo.fetch().then((state) => {
-                if (state.isConnected) {
-                  setShowBookingModal(true);
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              });
-            }}
-          >
-            <View style={StyleSheet.absoluteFillObject}>
-              <Svg height="100%" width="100%">
-                <Defs>
-                  <LinearGradient id="footerBtnGrad" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor="#FF9933" />
-                    <Stop offset="1" stopColor="#E07800" />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#footerBtnGrad)" rx="16" />
-              </Svg>
-            </View>
+      {packagesData && packagesData.length > 0 && (
+        < View style={[styles.stickyFooter, { paddingBottom: Math.max(16, insets.bottom + 10) }]} >
+          <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
+            <TouchableOpacity
+              style={styles.footerBtn}
+              activeOpacity={0.9}
+              onPress={() => {
+                NetInfo.fetch().then((state) => {
+                  if (state.isConnected) {
+                    setShowBookingModal(true);
+                  } else {
+                    showToast({
+                      message: t('common.connectionRequired'),
+                      type: 'error',
+                    });
+                  }
+                });
+              }}
+            >
+              <View style={StyleSheet.absoluteFillObject}>
+                <Svg height="100%" width="100%">
+                  <Defs>
+                    <LinearGradient id="footerBtnGrad" x1="0" y1="0" x2="1" y2="0">
+                      <Stop offset="0" stopColor="#FF9933" />
+                      <Stop offset="1" stopColor="#E07800" />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width="100%" height="100%" fill="url(#footerBtnGrad)" rx="16" />
+                </Svg>
+              </View>
 
-            <View style={styles.footerLeft}>
-              <Text style={styles.footerPkgName} numberOfLines={1}>
-                {selectedPackage ? selectedPackage.puja_package_name : 'Platinum Package'}
-              </Text>
-              <Text style={styles.footerPkgPrice}>
-                ₹{selectedPackage ? selectedPackage.puja_package_price.toLocaleString('en-IN') : '10,000'}
-              </Text>
-            </View>
-            <View style={styles.footerRight}>
-              <Text style={styles.footerBtnText}>Continue {'>'}</Text>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-      </View >
+              <View style={styles.footerLeft}>
+                <Text style={styles.footerPkgName} numberOfLines={1}>
+                  {selectedPackage ? selectedPackage.puja_package_name : 'Platinum Package'}
+                </Text>
+                <Text style={styles.footerPkgPrice}>
+                  ₹{selectedPackage ? selectedPackage.puja_package_price.toLocaleString('en-IN') : '10,000'}
+                </Text>
+              </View>
+              <View style={styles.footerRight}>
+                <Text style={styles.footerBtnText}>Continue {'>'}</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+        </View >
+      )}
 
       {/* Modals */}
       < BookingModal
@@ -996,6 +1148,30 @@ const styles = StyleSheet.create({
 
   // Materials
   matList: { gap: 8 },
+  matNoticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+    marginBottom: 4,
+  },
+  matNoticeAmber: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  matNoticeGreen: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  matNoticeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 18,
+  },
   materialCardItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1041,6 +1217,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#059669',
+  },
+  viewMoreMaterialsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF7ED',
+    gap: 6,
+    marginTop: 8,
+  },
+  viewMoreMaterialsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#E8700A',
   },
 
   featureList: { gap: 6 },

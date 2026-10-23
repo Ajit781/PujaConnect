@@ -48,7 +48,12 @@ export default function SchedulePujasModal({
   const [isSameDay, setIsSameDay] = useState(true);
 
   // Global Schedule State
-  const [globalDate, setGlobalDate] = useState<Date | null>(null);
+  const getDefaultDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d;
+  };
+  const [globalDate, setGlobalDate] = useState<Date | null>(getDefaultDate());
   const [globalTime, setGlobalTime] = useState<string | null>(null);
   const [globalAddressId, setGlobalAddressId] = useState<string | null>(null);
 
@@ -72,7 +77,7 @@ export default function SchedulePujasModal({
   >(null);
   const [activeAddressTab, setActiveAddressTab] = useState<'Self' | 'Relative'>('Self');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(getDefaultDate());
   const [kbHeight, setKbHeight] = useState(0);
 
   const [step, setStep] = useState(1);
@@ -1207,7 +1212,7 @@ const styles = StyleSheet.create({
   calDayActive: { backgroundColor: Colors.primary, borderRadius: 20 },
   calDayText: { fontSize: 13, color: Colors.textMain },
   calDayTextActive: { color: Colors.white, fontWeight: 'bold' },
-  calDayPast: { color: Colors.textMuted, opacity: 0.6 },
+  calDayPast: { opacity: 0, color: Colors.textMuted, opacity: 0.6 },
 
   // Address selection styles
   addrOptionCard: {

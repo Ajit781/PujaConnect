@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 /* eslint-disable react-native/no-inline-styles */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
@@ -19,7 +20,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Geolocation from 'react-native-geolocation-service';
+import Geolocation from '@react-native-community/geolocation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '../../store';
@@ -252,6 +253,15 @@ export default function AddressScreen({ navigation, route }: any) {
   );
 
   // Address count from API
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (refetchAddresses) {
+        refetchAddresses();
+      }
+    }, [refetchAddresses])
+  );
+
   const { data: addressCount } = useGetAddressesCountQuery(
     { ctznId: user?.user_id || 0 },
     { skip: !user?.user_id },

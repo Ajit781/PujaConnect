@@ -1,7 +1,7 @@
 {
   "translation": {
     "auth": {
-      "accessDissha": "দিশায় প্রবেশ করুন",
+      "accessDissha": "শুভমুহুর্তে প্রবেশ করুন",
       "welcomeBack": "পুনরায় স্বাগতম",
       "enterMobile": "আমাদের ওয়েবঅ্যাপ অ্যাক্সেস করতে আপনার মোবাইল নম্বর লিখুন",
       "mobileNumberLabel": "মোবাইল নম্বর",
@@ -10,7 +10,7 @@
       "encryptedSecure": "এনক্রিপ্ট করা এবং নিরাপদ ব্যবহারকারী যাচাইকরণ",
       "verifyOtpTitle": "OTP যাচাই করুন",
       "enter6Digit": "এতে পাঠানো ৬-সংখ্যার কোডটি লিখুন",
-      "verifyAccess": "যাচাই করুন এবং দিশায় প্রবেশ করুন",
+      "verifyAccess": "যাচাই করুন এবং শুভমুহুর্তে প্রবেশ করুন",
       "resendOtp": "পুনরায় OTP পাঠান",
       "backToHome": "হোমে ফিরে যান",
       "yourSpiritualGateway": "আপনার আধ্যাত্মিক প্রবেশদ্বার",

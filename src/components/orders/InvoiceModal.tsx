@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 
-const appLogo = require('../../assets/images/Logo.webp');
+const appLogo = require('../../assets/images/Logo.png');
 const { height } = Dimensions.get('window');
 
 interface InvoiceModalProps {
@@ -114,7 +114,7 @@ export default function InvoiceModal({ visible, onClose, invoiceData }: InvoiceM
           <body>
             <div class="header-row">
               <div>
-                <div class="invoice-title">Pujora</div>
+                <div class="invoice-title">SUBHMUHURAT</div>
                 <div style="color:#666">Puja services invoice</div>
                 <div class="ord-id">${orderNo}</div>
               </div>

@@ -1,3 +1,9 @@
+import PackagesListModal from '../../components/puja/PackagesListModal';
+
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { Scale, CalendarClock, ShieldCheck } from 'lucide-react-native';
+import PackageComparisonModal, { PackageComparisonItem } from '../../components/puja/PackageComparisonModal';
+import { useLazyGetPujaPackagesQuery } from '../../store/api/pujaApi';
 import React, { useState, useCallback } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import {
@@ -12,6 +18,7 @@ import {
   Platform,
   RefreshControl,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -25,9 +32,12 @@ import {
   ChevronRight,
   Clock,
   Star,
+  Eye,
+  X,
 } from 'lucide-react-native';
 import { RootState } from '../../store';
 import { markWishlistAsSeen } from '../../store/slices/wishlistSlice';
+import { showLoader, hideLoader } from '../../store/slices/loaderSlice';
 import NoDataFound from '../../components/common/NoDataFound';
 import ImagePlaceholder from '../../components/common/ImagePlaceholder';
 import TopNavBar from '../../components/common/TopNavBar';
@@ -50,7 +60,7 @@ export default function WishlistScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       dispatch(markWishlistAsSeen());
-      return () => {};
+      return () => { };
     }, [dispatch]),
   );
 
@@ -61,6 +71,16 @@ export default function WishlistScreen({ navigation }: any) {
 
   const [pageNo, setPageNo] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  // Packages Modal & Comparison State
+  const [showPackagesModal, setShowPackagesModal] = useState(false);
+  const [selectedPujaForPackages, setSelectedPujaForPackages] = useState<any>(null);
+  const [openingPujaId, setOpeningPujaId] = useState<number | null>(null);
+  const [comparePackages, setComparePackages] = useState<PackageComparisonItem[]>([]);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+
+  // Fetch Packages dynamically for the selected Puja
+  const [fetchPackages, { data: modalPackagesData, isFetching: isLoadingModalPackages }] = useLazyGetPujaPackagesQuery();
+
   const [searchQuery, setSearchQuery] = useState('');
   const LIMIT = 10;
   const WISHLIST_TAG_ID = 3;
@@ -116,6 +136,7 @@ export default function WishlistScreen({ navigation }: any) {
       const action = isCurrentlyFavorited ? 5 : 1;
 
       try {
+        dispatch(showLoader());
         await savePujaTag({
           userId: user.user_id,
           pujaId: parseInt(pujaId, 10),
@@ -125,6 +146,8 @@ export default function WishlistScreen({ navigation }: any) {
         }).unwrap();
       } catch (error) {
         console.error('Failed to update wishlist:', error);
+      } finally {
+        dispatch(hideLoader());
       }
     },
     [user?.user_id, favorites, savePujaTag],
@@ -133,6 +156,7 @@ export default function WishlistScreen({ navigation }: any) {
   const handleClearAll = useCallback(async () => {
     if (!user?.user_id || wishlistPujas.length === 0) return;
     try {
+      dispatch(showLoader());
       for (const puja of wishlistPujas) {
         const pId = puja.puja_id || puja.puja_type_id;
         if (pId) {
@@ -152,6 +176,8 @@ export default function WishlistScreen({ navigation }: any) {
       refetchWishlist();
     } catch (err) {
       console.error('Failed to clear all:', err);
+    } finally {
+      dispatch(hideLoader());
     }
   }, [user?.user_id, wishlistPujas, savePujaTag, isBn, showToast, refetchWishlist]);
 
@@ -166,144 +192,128 @@ export default function WishlistScreen({ navigation }: any) {
       const pId = puja.puja_id || puja.puja_type_id;
       const pName = puja.puja_name || puja.puja_type_name;
       const isFav = pId ? favorites.includes(pId.toString()) : true;
+      const pMinPrice = puja.minimum_price || puja.puja_with_samagri_amount || 0;
+      const pMaxPrice = puja.maximum_price || puja.puja_without_samagri_amount || 0;
+      const pPriceStr = pMinPrice === pMaxPrice
+        ? `₹${pMinPrice.toLocaleString('en-IN')}`
+        : `₹${pMinPrice.toLocaleString('en-IN')}`;
+      let rawDuration = puja.duration || puja.puja_duration || '2';
+      let pDuration = String(rawDuration).includes('hr') ? rawDuration : `${rawDuration} hr`;
 
       return (
-        <View style={styles.cardContainer}>
-          {/* Card Image Banner matching Screenshot */}
-          <View style={styles.cardImageBanner}>
+        <View style={styles.pujaCardRow}>
+          {/* Left Side: Square Image area */}
+          <View style={styles.cardImgLeftBox}>
             {puja.icon ? (
-              <Image
-                source={{ uri: puja.icon }}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: puja.icon }} style={styles.pujaIconImage} resizeMode="cover" />
             ) : (
               <ImagePlaceholder />
             )}
-
-            {/* Heart Button Overlay Top Left */}
-            <TouchableOpacity
-              style={styles.heartOverlayBtn}
-              activeOpacity={0.8}
-              onPress={async () => {
-                const state = await NetInfo.fetch();
-                if (state.isConnected) {
-                  pId && handleToggleFavorite(pId.toString());
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              }}
-            >
-              <Heart
-                size={18}
-                color={isFav ? '#DC2626' : '#6B7280'}
-                fill={isFav ? '#DC2626' : 'none'}
-              />
-            </TouchableOpacity>
-
-            {/* Popular Badge Overlay Top Right */}
-            <View style={styles.popularBadge}>
-              <Sparkles size={12} color="#FFFFFF" />
-              <Text style={styles.popularBadgeText}>Popular</Text>
-            </View>
           </View>
 
-          {/* Card Content Section matching Screenshot */}
-          <TouchableOpacity
-            style={styles.cardContentBox}
-            activeOpacity={0.9}
-            onPress={() => {
-              NetInfo.fetch().then(state => {
-                if (state.isConnected) {
-                  navigation.navigate('PujaDetails', {
-                    pujaId: pId?.toString(),
-                    pujaData: puja,
-                  });
-                } else {
-                  showToast({
-                    message: t('common.connectionRequired'),
-                    type: 'error',
-                  });
-                }
-              });
-            }}
-          >
-            <Text style={styles.cardTitle}>{pName}</Text>
-            <Text style={styles.cardSubtitle}>
-              {puja.tagline ||
-                (isBn
-                  ? 'শুভ নতুন শুরুর জন্য বিশেষ পূজা'
-                  : 'Auspicious worship for new beginnings')}
-            </Text>
-            <Text style={styles.cardDescription} numberOfLines={3}>
-              {puja.description ||
-                puja.puja_description ||
-                (isBn
-                  ? 'পবিত্র বৈদিক আচারের মাধ্যমে সুখ ও সমৃদ্ধি লাভ করুন।'
-                  : 'Traditional Ganesh worship with sankalpa, mantra chanting, offerings, and aarti to seek wisdom and obstacle-free progress.')}
-            </Text>
-
-            {/* Duration Pill matching Screenshot 2 */}
-            <View style={styles.durationPill}>
-              <Clock size={14} color="#C84400" />
-              <Text style={styles.durationPillText}>
-                {puja.duration || puja.puja_duration || '1.5'} {isBn ? 'ঘন্টা' : 'hours'}
-              </Text>
-            </View>
-
-            {/* Price Range & Rating Box matching Screenshot 2 */}
-            <View style={styles.priceRatingBox}>
-              <View style={styles.priceCol}>
-                <Text style={styles.boxLabelText}>{isBn ? 'মূল্য সীমা' : 'PRICE RANGE'}</Text>
-                <Text style={styles.boxPriceValueText}>
-                  {puja.price_range || (puja.minimum_price ? `₹${puja.minimum_price.toLocaleString('en-IN')} – ₹${((puja.minimum_price || 1000) * 2).toLocaleString('en-IN')}` : '₹1,100 – ₹2,100')}
-                </Text>
-              </View>
-              <View style={styles.ratingCol}>
-                <Text style={styles.boxLabelText}>{isBn ? 'রেটিং' : 'RATING'}</Text>
-                <View style={styles.starsRow}>
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Star size={12} color="#D1D5DB" fill="#D1D5DB" />
-                </View>
-              </View>
-            </View>
-
-            {/* View Details Action Button matching Screenshot 2 */}
-            <TouchableOpacity
-              style={styles.viewDetailsBtn}
-              activeOpacity={0.9}
-              onPress={() => {
-                NetInfo.fetch().then(state => {
+          {/* Right Side: content details */}
+          <View style={styles.cardBodyRight}>
+            {/* Title and Heart Icon row */}
+            <View style={styles.titleHeartRow}>
+              <Text style={styles.cardTitleDash} numberOfLines={1}>{pName}</Text>
+              <TouchableOpacity
+                style={styles.heartBtnOutline}
+                onPress={async () => {
+                  const state = await NetInfo.fetch();
                   if (state.isConnected) {
-                    navigation.navigate('PujaDetails', {
-                      pujaId: pId?.toString(),
-                      pujaData: puja,
-                    });
+                    pId && handleToggleFavorite(pId.toString());
                   } else {
-                    showToast({
-                      message: t('common.connectionRequired'),
-                      type: 'error',
+                    showToast({ message: t('common.connectionRequired'), type: 'error' });
+                  }
+                }}
+              >
+                <Trash2
+                  size={16}
+                  color={Colors.red}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Duration, Rating and Compare row */}
+            <View style={styles.detailsRow}>
+              <View style={styles.durationRatingBox}>
+                <Clock size={12} color="#6B5E59" style={{ marginRight: 3 }} />
+                <Text style={styles.durationText}>{pDuration}</Text>
+              </View>
+            </View>
+
+            {/* Bottom Row: Packages from Price and View packages Orange Button with Eye Icon */}
+            <View style={styles.cardFooterRow}>
+              <View>
+                <Text style={styles.packagesFromLabel}>{isBn ? 'প্যাকেজ শুরু' : 'Packages from'}</Text>
+                <Text style={styles.priceValueText}>{pPriceStr}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.bookBtnContainer,
+                  puja.puja_active_status === 0 && styles.bookBtnDisabled,
+                ]}
+                disabled={puja.puja_active_status === 0 || openingPujaId === puja.puja_id}
+                onPress={async () => {
+                  setOpeningPujaId(puja.puja_id);
+                  setSelectedPujaForPackages(puja);
+                  // Save recently viewed via API
+                  if (user?.user_id || user?.auth_id) {
+                    savePujaTag({
+                      userId: user.user_id || user.auth_id,
+                      pujaId: puja.puja_id,
+                      tagId: 5,
+                      action: 1,
+                      skipGlobalLoader: true
                     });
                   }
-                });
-              }}
-            >
-              <Text style={styles.viewDetailsBtnText}>
-                {isBn ? 'বিস্তারিত দেখুন' : 'View details'}
-              </Text>
-              <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </TouchableOpacity>
+                  try {
+                    await fetchPackages(puja.puja_id.toString()).unwrap();
+                  } catch (error) {
+                    console.error('Failed to fetch packages:', error);
+                  } finally {
+                    setOpeningPujaId(null);
+                    setShowPackagesModal(true);
+                  }
+                }}
+              >
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 8, overflow: 'hidden' }}>
+                  <Svg height="100%" width="100%">
+                    <Defs>
+                      <LinearGradient id="btnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor={puja.puja_active_status === 0 ? '#E5E7EB' : '#FF9933'} />
+                        <Stop offset="100%" stopColor={puja.puja_active_status === 0 ? '#D1D5DB' : '#E07800'} />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100%" height="100%" fill="url(#btnGrad)" />
+                  </Svg>
+                </View>
+                <View style={styles.bookBtn}>
+                  {openingPujaId === puja.puja_id && (
+                    <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', zIndex: 2 }]}>
+                      <ActivityIndicator size="small" color="#FFF" />
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', opacity: openingPujaId === puja.puja_id ? 0 : 1 }}>
+                    <Eye size={12} color="#FFF" style={{ marginRight: 6 }} />
+                    <Text style={[
+                      styles.bookBtnText,
+                      puja.puja_active_status === 0 && styles.bookBtnTextDisabled,
+                    ]}>
+                      {puja.puja_active_status === 0
+                        ? isBn ? 'অনুপলব্ধ' : 'Not Available'
+                        : isBn ? 'প্যাকেজ দেখুন' : 'View packages'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       );
     },
-    [favorites, handleToggleFavorite, isBn, navigation, showToast, t],
+    [favorites, handleToggleFavorite, isBn, navigation, showToast, t, fetchPackages, openingPujaId, savePujaTag, user],
   );
 
   const renderHeader = () => (
@@ -410,8 +420,8 @@ export default function WishlistScreen({ navigation }: any) {
           (item.puja_id || item.puja_type_id || Math.random()).toString()
         }
         renderItem={renderWishlistItem}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
+        ListHeaderComponent={renderHeader()}
+        ListFooterComponent={renderFooter()}
         ListEmptyComponent={
           isLoading ? (
             <View style={styles.centerLoader}>
@@ -443,13 +453,176 @@ export default function WishlistScreen({ navigation }: any) {
           />
         }
       />
-    </View>
+    
+        
+        <PackagesListModal
+          visible={showPackagesModal}
+          onClose={() => setShowPackagesModal(false)}
+          pujaData={selectedPujaForPackages}
+          packages={modalPackagesData || []}
+          isLoading={isLoadingModalPackages}
+          comparePackages={comparePackages}
+          setComparePackages={setComparePackages}
+          onCompareNow={() => setShowComparisonModal(true)}
+          onSelectPackage={(pkg) => {
+            setShowPackagesModal(false);
+            const chosenId = pkg?.puja_package_id || pkg?.package_id;
+            navigation.navigate('PujaDetails', {
+              pujaId: selectedPujaForPackages?.puja_id,
+              pujaData: selectedPujaForPackages,
+              selectedPackageId: chosenId,
+              packageId: chosenId,
+              selectedPackage: pkg,
+            });
+          }}
+          onViewCompleteDetails={() => {
+            setShowPackagesModal(false);
+            navigation.navigate('PujaDetails', {
+              pujaId: selectedPujaForPackages?.puja_id,
+              pujaData: selectedPujaForPackages,
+            });
+          }}
+        />
+
+
+        <PackageComparisonModal
+          visible={showComparisonModal}
+          pujaTitle={selectedPujaForPackages?.puja_name || selectedPujaForPackages?.puja_type_name || 'Puja Services'}
+          packages={comparePackages}
+          onClose={() => {
+            setShowComparisonModal(false);
+            setComparePackages([]); // Unselect compare packages after coming back
+          }}
+          onSelectPackage={(pkg) => {
+            setShowComparisonModal(false);
+            setComparePackages([]); // Unselect compare packages after selecting
+            setShowPackagesModal(false);
+            const chosenCompareId = pkg?.package_id || (pkg as any)?.puja_package_id;
+            navigation.navigate('PujaDetails', {
+              pujaId: selectedPujaForPackages?.puja_id,
+              pujaData: selectedPujaForPackages,
+              selectedPackageId: chosenCompareId,
+              packageId: chosenCompareId,
+              selectedPackage: pkg,
+            });
+          }}
+        />
+      </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFDF6' },
   body: { flex: 1 },
+  pujaCardRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    padding: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    marginHorizontal: 16,
+  },
+  cardImgLeftBox: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  pujaIconImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardBodyRight: {
+    flex: 1,
+  },
+  titleHeartRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardTitleDash: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#291811',
+    flex: 1,
+    marginRight: 6,
+  },
+  heartBtnOutline: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 4,
+    paddingBottom: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F3F4F6',
+  },
+  durationRatingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  durationText: {
+    fontSize: 10,
+    color: '#6B5E59',
+    fontWeight: '600',
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  packagesFromLabel: {
+    fontSize: 8,
+    color: '#6B5E59',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  priceValueText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#291811',
+    marginTop: 1,
+  },
+  bookBtnContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  bookBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  bookBtnDisabled: {
+    backgroundColor: Colors.disabled,
+  },
+  bookBtnText: {
+    color: Colors.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  bookBtnTextDisabled: {
+    color: Colors.gray,
+  },
+
 
   // Header Banner matching Screenshot
   headerBannerSection: {
@@ -732,4 +905,113 @@ const styles = StyleSheet.create({
   pageText: { fontSize: 14, fontWeight: '600', color: '#1C1917' },
   scrollContent: { paddingBottom: 60 },
   bottomSpacer: { height: 30 },
+
+  // ── Packages Modal Styles ──
+  packagesModalOverlay: {
+    flex: 1,
+    backgroundColor: '#FFFDF6', // matching app background
+  },
+  packagesModalHeader: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    overflow: 'hidden',
+  },
+  packagesModalTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
+    zIndex: 1,
+  },
+  packagesModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  packagesModalCloseBtnText: {
+    color: '#F97316',
+    fontWeight: '900',
+    fontSize: 16,
+  },
+  packagesModalContent: {
+    padding: 16,
+    gap: 16,
+  },
+  packageCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+  },
+  packageCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  packageCardLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1,
+  },
+  packageCardPrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#EA580C',
+  },
+  packageCardTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  packageCardDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  packageFeatureList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  packageFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  packageFeatureText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  packageSelectBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  packageSelectBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  packageCardActionText: {
+    color: '#F97316',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+
 });

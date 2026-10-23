@@ -24,7 +24,7 @@ import TopNavBar from '../../components/common/TopNavBar';
 import LinearGradient from 'react-native-linear-gradient';
 
 
-import { RefreshCcw, Pencil, MapPin, User, Flame, CalendarDays, Plus, Users } from 'lucide-react-native';
+import { RefreshCcw, Pencil, MapPin, User, Flame, CalendarDays, Plus, Users, Phone, Calendar, Trash2 } from 'lucide-react-native';
 import {
   useGetUserDetailsQuery,
   useSaveRelativeDetailsMutation,
@@ -100,6 +100,8 @@ export default function EditProfileScreen({ navigation }: any) {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
   const [refreshing, setRefreshing] = useState(false);
+  const [profileImgUri, setProfileImgUri] = useState<string | null>(null);
+  const [profileImgError, setProfileImgError] = useState(false);
 
   // Modals for relative
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -109,6 +111,7 @@ export default function EditProfileScreen({ navigation }: any) {
   // Relative Logic States
   const [relatives, setRelatives] = useState<RelativeProfile[]>([]);
   const [showAddRelative, setShowAddRelative] = useState(false);
+  const [showAllRelatives, setShowAllRelatives] = useState(false);
   const [editingRelId, setEditingRelId] = useState<string | null>(null);
   const [editingDbId, setEditingDbId] = useState<number | null>(null);
   const [relationType, setRelationType] = useState<number | null>(null);
@@ -214,8 +217,8 @@ export default function EditProfileScreen({ navigation }: any) {
         const key = rel.dbId && rel.dbId !== 0
           ? `db_${rel.dbId}`
           : rel.id && rel.id !== '0'
-          ? `id_${rel.id}`
-          : `${rel.firstName.trim().toLowerCase()}_${rel.lastName.trim().toLowerCase()}_${rel.relationTypeId}_${rel.dob}`;
+            ? `id_${rel.id}`
+            : `${rel.firstName.trim().toLowerCase()}_${rel.lastName.trim().toLowerCase()}_${rel.relationTypeId}_${rel.dob}`;
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           uniqueMapped.push(rel);
@@ -225,8 +228,19 @@ export default function EditProfileScreen({ navigation }: any) {
     }
   }, [userDetails]);
 
+  useEffect(() => {
+    if (userDetails?.ctnz_profile_image) {
+      setProfileImgError(false);
+      const raw = userDetails.ctnz_profile_image.split('?')[0];
+      setProfileImgUri(`${raw}?t=${Date.now()}`);
+    } else {
+      setProfileImgUri(null);
+    }
+  }, [userDetails?.ctnz_profile_image]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setProfileImgError(false);
     await refetchUserDetails();
     setRefreshing(false);
   }, [refetchUserDetails]);
@@ -283,6 +297,41 @@ export default function EditProfileScreen({ navigation }: any) {
   const isAlphaText = (s: string): boolean =>
     /^[a-zA-Z\u0980-\u09FF\s.'-]+$/.test(s.trim());
 
+  const getRelativeInitials = (first?: string, last?: string): string => {
+    const f = first ? first.trim().charAt(0).toUpperCase() : '';
+    const l = last ? last.trim().charAt(0).toUpperCase() : '';
+    return f + l || f || 'F';
+  };
+
+  const formatRelativeDisplayDob = (dobStr?: string, timeStr?: string): string => {
+    if (!dobStr) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    let formattedDate = dobStr;
+
+    try {
+      if (dobStr.includes('/')) {
+        const [d, m, y] = dobStr.split('/');
+        const mIdx = parseInt(m, 10) - 1;
+        if (mIdx >= 0 && mIdx < 12) {
+          formattedDate = `${parseInt(d, 10)} ${months[mIdx]} ${y}`;
+        }
+      } else if (dobStr.includes('-')) {
+        const [y, m, d] = dobStr.split('-');
+        const mIdx = parseInt(m, 10) - 1;
+        if (mIdx >= 0 && mIdx < 12) {
+          formattedDate = `${parseInt(d, 10)} ${months[mIdx]} ${y}`;
+        }
+      }
+    } catch {
+      formattedDate = dobStr;
+    }
+
+    if (timeStr && timeStr.trim()) {
+      return `${formattedDate} ${timeStr.trim()}`;
+    }
+    return formattedDate;
+  };
+
   const showErrorAlert = (msg: string) =>
     showAlert({ title: isBn ? 'ত্রুটি' : 'Error', message: msg, buttons: [{ text: 'OK' }] });
 
@@ -300,7 +349,7 @@ export default function EditProfileScreen({ navigation }: any) {
     setRelGotraId(rel.gotraId ?? null);
     setRelContact(rel.contact || '');
     setRelErrors({});
-    setShowAddRelative(true);
+    navigation.navigate('AddFamilyMember', { relative: rel });
   };
 
   const handleDeleteRelative = (id: string) => {
@@ -571,7 +620,7 @@ export default function EditProfileScreen({ navigation }: any) {
           if (navigation.canGoBack()) {
             navigation.goBack();
           } else {
-            navigation.navigate('MainTabs');
+            navigation.navigate('MainTabs' as any, { screen: 'HomeTab' });
           }
         }}
       />
@@ -633,16 +682,16 @@ export default function EditProfileScreen({ navigation }: any) {
             <View style={styles.overviewContent}>
               <View style={styles.overviewTop}>
                 <View style={styles.avatarCircle}>
-                  {userDetails?.ctnz_profile_image ? (
+                  {profileImgUri && !profileImgError ? (
                     <Image
-                      key={userDetails.ctnz_profile_image}
-                      source={{
-                        uri: userDetails.ctnz_profile_image.includes('?')
-                          ? `${userDetails.ctnz_profile_image}&t=${Date.now()}`
-                          : `${userDetails.ctnz_profile_image}?t=${Date.now()}`,
-                      }}
+                      key={profileImgUri}
+                      source={{ uri: profileImgUri }}
                       style={{ width: '100%', height: '100%', borderRadius: 30 }}
                       resizeMode="cover"
+                      onError={() => {
+                        console.log('EditProfile: avatar image load error');
+                        setProfileImgError(true);
+                      }}
                     />
                   ) : (
                     <Text style={styles.avatarText}>{avatarInitial}</Text>
@@ -650,7 +699,12 @@ export default function EditProfileScreen({ navigation }: any) {
                 </View>
                 <View style={styles.overviewTextWrap}>
                   <Text style={styles.overviewName}>{displayName}</Text>
-                  {!!userMobile && <Text style={styles.overviewPhone}>📞 {userMobile}</Text>}
+                  {!!userMobile && (
+                    <View style={styles.overviewPhoneRow}>
+                      <Phone size={12} color="#FFFFFF" style={{ marginRight: 5 }} />
+                      <Text style={styles.overviewPhone}>{userMobile}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -671,7 +725,11 @@ export default function EditProfileScreen({ navigation }: any) {
 
               <TouchableOpacity style={styles.completeBtn} onPress={() => navigation.navigate('UpdateProfile')}>
                 <Pencil size={14} color="#92400E" style={{ marginRight: 6 }} />
-                <Text style={styles.completeBtnText}>{isBn ? 'প্রোফাইল সম্পূর্ণ করুন' : 'Complete profile'}</Text>
+                <Text style={styles.completeBtnText}>
+                  {completionPercentage === 100
+                    ? (isBn ? 'প্রোফাইল সম্পাদনা করুন' : 'Edit profile')
+                    : (isBn ? 'প্রোফাইল সম্পূর্ণ করুন' : 'Complete profile')}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -717,60 +775,152 @@ export default function EditProfileScreen({ navigation }: any) {
             </View>
           </View>
 
-          {/* Family Members Card */}
-          <View style={styles.detailsCard}>
-            <View style={styles.detailsHeader}>
-              <View style={styles.detailsHeaderLeft}>
-                <View style={styles.detailsIconWrap}>
-                  <Users size={16} color={BRAND_ORANGE} />
+          {/* Family Members Section matching Screenshot */}
+          <View style={styles.familySectionContainer}>
+            <View style={styles.familyHeaderRow}>
+              <View style={styles.familyHeaderLeft}>
+                <View style={styles.familyIconWrap}>
+                  <Users size={16} color="#EA580C" />
                 </View>
-                <Text style={styles.detailsTitle}>{isBn ? 'পরিবারের সদস্য' : 'FAMILY MEMBERS'}</Text>
+                <Text style={styles.familySectionTitle}>{isBn ? 'পরিবারের সদস্য' : 'FAMILY MEMBERS'}</Text>
+                <View style={styles.familyCountPill}>
+                  <Text style={styles.familyCountText}>{relatives.length}</Text>
+                </View>
               </View>
-              <TouchableOpacity style={styles.addBtn} onPress={() => {
-                clearRelForm();
-                setShowAddRelative(true);
-              }}>
+              <TouchableOpacity
+                style={styles.familyAddBtn}
+                onPress={() => {
+                  navigation.navigate('AddFamilyMember');
+                }}
+                activeOpacity={0.8}
+              >
                 <Plus size={14} color="#FFF" />
-                <Text style={styles.addBtnText}>{isBn ? 'যোগ করুন' : 'Add'}</Text>
+                <Text style={styles.familyAddBtnText}>{isBn ? 'যোগ করুন' : 'Add'}</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.divider} />
 
-            <View style={styles.detailsBody}>
-              {relatives.length === 0 ? (
-                <View style={styles.emptyRelState}>
-                  <View style={styles.emptyRelIconWrap}>
-                    <Text style={{ fontSize: 30 }}>👨‍👩‍👧‍👦</Text>
-                  </View>
-                  <Text style={styles.emptyRelTitle}>{isBn ? 'কোন পরিবারের সদস্য যোগ করা হয়নি' : 'No family members added'}</Text>
-                  <Text style={styles.emptyRelSub}>{isBn ? 'পূজা বুকিংয়ের সময় তাদের বিবরণ পুনরায় ব্যবহার করতে পরিবারের সদস্যদের যোগ করুন।' : 'Add family members to reuse their details during puja bookings.'}</Text>
-                  <TouchableOpacity style={styles.emptyRelBtn} onPress={() => {
-                    clearRelForm();
-                    setShowAddRelative(true);
-                  }}>
-                    <Plus size={14} color="#FFF" />
-                    <Text style={styles.emptyRelBtnText}>{isBn ? 'পরিবারের সদস্য যোগ করুন' : 'Add family member'}</Text>
-                  </TouchableOpacity>
+            {relatives.length === 0 ? (
+              <View style={styles.emptyRelCard}>
+                <View style={styles.emptyRelIconWrap}>
+                  <Text style={{ fontSize: 30 }}>👨‍👩‍👧‍👦</Text>
                 </View>
-              ) : (
-                relatives.map((rel, index) => (
-                  <View key={rel.id} style={styles.relativeItem}>
-                    <View style={styles.relLeft}>
-                      <Text style={styles.relName}>{rel.firstName} {rel.lastName}</Text>
-                      <Text style={styles.relType}>{rel.relationType}</Text>
-                    </View>
-                    <View style={styles.relActions}>
-                      <TouchableOpacity onPress={() => handleEditRelative(rel)} style={styles.relActionBtn}>
-                        <Pencil size={16} color={BRAND_ORANGE} />
+                <Text style={styles.emptyRelTitle}>{isBn ? 'কোন পরিবারের সদস্য যোগ করা হয়নি' : 'No family members added'}</Text>
+                <Text style={styles.emptyRelSub}>{isBn ? 'পূজা বুকিংয়ের সময় তাদের বিবরণ পুনরায় ব্যবহার করতে পরিবারের সদস্যদের যোগ করুন।' : 'Add family members to reuse their details during puja bookings.'}</Text>
+                <TouchableOpacity
+                  style={styles.emptyRelBtn}
+                  onPress={() => {
+                    navigation.navigate('AddFamilyMember');
+                  }}
+                >
+                  <Plus size={14} color="#FFF" />
+                  <Text style={styles.emptyRelBtnText}>{isBn ? 'পরিবারের সদস্য যোগ করুন' : 'Add family member'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {(showAllRelatives ? relatives : relatives.slice(0, 3)).map((rel, index) => {
+                  const initials = getRelativeInitials(rel.firstName, rel.lastName);
+                  const displayDob = formatRelativeDisplayDob(rel.dob, rel.timeOfBirth);
+                  const phoneDisplay = rel.contact || '';
+
+                  return (
+                    <View key={rel.id || index} style={styles.familyMemberCard}>
+                      {/* Top: Initials Avatar + Name & Phone + Delete */}
+                      <View style={styles.familyCardTop}>
+                        <View style={styles.familyAvatarCircle}>
+                          <Text style={styles.familyAvatarText}>{initials}</Text>
+                        </View>
+                        <View style={styles.familyNameCol}>
+                          <Text style={styles.familyMemberName} numberOfLines={1}>
+                            {rel.firstName} {rel.lastName}
+                          </Text>
+                          {!!phoneDisplay && (
+                            <View style={styles.familyPhoneRow}>
+                              <Phone size={11} color="#6B7280" style={{ marginRight: 4 }} />
+                              <Text style={styles.familyPhoneText}>{phoneDisplay}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteRelative(rel.id)}
+                          style={styles.familyDeleteBtn}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Trash2 size={16} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Full-width Edit Button */}
+
+                      <TouchableOpacity
+                        style={styles.familyEditBtn}
+                        onPress={() => handleEditRelative(rel)}
+                        activeOpacity={0.85}
+                      >
+                        <Pencil size={13} color="#9A3412" style={{ marginRight: 6 }} />
+                        <Text style={styles.familyEditBtnText}>{isBn ? 'সম্পাদনা' : 'Edit'}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeleteRelative(rel.id)} style={styles.relActionBtn}>
-                        <Text style={{ fontSize: 16, color: Colors.red }}>🗑️</Text>
-                      </TouchableOpacity>
+
+                      <View style={styles.familyCardDivider} />
+
+                      {/* Specification Fields List */}
+                      <View style={styles.familyDetailsList}>
+                        {/* 1. DATE OF BIRTH */}
+                        <View style={styles.familyFieldItem}>
+                          <View style={styles.familyFieldLabelRow}>
+                            <Calendar size={13} color="#C84400" />
+                            <Text style={styles.familyFieldLabel}>{isBn ? 'জন্ম তারিখ' : 'DATE OF BIRTH'}</Text>
+                          </View>
+                          <Text style={styles.familyFieldValue}>{displayDob || (isBn ? 'প্রদান করা হয়নি' : 'Not provided')}</Text>
+                        </View>
+
+                        {/* 2. BIRTH PLACE */}
+                        <View style={styles.familyFieldItem}>
+                          <View style={styles.familyFieldLabelRow}>
+                            <MapPin size={13} color="#C84400" />
+                            <Text style={styles.familyFieldLabel}>{isBn ? 'জন্মস্থান' : 'BIRTH PLACE'}</Text>
+                          </View>
+                          <Text style={styles.familyFieldValue}>{rel.placeOfBirth || (isBn ? 'প্রদান করা হয়নি' : 'Not provided')}</Text>
+                        </View>
+
+                        {/* 3. GENDER */}
+                        <View style={styles.familyFieldItem}>
+                          <View style={styles.familyFieldLabelRow}>
+                            <User size={13} color="#C84400" />
+                            <Text style={styles.familyFieldLabel}>{isBn ? 'লিঙ্গ' : 'GENDER'}</Text>
+                          </View>
+                          <Text style={styles.familyFieldValue}>{rel.gender || (isBn ? 'প্রদান করা হয়নি' : 'Not provided')}</Text>
+                        </View>
+
+                        {/* 4. GOTRA */}
+                        <View style={styles.familyFieldItem}>
+                          <View style={styles.familyFieldLabelRow}>
+                            <Flame size={13} color="#C84400" />
+                            <Text style={styles.familyFieldLabel}>{isBn ? 'গোত্র' : 'GOTRA'}</Text>
+                          </View>
+                          <Text style={styles.familyFieldValue}>{rel.gotra || (isBn ? 'প্রদান করা হয়নি' : 'Not provided')}</Text>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                ))
-              )}
-            </View>
+                  );
+                })}
+
+                {/* Show more / Show less Button matching screenshot */}
+                {relatives.length > 3 && (
+                  <TouchableOpacity
+                    style={styles.showMoreBtn}
+                    onPress={() => setShowAllRelatives(!showAllRelatives)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.showMoreBtnText}>
+                      {showAllRelatives
+                        ? (isBn ? 'কম দেখুন' : 'Show less')
+                        : (isBn ? `আরও ${relatives.length - 3} জন দেখুন` : `Show ${relatives.length - 3} more`)}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
 
           <View style={{ height: 40 }} />
@@ -820,7 +970,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relFirstName}
                   onChange={v => {
-                    setRelFirstName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                    setRelFirstName(v.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, ''));
                     if (relErrors.firstName)
                       setRelErrors(p => ({ ...p, firstName: undefined }));
                   }}
@@ -832,7 +982,7 @@ export default function EditProfileScreen({ navigation }: any) {
                   required
                   value={relLastName}
                   onChange={v => {
-                    setRelLastName(v.replace(/[^a-zA-Z\s.-]/g, ''));
+                    setRelLastName(v.replace(/[^a-zA-Z\u0980-\u09FF\s.'-]/g, ''));
                     if (relErrors.lastName)
                       setRelErrors(p => ({ ...p, lastName: undefined }));
                   }}
@@ -1023,7 +1173,8 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 24, fontWeight: '800', color: '#FFF' },
   overviewTextWrap: { flex: 1 },
   overviewName: { fontSize: 18, fontWeight: '700', color: '#FFF' },
-  overviewPhone: { fontSize: 13, color: '#FFF', marginTop: 4, fontWeight: '600' },
+  overviewPhoneRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  overviewPhone: { fontSize: 13, color: '#FFF', fontWeight: '600' },
 
   progressWrap: { marginBottom: 16 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
@@ -1169,6 +1320,189 @@ const styles = StyleSheet.create({
   relActions: { flexDirection: 'row', gap: 12 },
   relActionBtn: { padding: 4 },
 
+  // ── Family Members Section Styles matching screenshot ──
+  familySectionContainer: {
+    marginBottom: 16,
+  },
+  familyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    marginTop: 6,
+  },
+  familyHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  familyIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FFF7ED',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  familySectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#4B5563',
+    letterSpacing: 0.5,
+  },
+  familyCountPill: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  familyCountText: {
+    color: '#EA580C',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  familyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#C84400',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  familyAddBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  familyMemberCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0EAE4',
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  familyCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  familyAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FDF2E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  familyAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#9A3412',
+  },
+  familyNameCol: {
+    flex: 1,
+  },
+  familyMemberName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1C1917',
+  },
+  familyPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  familyPhoneText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  familyDeleteBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  familyEditBtn: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    marginBottom: 14,
+  },
+  familyEditBtnText: {
+    color: '#9A3412',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  familyCardDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 14,
+  },
+  familyDetailsList: {
+    gap: 12,
+  },
+  familyFieldItem: {
+    marginBottom: 2,
+  },
+  familyFieldLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  familyFieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  familyFieldValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1C1917',
+    marginTop: 2,
+    marginLeft: 19,
+  },
+  showMoreBtn: {
+    backgroundColor: '#FFFDFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  showMoreBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9A3412',
+  },
+  emptyRelCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0EAE4',
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+
   // Inherited Modal Styles
   addRelForm: { marginTop: 8 },
   addRelFormTitle: { fontSize: 16, fontWeight: '800', color: BRAND_TEXT },
@@ -1225,25 +1559,13 @@ const Field = React.memo(function Field({
   const isPressable = !!onPress;
   const isEditable = editable !== false && !isPressable;
 
-  const [localVal, setLocalVal] = useState(value || '');
   const isFocusedRef = useRef(false);
-
-  useEffect(() => {
-    if (!isFocusedRef.current && value !== localVal) {
-      setLocalVal(value || '');
-    }
-  }, [value]);
-
-  const handleChangeText = (text: string) => {
-    setLocalVal(text);
-    if (onChange) onChange(text);
-  };
 
   const inputNode = (
     <TextInput
       style={[styles.input, error ? styles.inputError : null, multiline && { height: 80, textAlignVertical: 'top' }]}
-      value={localVal}
-      onChangeText={handleChangeText}
+      value={value || ''}
+      onChangeText={onChange}
       onFocus={() => { isFocusedRef.current = true; }}
       onBlur={() => { isFocusedRef.current = false; }}
       placeholder={placeholder}
@@ -1251,6 +1573,7 @@ const Field = React.memo(function Field({
       keyboardType={keyboardType}
       multiline={multiline}
       editable={isEditable}
+      pointerEvents={isPressable ? 'none' : 'auto'}
       autoCapitalize={autoCapitalize}
       autoComplete={autoComplete}
       autoCorrect={true}
@@ -1265,7 +1588,9 @@ const Field = React.memo(function Field({
       </Text>
       {isPressable ? (
         <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-          {inputNode}
+          <View pointerEvents="none">
+            {inputNode}
+          </View>
         </TouchableOpacity>
       ) : (
         inputNode

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -21,6 +21,7 @@ export function OtpInput({
   length = 6,
 }: OtpInputProps) {
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
 
   const handleChange = (text: string, index: number) => {
     const cleaned = text.replace(/[^0-9]/g, '');
@@ -63,32 +64,41 @@ export function OtpInput({
 
   return (
     <View style={styles.row}>
-      {value.map((digit, index) => (
-        <TouchableWithoutFeedback
-          key={index}
-          onPress={() => inputRefs.current[index]?.focus()}
-        >
-          <View
-            style={[styles.box, digit ? styles.boxFilled : styles.boxEmpty]}
+      {value.map((digit, index) => {
+        const isFocused = index === activeIndex;
+        return (
+          <TouchableWithoutFeedback
+            key={index}
+            onPress={() => inputRefs.current[index]?.focus()}
           >
-            <TextInput
-              ref={el => {
-                inputRefs.current[index] = el;
-              }}
-              style={styles.input}
-              keyboardType="number-pad"
-              maxLength={length} // allow paste of full length from suggestion
-              textContentType="oneTimeCode"
-              autoComplete="sms-otp"
-              value={digit}
-              onChangeText={text => handleChange(text, index)}
-              onKeyPress={e => handleKeyPress(e, index)}
-              caretHidden
-              selectTextOnFocus
-            />
-          </View>
-        </TouchableWithoutFeedback>
-      ))}
+            <View
+              style={[
+                styles.box,
+                digit ? styles.boxFilled : styles.boxEmpty,
+                isFocused && styles.boxFocused
+              ]}
+            >
+              <TextInput
+                ref={el => {
+                  inputRefs.current[index] = el;
+                }}
+                style={styles.input}
+                keyboardType="number-pad"
+                maxLength={length} // allow paste of full length from suggestion
+                textContentType="oneTimeCode"
+                autoComplete="sms-otp"
+                value={digit}
+                autoFocus={index === 0}
+                onFocus={() => setActiveIndex(index)}
+                onChangeText={text => handleChange(text, index)}
+                onKeyPress={e => handleKeyPress(e, index)}
+                caretHidden
+                selectTextOnFocus
+              />
+            </View>
+          </TouchableWithoutFeedback>
+        );
+      })}
     </View>
   );
 }
@@ -113,6 +123,14 @@ const styles = StyleSheet.create({
   boxFilled: {
     borderColor: Colors.primary,
     backgroundColor: Colors.lightOrange,
+  },
+  boxFocused: {
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   input: {
     fontSize: 22,

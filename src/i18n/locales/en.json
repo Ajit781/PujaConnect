@@ -1,7 +1,7 @@
 {
   "translation": {
     "auth": {
-      "accessDissha": "ACCESS DISSHA",
+      "accessDissha": "ACCESS SUBHMUHURAT",
       "welcomeBack": "Welcome Back",
       "enterMobile": "Enter your mobile number to access our webapp",
       "mobileNumberLabel": "MOBILE NUMBER",
@@ -10,7 +10,7 @@
       "encryptedSecure": "Encrypted & Secure User Authentication",
       "verifyOtpTitle": "Verify OTP",
       "enter6Digit": "Enter the 6-digit code sent to",
-      "verifyAccess": "Verify & Access dissha",
+      "verifyAccess": "Verify & Access Subhmuhurat",
       "resendOtp": "Resend OTP",
       "backToHome": "Back to Home",
       "yourSpiritualGateway": "Your Spiritual Gateway",

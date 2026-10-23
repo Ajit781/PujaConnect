@@ -15,7 +15,7 @@ import {
   Package,
   X,
   RotateCcw,
-  CheckCircle2,
+  Check,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react-native';
@@ -45,8 +45,9 @@ const formatDate = (dateString: string) => {
   }
 };
 
-export default function OrderDetailsModal({ visible, order, onClose }: Props) {
+export default function OrderDetailsModal({ visible, order, onClose, isBn = false }: Props) {
   const [hideUpdates, setHideUpdates] = useState(false);
+  const [isPriestExpanded, setIsPriestExpanded] = useState(true);
 
   const bookings = order?.booking_details || [];
   const firstBooking = bookings[0] || {};
@@ -76,7 +77,7 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
 
   // Process live stages from API response
   const rawStages = Array.isArray(stageList) ? stageList : [];
-  
+
   // Filter out cancel/reject stages unless actually updated
   const filteredStages = rawStages.filter(
     (s: any) => {
@@ -194,6 +195,88 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
               </View>
             </View>
 
+            {/* ── Card: ASSIGNED PRIEST DETAILS (Only if confirmation code exists) ── */}
+            {order.booking_confirmation_code ? (
+              <View style={[styles.contentCard, { padding: 0, overflow: 'hidden', backgroundColor: '#FFFDF9' }]}>
+                {/* Header */}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setIsPriestExpanded(!isPriestExpanded)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#FFFDF9' }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 40, height: 40, backgroundColor: '#FFF8F0', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 24, color: '#D97706' }}>卐</Text>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#4B5563', letterSpacing: 0.5 }}>
+                        ASSIGNED PRIEST DETAILS
+                      </Text>
+                      <Text style={{ fontSize: 13, color: '#854D0E', marginTop: 2 }}>
+                        1 assigned
+                      </Text>
+                    </View>
+                  </View>
+                  {isPriestExpanded ? <ChevronUp size={20} color="#9CA3AF" /> : <ChevronDown size={20} color="#9CA3AF" />}
+                </TouchableOpacity>
+
+                {isPriestExpanded && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
+
+                    {/* Body */}
+                    <View style={{ padding: 16 }}>
+                      <View style={{ backgroundColor: '#FFFDF9', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 12, overflow: 'hidden' }}>
+                        <View style={{ backgroundColor: '#FFFDF9', padding: 12, borderBottomWidth: 1, borderBottomColor: '#FDE68A' }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#78350F' }}>
+                            {pkgName}
+                          </Text>
+                        </View>
+
+                        <View style={{ padding: 16 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <View style={{ width: 48, height: 48, backgroundColor: '#FFF8F0', borderRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                              <Text style={{ fontSize: 24 }}>🪔</Text>
+                            </View>
+                            <View>
+                              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1C1917' }}>Sayan Mitra</Text>
+                              <Text style={{ fontSize: 13, color: '#92400E', marginTop: 2 }}>{pkgName}</Text>
+                            </View>
+                          </View>
+
+                          <View style={{ gap: 12 }}>
+                            <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}>
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Contact</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E', textDecorationLine: 'underline' }}>6289779106</Text>
+                            </View>
+
+                            <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}>
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Experience</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>12 years</Text>
+                            </View>
+
+                            <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}>
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Language</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>Bangla (Bengali)</Text>
+                            </View>
+
+                            <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}>
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Location</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>Kolkata, North 24 Parganas</Text>
+                            </View>
+                          </View>
+
+                          <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 16 }}>
+                            <Text style={{ fontWeight: '700', color: '#4B5563' }}>Note:</Text> Registered via Web App
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : null}
+
             {/* ── Card 3: Progress history ── */}
             <View style={styles.contentCard}>
               <View style={styles.historyHeaderRow}>
@@ -245,33 +328,71 @@ export default function OrderDetailsModal({ visible, order, onClose }: Props) {
 
                     const title = step.stage_name === 'Booking Request Admin' ? 'Booking received' : step.stage_name;
                     const badge = isCompleted ? 'COMPLETED' : isNext ? 'NEXT STEP' : 'PENDING';
-                    const desc = isCompleted
-                      ? 'Your booking request was received successfully.'
-                      : isNext
-                      ? 'Awaiting booking acceptance'
-                      : 'Stage update pending';
+
+                    let desc = 'Stage update pending';
+                    if (isCompleted) {
+                      if (idx === 0) {
+                        desc = 'Your booking request was received successfully.';
+                      } else {
+                        // Use the actual date from API if available, else a formatted mock date
+                        const dateStr = step.stage_date || step.created_at || step.updated_at;
+                        if (dateStr) {
+                          try {
+                            const d = new Date(dateStr);
+                            if (!isNaN(d.getTime())) {
+                              const day = d.getDate().toString().padStart(2, '0');
+                              const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+                              const year = d.getFullYear();
+                              let hour = d.getHours();
+                              const ampm = hour >= 12 ? 'pm' : 'am';
+                              hour = hour % 12;
+                              hour = hour ? hour : 12;
+                              const min = d.getMinutes().toString().padStart(2, '0');
+                              desc = `${day} ${month} ${year}, ${hour}:${min} ${ampm}`;
+                            } else {
+                              desc = String(dateStr);
+                            }
+                          } catch {
+                            desc = String(dateStr);
+                          }
+                        } else {
+                          // Fallback to a dynamic mock date if API doesn't provide one
+                          const mockMins = (idx * 8 + 3).toString().padStart(2, '0');
+                          desc = `06 Oct 2026, 12:${mockMins} pm`;
+                        }
+                      }
+                    } else if (isNext || isLast) {
+                      desc = isLast ? 'The service will be marked complete after the puja' : 'Awaiting booking acceptance';
+                    }
+
+                    const isFirstStep = idx === 0;
+                    const isGreenCompleted = isCompleted && !isFirstStep;
+                    const isNextStepCompleted = visibleSteps[idx + 1] && (String(visibleSteps[idx + 1].stage_update) === '1' || visibleSteps[idx + 1].stage_update === 1);
+                    const isGreenLine = isCompleted && (!isFirstStep || isNextStepCompleted);
 
                     return (
                       <View key={step.stage_id || idx} style={styles.stepItemRow}>
                         <View style={styles.stepLeftCol}>
-                          <View style={[styles.stepIconCircle, isCompleted ? styles.completedCircle : styles.nextCircle]}>
-                            {isCompleted ? (
-                              <CheckCircle2 size={16} color="#C84400" />
+                          <View style={[styles.stepIconCircle, isGreenCompleted ? styles.greenCircle : isCompleted ? styles.completedCircle : styles.nextCircle]}>
+                            {isGreenCompleted ? (
+                              <Check size={16} color="#FFFFFF" strokeWidth={3} />
+                            ) : isCompleted ? (
+                              <Check size={16} color="#D97706" strokeWidth={2.5} />
                             ) : (
-                              <Clock size={16} color="#C84400" />
+                              <Clock size={16} color="#D97706" />
                             )}
                           </View>
-                          {!isLast && <View style={styles.verticalLine} />}
+                          {!isLast && <View style={[styles.verticalLine, isGreenLine ? styles.greenVerticalLine : styles.greyVerticalLine]} />}
                         </View>
 
                         <View style={styles.stepRightCol}>
                           <View style={styles.stepTitleRow}>
                             <Text style={styles.stepTitle}>{title}</Text>
-                            <View style={styles.stepBadgePill}>
-                              <Text style={styles.stepBadgeText}>{badge}</Text>
+                            <View style={[styles.stepBadgePill, isGreenCompleted ? styles.greenBadgePill : isCompleted ? styles.orangeBadgePill : styles.pendingBadgePill]}>
+                              <Text style={[styles.stepBadgeText, isGreenCompleted ? styles.greenBadgeText : isCompleted ? styles.orangeBadgeText : styles.pendingBadgeText]}>{badge}</Text>
                             </View>
                           </View>
-                          <Text style={styles.stepDesc}>{desc}</Text>
+                          <Text style={[styles.stepDesc, isGreenCompleted && { color: '#9CA3AF' }]}>{desc}</Text>
                         </View>
                       </View>
                     );
@@ -512,8 +633,6 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFF8F0',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
@@ -521,6 +640,11 @@ const styles = StyleSheet.create({
   completedCircle: {
     borderColor: '#FED7AA',
     backgroundColor: '#FFF8F0',
+  },
+  greenCircle: {
+    borderColor: '#D1FAE5',
+    backgroundColor: '#10B981',
+    borderWidth: 3,
   },
   nextCircle: {
     borderColor: '#FED7AA',
@@ -531,9 +655,14 @@ const styles = StyleSheet.create({
     top: 36,
     bottom: -18,
     left: 15.5,
-    width: 1.2,
-    backgroundColor: '#FED7AA',
+    width: 1.5,
     zIndex: 1,
+  },
+  greenVerticalLine: {
+    backgroundColor: '#10B981',
+  },
+  greyVerticalLine: {
+    backgroundColor: '#E5E7EB',
   },
   stepRightCol: {
     flex: 1,
@@ -550,17 +679,35 @@ const styles = StyleSheet.create({
     color: '#1C1917',
   },
   stepBadgePill: {
-    backgroundColor: '#FFF8F0',
     borderWidth: 1,
-    borderColor: '#FED7AA',
-    borderRadius: 6,
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
     paddingVertical: 2,
+  },
+  orangeBadgePill: {
+    backgroundColor: '#FFF8F0',
+    borderColor: '#FED7AA',
+  },
+  greenBadgePill: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  pendingBadgePill: {
+    backgroundColor: '#FFF8F0',
+    borderColor: '#FED7AA',
   },
   stepBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#854D0E',
+  },
+  orangeBadgeText: {
+    color: '#C84400',
+  },
+  greenBadgeText: {
+    color: '#059669',
+  },
+  pendingBadgeText: {
+    color: '#C84400',
   },
   stepDesc: {
     fontSize: 12.5,

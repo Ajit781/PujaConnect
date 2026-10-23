@@ -25,7 +25,7 @@ import {
 import { decode as base64Decode } from 'base-64';
 import { PluralWebView } from '../../components/payment/PluralWebView';
 import { startPaytmTransaction } from '../../service/payment/paytmManager';
-import { PAYTM_CONFIG } from '../../config/apiConfig';
+import { PAYTM_CONFIG, PAYMENT_CALLBACK_URL } from '../../config/apiConfig';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -68,6 +68,9 @@ import {
   Sparkles,
   Receipt,
   Star,
+  ShoppingCart,
+  Pencil,
+  ChevronRight,
 } from 'lucide-react-native';
 
 const BRAND_PRIMARY = Colors.primary;
@@ -113,6 +116,7 @@ export default function CartScreen({ navigation, route }: any) {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentOrderRef, setPaymentOrderRef] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<any>(null);
+  const [editingPackageItem, setEditingPackageItem] = useState<any>(null);
 
   useEffect(() => {
     if (route?.params?.confirmedSchedules) {
@@ -288,21 +292,21 @@ export default function CartScreen({ navigation, route }: any) {
   const currentItems = fullApiCartItems.slice(startIndex, endIndex);
 
   const cartItemsMapped = currentItems.map(item => ({
-    cartItemId: item.cart_item_id.toString(),
-    pujaId: item.puja_id.toString(),
-    packageId: item.pkg_id,
-    titleEn: item.puja_name,
-    titleBn: item.puja_name,
-    exactPrice: item.pkg_price,
-    selectedDate: item.preferred_puja_date,
-    selectedTime: item.preferred_puja_time,
-    imagePlaceholder: item.icon,
+    cartItemId: (item?.cart_item_id ?? '').toString(),
+    pujaId: (item?.puja_id ?? item?.puja_type_id ?? '').toString(),
+    packageId: item?.pkg_id ?? 0,
+    titleEn: item?.puja_name || '',
+    titleBn: item?.puja_name || '',
+    exactPrice: item?.pkg_price ?? 0,
+    selectedDate: item?.preferred_puja_date || '',
+    selectedTime: item?.preferred_puja_time || '',
+    imagePlaceholder: item?.icon || '🛕',
     color: Colors.white,
-    pkg_name: item.pkg_name,
-    pkg_quantity: item.pkg_quantity,
-    duration: item.duration,
-    pandits: item.pkg_pandit_qty,
-    rating: item.puja_rating,
+    pkg_name: item?.pkg_name || '',
+    pkg_quantity: item?.pkg_quantity ?? 1,
+    duration: item?.duration || '',
+    pandits: item?.pkg_pandit_qty ?? 1,
+    rating: item?.puja_rating ?? 5,
   }));
 
   const onRefresh = useCallback(async () => {
@@ -331,6 +335,77 @@ export default function CartScreen({ navigation, route }: any) {
     null,
   );
   const [orderSuccessRef, setOrderSuccessRef] = useState<string | null>(null);
+  const successScaleAnim = useRef(new Animated.Value(0)).current;
+  const successOpacityAnim = useRef(new Animated.Value(0)).current;
+  const successTranslateYAnim = useRef(new Animated.Value(60)).current;
+  const iconPulseAnim = useRef(new Animated.Value(1)).current;
+  const contentOpacityAnim = useRef(new Animated.Value(0)).current;
+  const contentTranslateYAnim = useRef(new Animated.Value(30)).current;
+  const checkScaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (orderSuccessRef) {
+      successScaleAnim.setValue(0);
+      successOpacityAnim.setValue(0);
+      successTranslateYAnim.setValue(60);
+      contentOpacityAnim.setValue(0);
+      contentTranslateYAnim.setValue(30);
+      checkScaleAnim.setValue(0);
+
+      Animated.parallel([
+        Animated.spring(successScaleAnim, {
+          toValue: 1,
+          friction: 7,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(successOpacityAnim, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(successTranslateYAnim, {
+          toValue: 0,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(checkScaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(contentOpacityAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(contentTranslateYAnim, {
+          toValue: 0,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        // Continuous pulse for background rings
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(iconPulseAnim, {
+              toValue: 1.25,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(iconPulseAnim, {
+              toValue: 1,
+              duration: 1200,
+              useNativeDriver: true,
+            })
+          ])
+        ).start();
+      });
+    }
+  }, [orderSuccessRef]);
 
   const rotateValue = useRef(new Animated.Value(0)).current;
 
@@ -454,12 +529,15 @@ export default function CartScreen({ navigation, route }: any) {
         JSON.stringify(response, null, 2),
       );
 
-      if (response?.status === 0 || String(response?.status) === '0' || response?.status === 104 || String(response?.status) === '104') {
-        if (response?.status === 104 || String(response?.status) === '104') {
+      if (response?.status === 0 || String(response?.status) === '0' || response?.status === 1 || String(response?.status) === '1' || response?.status === 104 || String(response?.status) === '104' || response?.status === 105 || String(response?.status) === '105') {
+        if (response?.status === 104 || String(response?.status) === '104' || response?.status === 105 || String(response?.status) === '105') {
           // Clear cart immediately if status is 104 as requested
           handleClearAllCart();
           dispatch(clearCart());
         }
+
+
+
         let bookingData: any = {};
         if (typeof response.data === 'string') {
           try {
@@ -495,7 +573,7 @@ export default function CartScreen({ navigation, route }: any) {
             typeof txnAmount === 'number'
               ? txnAmount.toFixed(2)
               : String(txnAmount);
-          const callbackUrl = `http://115.187.62.16:8005/PujaConnectRestAPI/api/citizen/update_payment_status_v1_mobile`;
+          const callbackUrl = PAYMENT_CALLBACK_URL;
 
           console.log('====================================================');
           console.log('🚀 [PAYTM CHECKOUT] Invoking Paytm with txn_number:', paytmOrderId);
@@ -615,7 +693,7 @@ export default function CartScreen({ navigation, route }: any) {
         setAlertConfig({
           visible: true,
           title: isBn ? 'বুকিং ব্যর্থ হয়েছে' : 'Booking Failed',
-          message: response.message || 'An error occurred.',
+          message: response.message || (isBn ? 'একটি ত্রুটি ঘটেছে।' : 'An error occurred.'),
           buttons: [
             {
               text: 'OK',
@@ -649,144 +727,60 @@ export default function CartScreen({ navigation, route }: any) {
     return (
       <View
         style={[
-          styles.container,
-          { justifyContent: 'center', alignItems: 'center' },
+          StyleSheet.absoluteFill,
+          { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)', zIndex: 99999 },
         ]}
       >
-        <StatusBar
-          backgroundColor={Colors.background}
-          barStyle="dark-content"
-        />
-        <View
+        <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+        <Animated.View
           style={{
-            backgroundColor: Colors.white,
-            padding: 32,
-            borderRadius: 16,
-            width: '85%',
-            alignItems: 'center',
-            shadowColor: Colors.shadow,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 10,
-            elevation: 5,
+            transform: [{ scale: successScaleAnim }, { translateY: successTranslateYAnim }],
+            opacity: successOpacityAnim,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 32,
+            width: '90%',
+            maxWidth: 400,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 20 },
+            shadowOpacity: 0.35,
+            shadowRadius: 30,
+            elevation: 20,
           }}
         >
-          <View
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: Colors.tagGreen,
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginBottom: 24,
-            }}
-          >
-            <Text style={{ fontSize: 40 }}>✅</Text>
-          </View>
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: 'bold',
-              color: BRAND_TEXT,
-              marginBottom: 8,
-              textAlign: 'center',
-            }}
-          >
-            {isBn ? 'বুকিং নিশ্চিত!' : 'Booking Confirmed!'}
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: BRAND_MUTED,
-              textAlign: 'center',
-              marginBottom: 24,
-            }}
-          >
-            {isBn
-              ? 'আপনার পবিত্র পূজা অফার সফলভাবে বুক করা হয়েছে।'
-              : 'Your sacred puja offering has been successfully booked.'}
-          </Text>
-
-          <View
-            style={{
-              backgroundColor: Colors.lightOrange,
-              padding: 16,
-              borderRadius: 8,
-              width: '100%',
-              alignItems: 'center',
-              marginBottom: 24,
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: 'bold',
-                color: BRAND_PRIMARY,
-                marginBottom: 8,
-                textTransform: 'uppercase',
-              }}
-            >
-              {isBn ? 'বুকিং রেফারেন্স আইডি' : 'BOOKING REFERENCE ID'}
-            </Text>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: BRAND_TEXT,
-                letterSpacing: 1,
-                textAlign: 'center',
-              }}
-            >
-              📄 {orderSuccessRef}
+          {/* Header Graphic */}
+          <View style={{ backgroundColor: '#F0FDFA', paddingTop: 40, paddingBottom: 24, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'transparent', borderWidth: 2.5, borderColor: '#059669', justifyContent: 'center', alignItems: 'center' }}>
+                <CheckCircle2 size={32} color="#059669" strokeWidth={3} />
+              </View>
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#064E3B', textAlign: 'center', paddingHorizontal: 20, lineHeight: 30 }}>
+              {isBn ? 'আপনার অর্ডার সফলভাবে স্থাপন করা হয়েছে' : 'Your order has been placed\nsuccessfully'}
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: BRAND_PRIMARY,
-              paddingVertical: 14,
-              borderRadius: 8,
-              width: '100%',
-              alignItems: 'center',
-              marginBottom: 12,
-            }}
-            onPress={() => {
-              setOrderSuccessRef(null);
-              navigation.navigate('Orders');
-            }}
-          >
-            <Text
-              style={{ color: Colors.white, fontSize: 16, fontWeight: 'bold' }}
-            >
-              {isBn ? 'আমার অর্ডার দেখুন' : 'View My Orders'} →
+          {/* Staggered Content */}
+          <Animated.View style={{ padding: 24, alignItems: 'center', backgroundColor: '#FFFFFF', opacity: contentOpacityAnim, transform: [{ translateY: contentTranslateYAnim }] }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#92400E', marginBottom: 24 }}>
+              {isBn ? 'ধন্যবাদ!' : 'Thank you!'}
             </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: 'transparent',
-              paddingVertical: 14,
-              borderRadius: 8,
-              width: '100%',
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}
-            onPress={() => {
-              setOrderSuccessRef(null);
-              navigation.navigate('MainTabs');
-            }}
-          >
-            <Text
-              style={{ color: BRAND_PRIMARY, fontSize: 16, fontWeight: 'bold' }}
-            >
-              {isBn ? 'হোমে ফিরে যান' : '🏡 Back to Home'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            <View style={{ width: '100%', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#D97706', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                {isBn ? 'অর্ডার রেফারেন্স' : 'ORDER REFERENCE'}
+              </Text>
+              <Text style={{ fontSize: 18, fontWeight: '900', color: '#78350F' }}>
+                {orderSuccessRef}
+              </Text>
+            </View>
+
+            <TouchableOpacity activeOpacity={0.85} style={{ width: '100%', backgroundColor: '#D9381E', borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, marginBottom: 16 }} onPress={() => { setOrderSuccessRef(null); navigation.navigate('MainTabs', { screen: 'OrdersTab' }); }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginRight: 8 }}>{isBn ? 'অর্ডারে যান' : 'Go to Orders'}</Text>
+              <ChevronRight size={20} color="#FFFFFF" strokeWidth={3} />
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
       </View>
     );
   }
@@ -800,19 +794,27 @@ export default function CartScreen({ navigation, route }: any) {
           translucent={true}
         />
         <TopNavBar showBack={true} />
-        <NoDataFound
-          message={isBn ? 'আপনার কার্ট খালি' : 'Your cart is empty'}
-          containerHeight={400}
-        >
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <ShoppingCart size={40} color="#E8700A" />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {isBn ? 'আপনার কার্ট ফাঁকা' : 'Your Cart is Empty'}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {isBn
+              ? 'পবিত্র পূজা এবং আশীর্বাদগুলি আবিষ্কার করুন। আপনার আধ্যাত্মিক যাত্রা শুরু করতে আপনার পছন্দের আচারগুলি যোগ করুন।'
+              : 'Discover sacred pujas and blessings. Add your favourite rituals to begin your spiritual journey.'}
+          </Text>
           <TouchableOpacity
-            style={styles.exploreBtn}
-            onPress={() => navigation.navigate('AllPujas')}
+            style={styles.exploreCartBtn}
+            onPress={() => navigation.navigate('MainTabs')}
           >
-            <Text style={styles.exploreBtnText}>
-              {isBn ? 'পূজা অন্বেষণ করুন' : 'Explore Pujas'}
+            <Text style={styles.exploreCartBtnText}>
+              {isBn ? 'পবিত্র পূজা অন্বেষণ করুন' : 'Explore Sacred Pujas'}
             </Text>
           </TouchableOpacity>
-        </NoDataFound>
+        </View>
       </View>
     );
   }
@@ -847,8 +849,8 @@ export default function CartScreen({ navigation, route }: any) {
           <Text style={styles.osLabelText}>
             {isBn ? 'প্ল্যাটফর্ম ফি' : 'Platform Fee'}
           </Text>
-          <View style={styles.fixedBadgeBox}>
-            <Text style={styles.fixedBadgeText}>Fixed</Text>
+          <View style={styles.fixedBadge}>
+            <Text style={styles.fixedBadgeText}>{isBn ? 'ফিক্সড' : 'Fixed'}</Text>
           </View>
         </View>
         <Text style={styles.osValueTextBold}>₹{platformFee.toFixed(1)}</Text>
@@ -876,8 +878,8 @@ export default function CartScreen({ navigation, route }: any) {
         <View style={styles.splitDividerLine} />
 
         <View style={styles.splitPayRow}>
-          <Text style={styles.splitPayLabelBlue}>
-            💳 {isBn ? 'এখন পরিশোধ' : 'Pay now'} <Text style={styles.splitPaySubText}>(secure booking payment)</Text>
+          <Text style={styles.payNowBtnText}>
+            ✓ {isBn ? 'এখন পেমেন্ট করুন' : 'Pay now'} <Text style={styles.splitPaySubText}>{isBn ? '(নিরাপদ বুকিং পেমেন্ট)' : '(secure booking payment)'}</Text>
           </Text>
           <Text style={styles.splitPayValBlue}>
             ₹{payOnlineAmount.toLocaleString('en-IN')}
@@ -946,12 +948,16 @@ export default function CartScreen({ navigation, route }: any) {
                       <Text style={styles.cardPackageTextOrange} numberOfLines={1}>
                         {item.pkg_name || (isBn ? item.titleBn + ' প্যাকেজ' : item.titleEn + ' Package')}
                       </Text>
-                      <TouchableOpacity onPress={() => navigation.navigate('PujaDetails', { pujaId: item.pujaId })}>
-                        <Text style={styles.editPkgLink}>Edit package</Text>
+                      <TouchableOpacity onPress={() => {
+                        setEditingPackageItem(item);
+                      }}>
+                        <Text style={styles.editPkgLink}>{isBn ? 'প্যাকেজ সম্পাদনা' : 'Edit package'}</Text>
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.cardDescTextClean} numberOfLines={2}>
-                      Verification package created to confirm database and API package persistence.
+                      {isBn
+                        ? (item.pkg_desc_bn || item.descriptionBn || 'এটি একটি ভেরিফাইড প্যাকেজ।')
+                        : (item.pkg_desc || item.descriptionEn || 'Verification package created to confirm database and API package persistence.')}
                     </Text>
 
                     <View style={styles.metaPillsRow}>
@@ -960,8 +966,8 @@ export default function CartScreen({ navigation, route }: any) {
                         <Text style={styles.metaPillText}>{item.duration || '2'}h</Text>
                       </View>
                       <View style={styles.metaPill}>
-                        <Users size={12} color="#C84400" />
-                        <Text style={styles.metaPillText}>{item.pandits || 1} {item.pandits > 1 ? 'Pandits' : 'Pandit'}</Text>
+                        <Users size={12} color="#4B5563" />
+                        <Text style={styles.metaPillText}>{item.pandits || 1} {isBn ? 'পুরোহিত' : (item.pandits > 1 ? 'Pandits' : 'Pandit')}</Text>
                       </View>
                       <View style={styles.metaPillYellow}>
                         <Star size={12} color="#EAB308" fill="#EAB308" />
@@ -976,7 +982,9 @@ export default function CartScreen({ navigation, route }: any) {
                     <Text style={styles.exactPriceLarge}>
                       ₹{item.exactPrice?.toLocaleString('en-IN')}
                     </Text>
-                    <Text style={styles.packageTotalSub}>Package total</Text>
+                    <View style={styles.packageTotalRow}>
+                      <Text style={styles.packageTotalSub}>{isBn ? 'প্যাকেজ মোট' : 'Package total'}</Text>
+                    </View>
                   </View>
 
                   <TouchableOpacity
@@ -1006,7 +1014,7 @@ export default function CartScreen({ navigation, route }: any) {
               onPress={async () => {
                 const state = await NetInfo.fetch();
                 if (state.isConnected) {
-                  navigation.navigate('AllPujas');
+                  navigation.navigate('MainTabs' as never, { screen: 'HomeTab' } as never);
                 } else {
                   showToast({
                     message: t('common.connectionRequired'),
@@ -1062,16 +1070,16 @@ export default function CartScreen({ navigation, route }: any) {
 
         {/* Guided Booking Card (What Happens Next?) */}
         <View style={styles.guidedBookingCard}>
-          <Text style={styles.guidedCategoryLabel}>SIMPLE, GUIDED BOOKING</Text>
-          <Text style={styles.guidedTitle}>What happens next?</Text>
+          <Text style={styles.guidedCategoryLabel}>{isBn ? 'সহজ, নির্দেশিত বুকিং' : 'SIMPLE, GUIDED BOOKING'}</Text>
+          <Text style={styles.guidedTitle}>{isBn ? 'এরপর কী হবে?' : 'What happens next?'}</Text>
 
           <View style={styles.guidedStepRow}>
             <View style={styles.guidedIconPill}>
               <Clock size={16} color="#C84400" />
             </View>
             <View style={styles.guidedTextWrap}>
-              <Text style={styles.guidedStepTitle}>Choose your schedule</Text>
-              <Text style={styles.guidedStepSub}>Select a preferred date and time.</Text>
+              <Text style={styles.guidedStepTitle}>{isBn ? 'আপনার সময়সূচী চয়ন করুন' : 'Choose your schedule'}</Text>
+              <Text style={styles.guidedStepSub}>{isBn ? 'একটি পছন্দের তারিখ এবং সময় নির্বাচন করুন।' : 'Select a preferred date and time.'}</Text>
             </View>
           </View>
 
@@ -1080,8 +1088,8 @@ export default function CartScreen({ navigation, route }: any) {
               <MapPin size={16} color="#C84400" />
             </View>
             <View style={styles.guidedTextWrap}>
-              <Text style={styles.guidedStepTitle}>Confirm the location</Text>
-              <Text style={styles.guidedStepSub}>Add the address for the ceremony.</Text>
+              <Text style={styles.guidedStepTitle}>{isBn ? 'অবস্থান নিশ্চিত করুন' : 'Confirm the location'}</Text>
+              <Text style={styles.guidedStepSub}>{isBn ? 'অনুষ্ঠানের জন্য ঠিকানা যোগ করুন।' : 'Add the address for the ceremony.'}</Text>
             </View>
           </View>
 
@@ -1090,8 +1098,8 @@ export default function CartScreen({ navigation, route }: any) {
               <ShieldCheck size={16} color="#C84400" />
             </View>
             <View style={styles.guidedTextWrap}>
-              <Text style={styles.guidedStepTitle}>Book securely</Text>
-              <Text style={styles.guidedStepSub}>Pay the booking amount now and the remaining balance during service.</Text>
+              <Text style={styles.guidedStepTitle}>{isBn ? 'নিরাপদে বুক করুন' : 'Book securely'}</Text>
+              <Text style={styles.guidedStepSub}>{isBn ? 'এখন বুকিংয়ের পরিমাণ পরিশোধ করুন এবং বাকিটা সেবার সময়।' : 'Pay the booking amount now and the remaining balance during service.'}</Text>
             </View>
           </View>
         </View>
@@ -1162,7 +1170,7 @@ export default function CartScreen({ navigation, route }: any) {
                   navigation.navigate('SchedulePujas' as never, {
                     cartItems: cartItemsMapped,
                     addresses,
-                    grandTotal,
+                    grandTotal, platformFee, gst, payOnlineAmount, cashOnDeliveryAmount,
                   } as never);
                 } else {
                   showToast({
@@ -1186,7 +1194,7 @@ export default function CartScreen({ navigation, route }: any) {
                 </View>
 
                 <Text style={styles.checkoutPriceTagText} numberOfLines={1}>
-                  ₹{payOnlineAmount || 21} now · ₹{cashOnDeliveryAmount?.toLocaleString('en-IN')} later
+                  ₹{payOnlineAmount.toLocaleString('en-IN')} now · ₹{cashOnDeliveryAmount.toLocaleString('en-IN')} later
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -1597,6 +1605,69 @@ export default function CartScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
+
+      {/* Edit Package Modal */}
+      {editingPackageItem && (
+        <Modal
+          visible={!!editingPackageItem}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setEditingPackageItem(null)}
+        >
+          <View style={styles.alertOverlay}>
+            <View style={[styles.alertBox, { padding: 0, overflow: 'hidden' }]}>
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <View style={{
+                  width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF7ED',
+                  justifyContent: 'center', alignItems: 'center', marginBottom: 16
+                }}>
+                  <Pencil size={24} color="#EA580C" />
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: '900', color: '#432C1E', marginBottom: 12, textAlign: 'center' }}>
+                  {isBn ? 'এই প্যাকেজটি সম্পাদনা করবেন?' : 'Edit this package?'}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 20 }}>
+                  <Text style={{ fontWeight: '700', color: '#374151' }}>
+                    {editingPackageItem.pkg_name || (isBn ? editingPackageItem.titleBn + ' প্যাকেজ' : editingPackageItem.titleEn + ' Package')}
+                  </Text>
+                  {isBn
+                    ? ' আপনার কার্ট থেকে সরানো হবে যাতে আপনি কাস্টমাইজ করতে এবং একটি ভিন্ন প্যাকেজ চয়ন করতে পারেন।'
+                    : ' will be removed from your cart so you can customize and choose a different package.'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', padding: 16, paddingTop: 0, gap: 12 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center', backgroundColor: '#FFF' }}
+                  onPress={() => setEditingPackageItem(null)}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#4B5563' }}>{isBn ? 'বাতিল' : 'Cancel'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: '#EA580C' }}
+                  onPress={async () => {
+                    const item = editingPackageItem;
+                    setEditingPackageItem(null);
+                    const state = await NetInfo.fetch();
+                    if (state.isConnected) {
+                      dispatch(showLoader());
+                      await handleRemoveSingleItem(item.cartItemId);
+                      dispatch(hideLoader());
+                      navigation.navigate('PujaDetails', { pujaId: item.pujaId });
+                    } else {
+                      showToast({
+                        message: t('common.connectionRequired'),
+                        type: 'error',
+                      });
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFF' }}>{isBn ? 'এগিয়ে যান' : 'Continue'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -2662,5 +2733,69 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 0,
+  },
+
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+    marginTop: -80,
+  },
+  emptyIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFF7ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#E8700A',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  exploreCartBtn: {
+    backgroundColor: '#E8700A',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  exploreCartBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  alertBox: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 5 },
   },
 });

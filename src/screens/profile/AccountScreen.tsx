@@ -24,11 +24,24 @@ export default function AccountScreen({ navigation }: any) {
   });
 
   const userDetails = userDetailsResponse;
+  const rawImage = userDetails?.ctnz_profile_image || user?.profile_image;
+  const [avatarUri, setAvatarUri] = React.useState<string | null>(null);
+  const [avatarError, setAvatarError] = React.useState(false);
+
+  React.useEffect(() => {
+    if (rawImage) {
+      setAvatarError(false);
+      const clean = rawImage.split('?')[0];
+      setAvatarUri(`${clean}?t=${Date.now()}`);
+    } else {
+      setAvatarUri(null);
+    }
+  }, [rawImage]);
 
   const handleLogout = () => {
     showAlert({
       title: isBn ? 'লগআউট নিশ্চিতকরণ' : 'Confirm Logout',
-      message: isBn ? 'আপনি কি নিশ্চিত যে লগআউট করতে চান?' : 'Are you sure you want to log out of Pujora?',
+      message: isBn ? 'আপনি কি নিশ্চিত যে লগআউট করতে চান?' : 'Are you sure you want to log out of SUBHMUHURAT?',
       type: 'warning',
       buttons: [
         { text: isBn ? 'বাতিল' : 'Cancel', style: 'cancel' },
@@ -91,12 +104,17 @@ export default function AccountScreen({ navigation }: any) {
         <View style={styles.profileCard}>
           <View style={styles.avatarWrap}>
             <Image
+              key={avatarUri || 'default'}
               source={
-                userDetails?.ctnz_profile_image || user?.profile_image
-                  ? { uri: userDetails?.ctnz_profile_image || user?.profile_image }
+                avatarUri && !avatarError
+                  ? { uri: avatarUri }
                   : require('../../assets/Placeholder_Person_3A7BFF.png')
               }
               style={styles.avatarImg}
+              onError={() => {
+                console.log('AccountScreen: avatar error');
+                setAvatarError(true);
+              }}
             />
           </View>
           <View style={styles.profileInfo}>

@@ -76,29 +76,35 @@ export default function PackageDetailsModal({
 
             {/* Info Cards */}
             <View style={styles.infoCardsRow}>
-              <View style={styles.infoCard}>
-                <Clock color="#E8711E" size={24} style={styles.infoIcon} />
-                <Text style={styles.infoLabel}>
-                  {isBn ? 'সময়কাল' : 'Duration'}
-                </Text>
-                <Text style={styles.infoValue}>
-                  {pkg.puja_duration} {isBn ? 'ঘণ্টা' : 'hours'}
-                </Text>
-              </View>
-              <View style={styles.infoCard}>
-                <Users color="#E8711E" size={24} style={styles.infoIcon} />
-                <Text style={styles.infoLabel}>
-                  {isBn ? 'পুরোহিত' : 'Pandits'}
-                </Text>
-                <Text style={styles.infoValue}>{pkg.pandit_count}</Text>
-              </View>
+              {!!pkg.puja_duration && (
+                <View style={styles.infoCard}>
+                  <Clock color="#E8711E" size={24} style={styles.infoIcon} />
+                  <Text style={styles.infoLabel}>
+                    {isBn ? 'সময়কাল' : 'Duration'}
+                  </Text>
+                  <Text style={styles.infoValue}>
+                    {pkg.puja_duration} {isBn ? 'ঘণ্টা' : 'hours'}
+                  </Text>
+                </View>
+              )}
+              {!!pkg.pandit_count && (
+                <View style={styles.infoCard}>
+                  <Users color="#E8711E" size={24} style={styles.infoIcon} />
+                  <Text style={styles.infoLabel}>
+                    {isBn ? 'পুরোহিত' : 'Pandits'}
+                  </Text>
+                  <Text style={styles.infoValue}>{pkg.pandit_count}</Text>
+                </View>
+              )}
               <View style={styles.infoCard}>
                 <Gift color="#E8711E" size={24} style={styles.infoIcon} />
                 <Text style={styles.infoLabel}>
                   {isBn ? 'উপকরণ' : 'Materials'}
                 </Text>
                 <Text style={styles.infoValue}>
-                  {isBn ? 'অন্তর্ভুক্ত' : 'Included'}
+                  {pkg.puja_include_samagri === 0
+                    ? (isBn ? 'অন্তর্ভুক্ত নয়' : 'Excluded')
+                    : (isBn ? 'অন্তর্ভুক্ত' : 'Included')}
                 </Text>
               </View>
             </View>
@@ -160,7 +166,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#E8711E', // Orange from design
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',

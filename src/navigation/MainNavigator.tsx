@@ -5,6 +5,7 @@ import AllPujasScreen from '../screens/puja/AllPujasScreen';
 import WishlistScreen from '../screens/puja/WishlistScreen';
 import CartScreen from '../screens/cart/CartScreen';
 import PujaDetailsScreen from '../screens/puja/PujaDetailsScreen';
+import AllReviewsScreen from '../screens/puja/AllReviewsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import UpdateProfileScreen from '../screens/profile/UpdateProfileScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
@@ -20,6 +21,7 @@ export type MainStackParamList = {
   AllPujas: undefined;
   Wishlist: undefined;
   PujaDetails: { pujaId: string };
+  AllReviews: { pujaId: string };
   Cart: undefined;
   SchedulePujas: { cartItems: any[]; addresses: any[]; grandTotal: number };
   EditProfile: undefined;
@@ -40,6 +42,7 @@ export function MainNavigator() {
       <Stack.Screen name="AllPujas" component={AllPujasScreen} />
       <Stack.Screen name="Wishlist" component={WishlistScreen} />
       <Stack.Screen name="PujaDetails" component={PujaDetailsScreen} />
+      <Stack.Screen name="AllReviews" component={AllReviewsScreen} />
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="SchedulePujas" component={SchedulePujasScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />

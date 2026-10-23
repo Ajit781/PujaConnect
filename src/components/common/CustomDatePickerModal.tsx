@@ -101,11 +101,13 @@ export default function CustomDatePickerModal({
   );
 
   useEffect(() => {
-    if (visible && initialDate) {
-      setCurrentMonth(new Date(initialDate));
-      setSelectedDate(initialDate);
+    if (visible) {
+      const targetDate = initialDate || new Date();
+      console.log("CustomDatePickerModal -> opening popup, initialDate passed:", initialDate, "targetDate used:", targetDate, "maxDate used:", maximumDate);
+      setCurrentMonth(new Date(targetDate));
+      setSelectedDate(targetDate);
     }
-  }, [visible, initialDate]);
+  }, [visible]);
 
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();

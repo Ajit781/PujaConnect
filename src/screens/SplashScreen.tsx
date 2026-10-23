@@ -9,14 +9,14 @@ import {
   Image,
 } from 'react-native';
 import { Colors } from '../constants/Colors';
-import appLogo from '../assets/images/Logo.webp';
+import appLogo from '../assets/images/Logo.png';
 
 const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen() {
   // --- Animation Values ---
-  const logoScale = useRef(new Animated.Value(0.6)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(1)).current;
+  const logoOpacity = useRef(new Animated.Value(1)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const taglineY = useRef(new Animated.Value(20)).current;
   const loaderOpacity = useRef(new Animated.Value(0)).current;
@@ -84,20 +84,6 @@ export default function SplashScreen() {
 
     // Main entrance sequence
     Animated.sequence([
-      // Logo pops in
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          friction: 5,
-          tension: 80,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
       // Tagline slides up
       Animated.parallel([
         Animated.timing(taglineOpacity, {
@@ -203,14 +189,14 @@ export default function SplashScreen() {
 
       {/* Main centered content */}
       <View style={styles.content}>
-        {/* Logo Image */}
+        {/* Logo Text */}
         <Animated.View
           style={[
             styles.logoBadge,
             { transform: [{ scale: logoScale }], opacity: logoOpacity },
           ]}
         >
-          <Image source={appLogo} style={[styles.logoImage, { tintColor: '#e65011' }]} />
+          <Text style={styles.appName} adjustsFontSizeToFit numberOfLines={1}>SUBHMUHURAT</Text>
         </Animated.View>
 
         {/* Divider line */}
@@ -319,7 +305,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   logoBadge: {
-    width: 160,
+    width: '100%',
     height: 70,
     alignItems: 'center',
     justifyContent: 'center',
@@ -349,11 +335,12 @@ const styles = StyleSheet.create({
     color: Colors.background,
   },
   appName: {
-    fontSize: 52,
+    fontSize: 36,
     fontWeight: '900',
-    color: '#281b16',
+    color: '#e65011',
     letterSpacing: -1,
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
   divider: {
     flexDirection: 'row',
